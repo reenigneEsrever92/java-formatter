@@ -1,0 +1,14 @@
+[package]
+name = "java-formatter-gui"
+description = "Desktop GUI for editing IntelliJ codestyle files"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "java-formatter-gui"
+path = "src/main.rs"
+
+[dependencies]
+java-formatter-core = { path = "../core" }
+eframe = "0.36"
+rfd = "0.17"

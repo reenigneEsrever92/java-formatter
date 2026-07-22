@@ -1,0 +1,13 @@
+[package]
+name = "java-formatter-cli"
+description = "Command-line interface for java-formatter-core"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "java-formatter"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+java-formatter-core = { path = "../core" }
