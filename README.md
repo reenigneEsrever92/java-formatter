@@ -76,10 +76,16 @@ The options currently honoured are:
 | `LINE_SEPARATOR`                         | Line separator emitted at every line end — system default, LF, CRLF or CR                                                  |
 | `CLASS_BRACE_STYLE`                      | Brace placement for class / interface / enum / record bodies                                                                    |
 | `METHOD_BRACE_STYLE`                     | Brace placement for method, constructor and compact-constructor bodies                                                          |
+| `LAMBDA_BRACE_STYLE`                     | Brace placement for block lambda bodies                                                                                          |
 | `IF_BRACE_FORCE`                         | Force braces around brace-less `if` / `else` bodies                                                                              |
 | `FOR_BRACE_FORCE`                        | Force braces around brace-less `for` / enhanced-`for` bodies                                                                     |
 | `WHILE_BRACE_FORCE`                      | Force braces around brace-less `while` bodies                                                                                    |
 | `DOWHILE_BRACE_FORCE`                    | Force braces around brace-less `do … while` bodies                                                                               |
+| `ELSE_ON_NEW_LINE`                       | Put the `else` of an if / else-if chain on a new line                                                                             |
+| `WHILE_ON_NEW_LINE`                      | Put a `do … while`'s trailing `while (…) ;` on a new line                                                                         |
+| `CATCH_ON_NEW_LINE`                      | Put each `catch` clause of a `try` on a new line                                                                                  |
+| `FINALLY_ON_NEW_LINE`                    | Put the `finally` clause of a `try` on a new line                                                                                 |
+| `SPECIAL_ELSE_IF_TREATMENT`              | Keep `else if` fused as one construct instead of nesting `else { if … }`                                                          |
 | `CALL_PARAMETERS_WRAP`                   | Wrapping of method-call argument lists                                                                                          |
 | `CALL_PARAMETERS_LPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `(` goes on its own line                                                                               |
 | `CALL_PARAMETERS_RPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `)` goes on its own line                                                                               |
@@ -100,6 +106,7 @@ The options currently honoured are:
 | `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`         | Keep one-statement blocks of `if` / `else` / `for` / `while` / `do`, `try` / `catch` / `finally` and `synchronized` on one line |
 | `KEEP_SIMPLE_METHODS_IN_ONE_LINE`        | Keep single-statement method / constructor bodies on one line                                                                   |
 | `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`        | Keep single-statement lambda bodies on one line                                                                                 |
+| `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`     | Keep a brace-less control-statement body on the header's line when the source has it there                                      |
 | `ANNOTATION_PARAMETER_WRAP`              | Wrapping of annotation argument lists                                                                                           |
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` | Layout of a wrapped record header                                                                                               |
@@ -229,6 +236,20 @@ braces when the body spans multiple lines, `3` = always force braces.
   level, code `1` does so only when the body already spans multiple lines, and
   code `0` leaves the body as it is. Braces are only ever added, never
   stripped, so reformatting braced output is a no-op.
+- Clause-keyword layout follows the scheme: `ELSE_ON_NEW_LINE` puts the `else`
+  keyword (and each `else if` of a chain) on a fresh line at the statement
+  indent, `WHILE_ON_NEW_LINE` does the same for a `do … while`'s trailing
+  `while (…) ;`, and `CATCH_ON_NEW_LINE` / `FINALLY_ON_NEW_LINE` for a `try`'s
+  `catch` / `finally` clauses. `SPECIAL_ELSE_IF_TREATMENT` (default on) keeps an
+  `else if` chain fused; off, each level is rewritten as `else { if … }`.
+  `LAMBDA_BRACE_STYLE` places a block lambda's `{` per its brace code,
+  independently of `BRACE_STYLE`; the `NextLine` family puts the brace on its
+  own line at the statement indent.
+- `KEEP_CONTROL_STATEMENT_IN_ONE_LINE` (default on) is source-driven: a
+  brace-less body (`if (x) foo();`, `while (go) step();`, `for (…) use(i);`,
+  `do tick(); while (go);`) that the source already has on the header's line
+  stays there, and a body on its own line keeps its own line. Off, every
+  brace-less body is moved to its own line.
 - Method `throws` clauses, constructor type parameters and `extends` /
   `implements` clauses are preserved.
 - Spacing inside generic type-argument lists is normalised rather than copied

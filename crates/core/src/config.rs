@@ -225,12 +225,20 @@ pub struct JavaStyle {
     pub class_brace_style: BraceStyle,
     pub method_brace_style: BraceStyle,
     pub other_brace_style: BraceStyle,
+    pub lambda_brace_style: BraceStyle,
 
     // --- forced braces on statement bodies ---
     pub if_brace_force: ForceStyle,
     pub for_brace_force: ForceStyle,
     pub while_brace_force: ForceStyle,
     pub dowhile_brace_force: ForceStyle,
+
+    // --- clause keywords on their own lines ---
+    pub else_on_new_line: bool,
+    pub while_on_new_line: bool,
+    pub catch_on_new_line: bool,
+    pub finally_on_new_line: bool,
+    pub special_else_if_treatment: bool,
 
     // --- call-site parameter wrapping ---
     pub call_parameters_wrap: WrapStyle,
@@ -254,6 +262,7 @@ pub struct JavaStyle {
     pub keep_simple_blocks_in_one_line: bool,
     pub keep_simple_methods_in_one_line: bool,
     pub keep_simple_lambdas_in_one_line: bool,
+    pub keep_control_statement_in_one_line: bool,
 
     // --- record-specific (JavaCodeStyleSettings) ---
     pub record_components_wrap: WrapStyle,
@@ -385,10 +394,16 @@ impl Default for JavaStyle {
             class_brace_style: BraceStyle::EndOfLine,
             method_brace_style: BraceStyle::EndOfLine,
             other_brace_style: BraceStyle::EndOfLine,
+            lambda_brace_style: BraceStyle::EndOfLine,
             if_brace_force: ForceStyle::DoNotForce,
             for_brace_force: ForceStyle::DoNotForce,
             while_brace_force: ForceStyle::DoNotForce,
             dowhile_brace_force: ForceStyle::DoNotForce,
+            else_on_new_line: false,
+            while_on_new_line: false,
+            catch_on_new_line: false,
+            finally_on_new_line: false,
+            special_else_if_treatment: true,
             call_parameters_wrap: WrapStyle::DoNotWrap,
             call_parameters_lparen_on_next_line: false,
             call_parameters_rparen_on_next_line: false,
@@ -402,6 +417,7 @@ impl Default for JavaStyle {
             keep_simple_blocks_in_one_line: false,
             keep_simple_methods_in_one_line: false,
             keep_simple_lambdas_in_one_line: false,
+            keep_control_statement_in_one_line: true,
             record_components_wrap: WrapStyle::DoNotWrap,
             align_multiline_records: true,
             new_line_after_lparen_in_record_header: false,
@@ -734,6 +750,84 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "LAMBDA_BRACE_STYLE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Brace(BraceStyle::EndOfLine),
+        group: "Braces",
+        description: "Brace placement for lambda bodies.",
+        get: |s| OptionValue::Brace(s.lambda_brace_style),
+        set: |s, v| {
+            if let OptionValue::Brace(b) = v {
+                s.lambda_brace_style = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ELSE_ON_NEW_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Braces",
+        description: "Put the else keyword of an if / else-if chain on a new line after the closing brace.",
+        get: |s| OptionValue::Bool(s.else_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.else_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "WHILE_ON_NEW_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Braces",
+        description: "Put the trailing while keyword of a do / while statement on a new line after the body.",
+        get: |s| OptionValue::Bool(s.while_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.while_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CATCH_ON_NEW_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Braces",
+        description: "Put each catch clause of a try statement on a new line after the previous body.",
+        get: |s| OptionValue::Bool(s.catch_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.catch_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FINALLY_ON_NEW_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Braces",
+        description: "Put the finally clause of a try statement on a new line after the previous body.",
+        get: |s| OptionValue::Bool(s.finally_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.finally_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPECIAL_ELSE_IF_TREATMENT",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Braces",
+        description: "Keep an else-if chain fused as `else if` instead of nesting `else { if … }`.",
+        get: |s| OptionValue::Bool(s.special_else_if_treatment),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.special_else_if_treatment = b;
+            }
+        },
+    },
     // --- Call-site parameter wrapping ---
     OptionDef {
         xml_name: "CALL_PARAMETERS_WRAP",
@@ -996,6 +1090,19 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.keep_simple_lambdas_in_one_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_CONTROL_STATEMENT_IN_ONE_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "One-liners",
+        description: "Keep a brace-less control-statement body on the header's line when the source has it there.",
+        get: |s| OptionValue::Bool(s.keep_control_statement_in_one_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_control_statement_in_one_line = b;
             }
         },
     },

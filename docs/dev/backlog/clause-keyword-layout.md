@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour clause-keyword and brace-less control-statement layout options
 description: Implement else/while/catch/finally on-new-line, special else-if, lambda brace style and brace-less one-lining.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-04T21:21:22Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -197,29 +198,29 @@ completion; work is left uncommitted for the owner (AGENTS.md).
 
 ## Steps
 
-- [ ] crates/core/src/config.rs: add the seven `JavaStyle` fields + defaults
+- [x] crates/core/src/config.rs: add the seven `JavaStyle` fields + defaults
       and the seven `OptionDef` registry entries (`Section::CodeStyleJava`;
       six bools, `LAMBDA_BRACE_STYLE` as `OptionValue::Brace`), defaults as
       in the Approach; `cargo build` green (foundation; AC4 absent-option
       defaults).
-- [ ] formatter.rs `if_stmt`: honour `ELSE_ON_NEW_LINE` (alternative keyword
+- [x] formatter.rs `if_stmt`: honour `ELSE_ON_NEW_LINE` (alternative keyword
       on a fresh line at `ind(indent)`) and `SPECIAL_ELSE_IF_TREATMENT` =
       `false` (synthesise `else {\n…if…\n}` around a fused `if_statement`
       alternative); gate the `if_one_line` collapse accordingly (AC2).
-- [ ] formatter.rs `try_stmt` and `do_while`: honour `CATCH_ON_NEW_LINE` /
+- [x] formatter.rs `try_stmt` and `do_while`: honour `CATCH_ON_NEW_LINE` /
       `FINALLY_ON_NEW_LINE` (each clause on a fresh line at `ind(indent)`)
       and `WHILE_ON_NEW_LINE` (trailing `while (…);` on a fresh line); gate
       `try_one_line` and the do-while one-line collapse on the flags (AC2).
-- [ ] formatter.rs brace-less sites (`stmt_as_block_or_inline` callers in
+- [x] formatter.rs brace-less sites (`stmt_as_block_or_inline` callers in
       `if_stmt` / `for_stmt` / `enhanced_for` / `while_stmt` and `do_while`):
       honour `KEEP_CONTROL_STATEMENT_IN_ONE_LINE` source-driven — inline a
       brace-less body only when the flag is set **and** the source has no
       newline between the header and the body; disabled keeps today's
       own-line layout (AC3 first half, AC4).
-- [ ] formatter.rs `lambda`: render block bodies through `brace_before_body`
+- [x] formatter.rs `lambda`: render block bodies through `brace_before_body`
       with `lambda_brace_style` and gate the `keep_simple_lambdas_in_one_line`
       collapse on an inline-compatible lambda brace style (AC3 second half).
-- [ ] Fixtures + tests: for each of the seven options create
+- [x] Fixtures + tests: for each of the seven options create
       `tests/java/<option>/` input/golden pairs and a
       `tests/options/<XML_OPTION>.rs` file covering the interesting values
       plus an absent-option default check via `format(INPUT)`: the four
@@ -231,12 +232,12 @@ completion; work is left uncommitted for the owner (AGENTS.md).
       setting it to `NextLine` while `BRACE_STYLE` stays end-of-line to prove
       independence; wire each module into tests/options.rs in alphabetical
       position (AC1, AC2, AC3).
-- [ ] Regression + idempotency: run `cargo test`; inspect the diff of any
+- [x] Regression + idempotency: run `cargo test`; inspect the diff of any
       changed golden (expect none — if one changed, update it only when it
       encodes the deliberate `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`
       divergence); reformat each new `*.out.java` under its style and assert
       it is unchanged (R6) (AC4).
-- [ ] Docs + final suite: flip the seven docs/settings/common.md rows to ✅;
+- [x] Docs + final suite: flip the seven docs/settings/common.md rows to ✅;
       add the seven README honoured-options rows and a formatting-behaviour
       note; add the R16 requirement row to docs/requirements.md (and the
       milestones paragraph when shipped); append the docs/dev/changelog.md

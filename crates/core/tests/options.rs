@@ -53,6 +53,8 @@ mod call_parameters_lparen_on_next_line;
 mod call_parameters_rparen_on_next_line;
 #[path = "options/call_parameters_wrap.rs"]
 mod call_parameters_wrap;
+#[path = "options/catch_on_new_line.rs"]
+mod catch_on_new_line;
 #[path = "options/class_brace_style.rs"]
 mod class_brace_style;
 #[path = "options/class_count_to_use_import_on_demand.rs"]
@@ -61,6 +63,10 @@ mod class_count_to_use_import_on_demand;
 mod continuation_indent_size;
 #[path = "options/dowhile_brace_force.rs"]
 mod dowhile_brace_force;
+#[path = "options/else_on_new_line.rs"]
+mod else_on_new_line;
+#[path = "options/finally_on_new_line.rs"]
+mod finally_on_new_line;
 #[path = "options/for_brace_force.rs"]
 mod for_brace_force;
 #[path = "options/if_brace_force.rs"]
@@ -75,6 +81,8 @@ mod keep_blank_lines_between_package_declaration_and_header;
 mod keep_blank_lines_in_code;
 #[path = "options/keep_blank_lines_in_declarations.rs"]
 mod keep_blank_lines_in_declarations;
+#[path = "options/keep_control_statement_in_one_line.rs"]
+mod keep_control_statement_in_one_line;
 #[path = "options/keep_first_column_comment.rs"]
 mod keep_first_column_comment;
 #[path = "options/keep_line_breaks.rs"]
@@ -85,6 +93,8 @@ mod keep_simple_blocks_in_one_line;
 mod keep_simple_lambdas_in_one_line;
 #[path = "options/keep_simple_methods_in_one_line.rs"]
 mod keep_simple_methods_in_one_line;
+#[path = "options/lambda_brace_style.rs"]
+mod lambda_brace_style;
 #[path = "options/line_comment_add_space_in_suppression.rs"]
 mod line_comment_add_space_in_suppression;
 #[path = "options/line_comment_add_space_on_reformat.rs"]
@@ -249,12 +259,16 @@ mod space_within_synchronized_parentheses;
 mod space_within_try_parentheses;
 #[path = "options/space_within_while_parentheses.rs"]
 mod space_within_while_parentheses;
+#[path = "options/special_else_if_treatment.rs"]
+mod special_else_if_treatment;
 #[path = "options/tab_size.rs"]
 mod tab_size;
 #[path = "options/use_tab_character.rs"]
 mod use_tab_character;
 #[path = "options/while_brace_force.rs"]
 mod while_brace_force;
+#[path = "options/while_on_new_line.rs"]
+mod while_on_new_line;
 #[path = "options/wrap_comments.rs"]
 mod wrap_comments;
 #[path = "options/wrap_long_lines.rs"]

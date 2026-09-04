@@ -9,6 +9,50 @@ tags: [dev, changelog]
 
 ## 2026-09-03
 
+- **The clause-keyword and brace-less control-statement layout options are
+  honoured (R24, clause-keyword-layout)**: the seven layout options —
+  `ELSE_ON_NEW_LINE`, `WHILE_ON_NEW_LINE`, `CATCH_ON_NEW_LINE` and
+  `FINALLY_ON_NEW_LINE` (default false), `SPECIAL_ELSE_IF_TREATMENT` (default
+  true), `LAMBDA_BRACE_STYLE` (default end of line) and
+  `KEEP_CONTROL_STATEMENT_IN_ONE_LINE` (default true) — previously ignored
+  (R7) and marked ❌ in the docs/settings/common.md "Braces & indentation" /
+  "General & comments" tables, are now parsed into `JavaStyle` (six `bool`
+  fields and one `BraceStyle` field with the IntelliJ built-in defaults and
+  seven `OptionDef` entries in the `OPTIONS` registry, the flags under the
+  "Braces" GUI group next to the existing brace rows and
+  `KEEP_CONTROL_STATEMENT_IN_ONE_LINE` under "One-liners", all in the JAVA
+  `codeStyleSettings` block) and applied in the engine: `Fmt::if_stmt` puts
+  the alternative's `else` keyword on a fresh line at the statement indent
+  under `ELSE_ON_NEW_LINE` (with the `if_one_line` collapse suppressed for
+  any chain with an alternative) and, with `SPECIAL_ELSE_IF_TREATMENT` off,
+  rewrites each fused `else if` level as an explicit `else { if … }` block
+  (the braces group a single `if`, keeping R5 and R6); `Fmt::try_stmt` starts
+  each `catch` / `finally` clause on a fresh line under `CATCH_ON_NEW_LINE` /
+  `FINALLY_ON_NEW_LINE` (and the `try_one_line` collapse is gated on them);
+  `Fmt::do_while` starts its trailing `while (…);` on a fresh line under
+  `WHILE_ON_NEW_LINE` (collapse gated on the flag, own-line brace-less bodies
+  keep their pinned tail); every brace-less control-statement body
+  (`Fmt::stmt_as_block_or_inline` in if / else / for / enhanced-for / while
+  and `Fmt::do_while`'s own arm) is kept on its header's line under
+  `KEEP_CONTROL_STATEMENT_IN_ONE_LINE` when the source gap to the body holds
+  no line break, and moved to its own line when the option is off; and
+  `Fmt::lambda` renders block bodies through the lambda brace style — the
+  `NextLine` family puts the `{` on its own line at the statement indent,
+  independently of `BRACE_STYLE`, and the simple-lambda one-line collapse is
+  gated on an inline-compatible brace style. Layout/whitespace only (R5),
+  absent options keep the defaults, default and absent-scheme output stays
+  byte-identical (no existing golden changed), and each new golden was
+  re-formatted under its own style and confirmed byte-identical (R6).
+  Covered by seven new per-option golden test files under `tests/options/`
+  (`else_on_new_line.rs`, `while_on_new_line.rs`, `catch_on_new_line.rs`,
+  `finally_on_new_line.rs`, `special_else_if_treatment.rs`,
+  `keep_control_statement_in_one_line.rs`, `lambda_brace_style.rs`), each
+  asserting the interesting values plus the absent-option default, with
+  fixtures under `tests/java/<option>/`; the suite grew from 334 to 350
+  tests, all green (`cargo test`). No IntelliJ installation was available to
+  cross-check the goldens; the clause and brace layouts follow the settings
+  table and the request's decisions.
+
 - **The comment layout options are honoured (R23, comment-layout)**: the six
   comment options — `LINE_COMMENT_AT_FIRST_COLUMN` (default true),
   `BLOCK_COMMENT_AT_FIRST_COLUMN` (default true),

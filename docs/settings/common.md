@@ -52,7 +52,7 @@ Options controlling comment layout and line-break retention.
 | `DOCUMENTATION_LINE_COMMENT_PREFERRED`  | bool | `false` | `true` / `false` | Prefer documentation line comments where the language supports them.           | n/a     |
 | `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code: a construct whose source spans rows keeps its canonical wrapped layout.               | ✅      |
 | `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.              | ✅      |
-| `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line. | ❌      |
+| `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line. | ✅ (source-driven: a same-line body stays, an own-line body keeps its line) |
 | `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                        | ✅      |
 | `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap) at the last whitespace boundary; literals and comments are never split. | ✅      |
 
@@ -88,13 +88,13 @@ Options controlling comment layout and line-break retention.
 | `BRACE_STYLE`                           | int  | `1` (end of line) | [brace codes](index.md#brace-codes) | Brace placement for statements / other blocks not covered below.         | ✅ (as the "other" brace style) |
 | `CLASS_BRACE_STYLE`                     | int  | `1` (end of line) | [brace codes](index.md#brace-codes) | Brace placement for class / interface / enum / record bodies.            | ✅                              |
 | `METHOD_BRACE_STYLE`                    | int  | `1` (end of line) | [brace codes](index.md#brace-codes) | Brace placement for method, constructor, and compact-constructor bodies. | ✅                              |
-| `LAMBDA_BRACE_STYLE`                    | int  | `1` (end of line) | [brace codes](index.md#brace-codes) | Brace placement for lambda bodies.                                       | ❌                              |
+| `LAMBDA_BRACE_STYLE`                    | int  | `1` (end of line) | [brace codes](index.md#brace-codes) | Brace placement for lambda bodies.                                       | ✅ (block-bodied lambdas)       |
 | `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` | bool | `false`           | `true` / `false`                    | Do not indent members of a top-level class.                              | ❌                              |
-| `ELSE_ON_NEW_LINE`                      | bool | `false`           | `true` / `false`                    | `} else {` → `}\nelse {`.                                                | ❌                              |
-| `WHILE_ON_NEW_LINE`                     | bool | `false`           | `true` / `false`                    | `} while (…)` → `}\nwhile (…)`.                                          | ❌                              |
-| `CATCH_ON_NEW_LINE`                     | bool | `false`           | `true` / `false`                    | `} catch (…)` → `}\ncatch (…)`.                                          | ❌                              |
-| `FINALLY_ON_NEW_LINE`                   | bool | `false`           | `true` / `false`                    | `} finally` → `}\nfinally`.                                              | ❌                              |
-| `SPECIAL_ELSE_IF_TREATMENT`             | bool | `true`            | `true` / `false`                    | Keep `else if` as one construct instead of nested `else { if … }`.       | ❌                              |
+| `ELSE_ON_NEW_LINE`                      | bool | `false`           | `true` / `false`                    | `} else {` → `}\nelse {`.                                                | ✅ (if / else-if chains)        |
+| `WHILE_ON_NEW_LINE`                     | bool | `false`           | `true` / `false`                    | `} while (…)` → `}\nwhile (…)`.                                          | ✅ (do-while tail)              |
+| `CATCH_ON_NEW_LINE`                     | bool | `false`           | `true` / `false`                    | `} catch (…)` → `}\ncatch (…)`.                                          | ✅                              |
+| `FINALLY_ON_NEW_LINE`                   | bool | `false`           | `true` / `false`                    | `} finally` → `}\nfinally`.                                              | ✅                              |
+| `SPECIAL_ELSE_IF_TREATMENT`             | bool | `true`            | `true` / `false`                    | Keep `else if` as one construct instead of nested `else { if … }`.       | ✅                              |
 | `INDENT_CASE_FROM_SWITCH`               | bool | `true`            | `true` / `false`                    | Indent `case` labels from the `switch`.                                  | ❌                              |
 | `CASE_STATEMENT_ON_NEW_LINE`            | bool | `true`            | `true` / `false`                    | Put the statement after a `case` label on a new line.                    | ❌                              |
 | `INDENT_BREAK_FROM_CASE`                | bool | `true`            | `true` / `false`                    | Indent `break` / `continue` / `return` one level from the `case` label.  | ❌                              |
