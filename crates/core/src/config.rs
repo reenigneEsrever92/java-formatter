@@ -94,6 +94,104 @@ impl BraceStyle {
     }
 }
 
+/// Maps IntelliJ force-brace integer constants to a readable enum.
+///
+/// | value | meaning |
+/// |-------|---------|
+/// | 0     | DoNotForce |
+/// | 1     | ForceIfMultiline |
+/// | 3     | ForceAlways |
+///
+/// The force-brace codes come from `docs/settings/index.md`; unknown values
+/// fall back to [`ForceStyle::DoNotForce`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForceStyle {
+    DoNotForce,
+    ForceIfMultiline,
+    ForceAlways,
+}
+
+impl ForceStyle {
+    fn from_int(v: u32) -> Self {
+        match v {
+            1 => ForceStyle::ForceIfMultiline,
+            3 => ForceStyle::ForceAlways,
+            _ => ForceStyle::DoNotForce, // 0 and out-of-set values
+        }
+    }
+
+    fn to_int(self) -> u32 {
+        match self {
+            ForceStyle::DoNotForce => 0,
+            ForceStyle::ForceIfMultiline => 1,
+            ForceStyle::ForceAlways => 3,
+        }
+    }
+}
+
+/// Maps the root-level `LINE_SEPARATOR` option's value to a readable enum.
+///
+/// IntelliJ stores the separator as an escaped character sequence in the XML
+/// attribute (`&#10;` for LF, `&#13;&#10;` for CRLF, `&#13;` for CR), which
+/// quick-xml decodes to the real `\n` / `\r\n` / `\r` when reading.
+/// [`LineSeparator::System`] is the absence-of-option default: emit the
+/// platform's own separator (IntelliJ's "system default").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineSeparator {
+    /// The platform's native separator (`\n` on Unix, `\r\n` on Windows).
+    System,
+    /// LF — `\n` (`&#10;` in XML).
+    Lf,
+    /// CRLF — `\r\n` (`&#13;&#10;` in XML).
+    Crlf,
+    /// CR — `\r` (`&#13;` in XML).
+    Cr,
+}
+
+impl LineSeparator {
+    /// The actual character sequence this separator denotes. `System` resolves
+    /// to the platform separator — `\n` on the test hosts, `\r\n` on Windows.
+    pub fn resolve(self) -> &'static str {
+        match self {
+            LineSeparator::System => {
+                if cfg!(windows) {
+                    "\r\n"
+                } else {
+                    "\n"
+                }
+            }
+            LineSeparator::Lf => "\n",
+            LineSeparator::Crlf => "\r\n",
+            LineSeparator::Cr => "\r",
+        }
+    }
+
+    /// The XML-escaped attribute value IntelliJ writes for this separator;
+    /// `System` (the default) is never serialised. A raw newline inside an XML
+    /// attribute would be normalised to a space by parsers, so the escaped
+    /// forms are written instead.
+    fn to_xml(self) -> Option<&'static str> {
+        match self {
+            LineSeparator::System => None,
+            LineSeparator::Lf => Some("&#10;"),
+            LineSeparator::Crlf => Some("&#13;&#10;"),
+            LineSeparator::Cr => Some("&#13;"),
+        }
+    }
+
+    /// Decode a quick-xml-decoded attribute value (already the real character
+    /// sequence `\n` / `\r\n` / `\r`) back into a separator; `None` for
+    /// anything else.
+    fn from_str(v: &str) -> Option<Self> {
+        match v {
+            "\n" => Some(LineSeparator::Lf),
+            "\r\n" => Some(LineSeparator::Crlf),
+            "\r" => Some(LineSeparator::Cr),
+            _ => None,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public output struct
 // ---------------------------------------------------------------------------
@@ -111,11 +209,20 @@ pub struct JavaStyle {
 
     // --- line length ---
     pub right_margin: u32,
+    pub line_separator: LineSeparator,
+    pub wrap_long_lines: bool,
+    pub keep_line_breaks: bool,
 
     // --- brace styles ---
     pub class_brace_style: BraceStyle,
     pub method_brace_style: BraceStyle,
     pub other_brace_style: BraceStyle,
+
+    // --- forced braces on statement bodies ---
+    pub if_brace_force: ForceStyle,
+    pub for_brace_force: ForceStyle,
+    pub while_brace_force: ForceStyle,
+    pub dowhile_brace_force: ForceStyle,
 
     // --- call-site parameter wrapping ---
     pub call_parameters_wrap: WrapStyle,
@@ -147,6 +254,107 @@ pub struct JavaStyle {
 
     // --- imports ---
     pub class_count_to_use_import_on_demand: u32,
+
+    // --- blank lines: KEEP_BLANK_LINES_* caps + BLANK_LINES_* minimums ---
+    pub keep_blank_lines_in_code: u32,
+    pub keep_blank_lines_in_declarations: u32,
+    pub keep_blank_lines_between_package_declaration_and_header: u32,
+    pub keep_blank_lines_before_rbrace: u32,
+    pub blank_lines_before_package: u32,
+    pub blank_lines_after_package: u32,
+    pub blank_lines_before_imports: u32,
+    pub blank_lines_after_imports: u32,
+    pub blank_lines_around_class: u32,
+    pub blank_lines_around_field: u32,
+    pub blank_lines_around_method: u32,
+    pub blank_lines_before_method_body: u32,
+    pub blank_lines_around_field_in_interface: u32,
+    pub blank_lines_around_method_in_interface: u32,
+    pub blank_lines_after_class_header: u32,
+    pub blank_lines_after_anonymous_class_header: u32,
+    pub blank_lines_before_class_end: u32,
+
+    // --- blank lines: Java-specific minimums (JavaCodeStyleSettings) ---
+    pub blank_lines_around_initializer: u32,
+    pub blank_lines_around_field_with_annotations: u32,
+
+    // --- operator spacing ---
+    pub space_around_assignment_operators: bool,
+    pub space_around_logical_operators: bool,
+    pub space_around_equality_operators: bool,
+    pub space_around_relational_operators: bool,
+    pub space_around_bitwise_operators: bool,
+    pub space_around_additive_operators: bool,
+    pub space_around_multiplicative_operators: bool,
+    pub space_around_shift_operators: bool,
+    pub space_around_unary_operator: bool,
+    pub space_around_lambda_arrow: bool,
+    pub space_around_method_ref_dbl_colon: bool,
+    pub space_after_type_cast: bool,
+
+    // --- separator spacing ---
+    pub space_after_comma: bool,
+    pub space_after_comma_in_type_arguments: bool,
+    pub space_before_comma: bool,
+    pub space_after_semicolon: bool,
+    pub space_before_semicolon: bool,
+    pub space_before_quest: bool,
+    pub space_after_quest: bool,
+    pub space_before_colon: bool,
+    pub space_after_colon: bool,
+    pub space_before_type_parameter_list: bool,
+    pub space_before_colon_in_foreach: bool,
+
+    // --- spacing within parens / brackets / braces ---
+    pub space_within_parentheses: bool,
+    pub space_within_method_call_parentheses: bool,
+    pub space_within_empty_method_call_parentheses: bool,
+    pub space_within_method_parentheses: bool,
+    pub space_within_empty_method_parentheses: bool,
+    pub space_within_if_parentheses: bool,
+    pub space_within_while_parentheses: bool,
+    pub space_within_for_parentheses: bool,
+    pub space_within_try_parentheses: bool,
+    pub space_within_catch_parentheses: bool,
+    pub space_within_switch_parentheses: bool,
+    pub space_within_synchronized_parentheses: bool,
+    pub space_within_cast_parentheses: bool,
+    pub space_within_brackets: bool,
+    pub space_within_braces: bool,
+    pub space_within_array_initializer_braces: bool,
+    pub space_within_empty_array_initializer_braces: bool,
+    pub space_within_annotation_parentheses: bool,
+
+    // --- spacing before parentheses / braces / keywords ---
+    pub space_before_method_call_parentheses: bool,
+    pub space_before_method_parentheses: bool,
+    pub space_before_if_parentheses: bool,
+    pub space_before_while_parentheses: bool,
+    pub space_before_for_parentheses: bool,
+    pub space_before_try_parentheses: bool,
+    pub space_before_catch_parentheses: bool,
+    pub space_before_switch_parentheses: bool,
+    pub space_before_synchronized_parentheses: bool,
+    // XML name spelled as in IntelliJ sources, typo included.
+    pub space_before_anotation_parameter_list: bool,
+    pub space_before_class_lbrace: bool,
+    pub space_before_method_lbrace: bool,
+    pub space_before_if_lbrace: bool,
+    pub space_before_else_lbrace: bool,
+    pub space_before_while_lbrace: bool,
+    pub space_before_for_lbrace: bool,
+    pub space_before_do_lbrace: bool,
+    pub space_before_switch_lbrace: bool,
+    pub space_before_try_lbrace: bool,
+    pub space_before_catch_lbrace: bool,
+    pub space_before_finally_lbrace: bool,
+    pub space_before_synchronized_lbrace: bool,
+    pub space_before_array_initializer_lbrace: bool,
+    pub space_before_annotation_array_initializer_lbrace: bool,
+    pub space_before_else_keyword: bool,
+    pub space_before_while_keyword: bool,
+    pub space_before_catch_keyword: bool,
+    pub space_before_finally_keyword: bool,
 }
 
 impl Default for JavaStyle {
@@ -157,9 +365,16 @@ impl Default for JavaStyle {
             tab_size: 4,
             use_tab_character: false,
             right_margin: 120,
+            line_separator: LineSeparator::System,
+            wrap_long_lines: false,
+            keep_line_breaks: true,
             class_brace_style: BraceStyle::EndOfLine,
             method_brace_style: BraceStyle::EndOfLine,
             other_brace_style: BraceStyle::EndOfLine,
+            if_brace_force: ForceStyle::DoNotForce,
+            for_brace_force: ForceStyle::DoNotForce,
+            while_brace_force: ForceStyle::DoNotForce,
+            dowhile_brace_force: ForceStyle::DoNotForce,
             call_parameters_wrap: WrapStyle::DoNotWrap,
             call_parameters_lparen_on_next_line: false,
             call_parameters_rparen_on_next_line: false,
@@ -177,6 +392,94 @@ impl Default for JavaStyle {
             align_multiline_records: true,
             new_line_after_lparen_in_record_header: false,
             class_count_to_use_import_on_demand: 5,
+            keep_blank_lines_in_code: 2,
+            keep_blank_lines_in_declarations: 2,
+            keep_blank_lines_between_package_declaration_and_header: 2,
+            keep_blank_lines_before_rbrace: 2,
+            blank_lines_before_package: 0,
+            blank_lines_after_package: 1,
+            blank_lines_before_imports: 1,
+            blank_lines_after_imports: 1,
+            blank_lines_around_class: 1,
+            blank_lines_around_field: 0,
+            blank_lines_around_method: 1,
+            blank_lines_before_method_body: 0,
+            blank_lines_around_field_in_interface: 0,
+            blank_lines_around_method_in_interface: 1,
+            blank_lines_after_class_header: 0,
+            blank_lines_after_anonymous_class_header: 0,
+            blank_lines_before_class_end: 0,
+            blank_lines_around_initializer: 1,
+            blank_lines_around_field_with_annotations: 0,
+            space_around_assignment_operators: true,
+            space_around_logical_operators: true,
+            space_around_equality_operators: true,
+            space_around_relational_operators: true,
+            space_around_bitwise_operators: true,
+            space_around_additive_operators: true,
+            space_around_multiplicative_operators: true,
+            space_around_shift_operators: true,
+            space_around_unary_operator: false,
+            space_around_lambda_arrow: true,
+            space_around_method_ref_dbl_colon: false,
+            space_after_type_cast: true,
+            space_after_comma: true,
+            space_after_comma_in_type_arguments: true,
+            space_before_comma: false,
+            space_after_semicolon: true,
+            space_before_semicolon: false,
+            space_before_quest: true,
+            space_after_quest: true,
+            space_before_colon: true,
+            space_after_colon: true,
+            space_before_type_parameter_list: false,
+            space_before_colon_in_foreach: true,
+            space_within_parentheses: false,
+            space_within_method_call_parentheses: false,
+            space_within_empty_method_call_parentheses: false,
+            space_within_method_parentheses: false,
+            space_within_empty_method_parentheses: false,
+            space_within_if_parentheses: false,
+            space_within_while_parentheses: false,
+            space_within_for_parentheses: false,
+            space_within_try_parentheses: false,
+            space_within_catch_parentheses: false,
+            space_within_switch_parentheses: false,
+            space_within_synchronized_parentheses: false,
+            space_within_cast_parentheses: false,
+            space_within_brackets: false,
+            space_within_braces: false,
+            space_within_array_initializer_braces: false,
+            space_within_empty_array_initializer_braces: false,
+            space_within_annotation_parentheses: false,
+            space_before_method_call_parentheses: false,
+            space_before_method_parentheses: false,
+            space_before_if_parentheses: true,
+            space_before_while_parentheses: true,
+            space_before_for_parentheses: true,
+            space_before_try_parentheses: true,
+            space_before_catch_parentheses: true,
+            space_before_switch_parentheses: true,
+            space_before_synchronized_parentheses: true,
+            space_before_anotation_parameter_list: false,
+            space_before_class_lbrace: true,
+            space_before_method_lbrace: true,
+            space_before_if_lbrace: true,
+            space_before_else_lbrace: true,
+            space_before_while_lbrace: true,
+            space_before_for_lbrace: true,
+            space_before_do_lbrace: true,
+            space_before_switch_lbrace: true,
+            space_before_try_lbrace: true,
+            space_before_catch_lbrace: true,
+            space_before_finally_lbrace: true,
+            space_before_synchronized_lbrace: true,
+            space_before_array_initializer_lbrace: false,
+            space_before_annotation_array_initializer_lbrace: false,
+            space_before_else_keyword: true,
+            space_before_while_keyword: true,
+            space_before_catch_keyword: true,
+            space_before_finally_keyword: true,
         }
     }
 }
@@ -205,6 +508,8 @@ pub enum OptionValue {
     UInt(u32),
     Wrap(WrapStyle),
     Brace(BraceStyle),
+    Force(ForceStyle),
+    LineSep(LineSeparator),
 }
 
 /// Declarative description of one supported code style option — the single
@@ -285,6 +590,32 @@ pub static OPTIONS: &[OptionDef] = &[
     },
     // --- Margins ---
     OptionDef {
+        xml_name: "RIGHT_MARGIN",
+        section: Section::Root,
+        default: OptionValue::UInt(120),
+        group: "Margins",
+        description: "Hard right margin used for line-length decisions when SOFT_MARGINS is absent.",
+        get: |s| OptionValue::UInt(s.right_margin),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.right_margin = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LINE_SEPARATOR",
+        section: Section::Root,
+        default: OptionValue::LineSep(LineSeparator::System),
+        group: "Margins",
+        description: "Line separator emitted at every line end (System / LF / CRLF / CR).",
+        get: |s| OptionValue::LineSep(s.line_separator),
+        set: |s, v| {
+            if let OptionValue::LineSep(sep) = v {
+                s.line_separator = sep;
+            }
+        },
+    },
+    OptionDef {
         xml_name: "SOFT_MARGINS",
         section: Section::Root,
         default: OptionValue::UInt(120),
@@ -334,6 +665,58 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Brace(b) = v {
                 s.other_brace_style = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "IF_BRACE_FORCE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Force(ForceStyle::DoNotForce),
+        group: "Braces",
+        description: "Force braces around if / else statement bodies (0 do not force, 1 force when multiline, 3 always force).",
+        get: |s| OptionValue::Force(s.if_brace_force),
+        set: |s, v| {
+            if let OptionValue::Force(f) = v {
+                s.if_brace_force = f;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FOR_BRACE_FORCE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Force(ForceStyle::DoNotForce),
+        group: "Braces",
+        description: "Force braces around for / enhanced-for statement bodies (0 do not force, 1 force when multiline, 3 always force).",
+        get: |s| OptionValue::Force(s.for_brace_force),
+        set: |s, v| {
+            if let OptionValue::Force(f) = v {
+                s.for_brace_force = f;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "WHILE_BRACE_FORCE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Force(ForceStyle::DoNotForce),
+        group: "Braces",
+        description: "Force braces around while statement bodies (0 do not force, 1 force when multiline, 3 always force).",
+        get: |s| OptionValue::Force(s.while_brace_force),
+        set: |s, v| {
+            if let OptionValue::Force(f) = v {
+                s.while_brace_force = f;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DOWHILE_BRACE_FORCE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Force(ForceStyle::DoNotForce),
+        group: "Braces",
+        description: "Force braces around do / while statement bodies (0 do not force, 1 force when multiline, 3 always force).",
+        get: |s| OptionValue::Force(s.dowhile_brace_force),
+        set: |s, v| {
+            if let OptionValue::Force(f) = v {
+                s.dowhile_brace_force = f;
             }
         },
     },
@@ -457,6 +840,32 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "WRAP_LONG_LINES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Hard-wrap lines longer than the right margin at a whitespace boundary.",
+        get: |s| OptionValue::Bool(s.wrap_long_lines),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.wrap_long_lines = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_LINE_BREAKS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Wrapping",
+        description: "Keep a construct's existing line breaks instead of joining it onto one line.",
+        get: |s| OptionValue::Bool(s.keep_line_breaks),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_line_breaks = b;
+            }
+        },
+    },
     // --- One-liners ---
     OptionDef {
         xml_name: "KEEP_SIMPLE_BLOCKS_IN_ONE_LINE",
@@ -564,6 +973,1157 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    // --- Blank lines: KEEP_BLANK_LINES_* caps (CodeStyleJava) ---
+    OptionDef {
+        xml_name: "KEEP_BLANK_LINES_IN_CODE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(2),
+        group: "Blank lines",
+        description: "Max blank lines kept inside code (statement level).",
+        get: |s| OptionValue::UInt(s.keep_blank_lines_in_code),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.keep_blank_lines_in_code = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_BLANK_LINES_IN_DECLARATIONS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(2),
+        group: "Blank lines",
+        description: "Max blank lines kept between declarations.",
+        get: |s| OptionValue::UInt(s.keep_blank_lines_in_declarations),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.keep_blank_lines_in_declarations = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_BLANK_LINES_BETWEEN_PACKAGE_DECLARATION_AND_HEADER",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(2),
+        group: "Blank lines",
+        description: "Max blank lines kept between the package declaration and a file header comment.",
+        get: |s| OptionValue::UInt(s.keep_blank_lines_between_package_declaration_and_header),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.keep_blank_lines_between_package_declaration_and_header = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_BLANK_LINES_BEFORE_RBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(2),
+        group: "Blank lines",
+        description: "Max blank lines kept before a closing }.",
+        get: |s| OptionValue::UInt(s.keep_blank_lines_before_rbrace),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.keep_blank_lines_before_rbrace = n;
+            }
+        },
+    },
+    // --- Blank lines: BLANK_LINES_* minimums (CodeStyleJava) ---
+    OptionDef {
+        xml_name: "BLANK_LINES_BEFORE_PACKAGE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines before the package declaration.",
+        get: |s| OptionValue::UInt(s.blank_lines_before_package),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_before_package = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AFTER_PACKAGE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines after the package declaration.",
+        get: |s| OptionValue::UInt(s.blank_lines_after_package),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_after_package = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_BEFORE_IMPORTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines before the import section.",
+        get: |s| OptionValue::UInt(s.blank_lines_before_imports),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_before_imports = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AFTER_IMPORTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines after the import section.",
+        get: |s| OptionValue::UInt(s.blank_lines_after_imports),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_after_imports = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_CLASS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines around class / interface declarations.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_class),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_class = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_FIELD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines around fields.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_field),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_field = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_METHOD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines around methods.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_method),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_method = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_BEFORE_METHOD_BODY",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines before a method body.",
+        get: |s| OptionValue::UInt(s.blank_lines_before_method_body),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_before_method_body = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_FIELD_IN_INTERFACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines around fields declared in interfaces.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_field_in_interface),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_field_in_interface = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_METHOD_IN_INTERFACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines around methods declared in interfaces.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_method_in_interface),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_method_in_interface = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AFTER_CLASS_HEADER",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines after the class header / before the first member.",
+        get: |s| OptionValue::UInt(s.blank_lines_after_class_header),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_after_class_header = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AFTER_ANONYMOUS_CLASS_HEADER",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines after an anonymous class header.",
+        get: |s| OptionValue::UInt(s.blank_lines_after_anonymous_class_header),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_after_anonymous_class_header = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_BEFORE_CLASS_END",
+        section: Section::CodeStyleJava,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines before the class closing brace.",
+        get: |s| OptionValue::UInt(s.blank_lines_before_class_end),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_before_class_end = n;
+            }
+        },
+    },
+    // --- Blank lines: Java-specific minimums (JavaCodeStyleSettings) ---
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_INITIALIZER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::UInt(1),
+        group: "Blank lines",
+        description: "Min blank lines around instance / static initializer blocks.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_initializer),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_initializer = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::UInt(0),
+        group: "Blank lines",
+        description: "Min blank lines around annotated fields.",
+        get: |s| OptionValue::UInt(s.blank_lines_around_field_with_annotations),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_around_field_with_annotations = n;
+            }
+        },
+    },
+    // --- Operator spacing (Spaces / Around operators) ---
+    OptionDef {
+        xml_name: "SPACE_AROUND_ASSIGNMENT_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around assignment operators (=, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=).",
+        get: |s| OptionValue::Bool(s.space_around_assignment_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_assignment_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_LOGICAL_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around logical operators (&&, ||).",
+        get: |s| OptionValue::Bool(s.space_around_logical_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_logical_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_EQUALITY_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around equality operators (==, !=).",
+        get: |s| OptionValue::Bool(s.space_around_equality_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_equality_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_RELATIONAL_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around relational operators (<, >, <=, >=).",
+        get: |s| OptionValue::Bool(s.space_around_relational_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_relational_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_BITWISE_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around bitwise operators (&, |, ^).",
+        get: |s| OptionValue::Bool(s.space_around_bitwise_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_bitwise_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_ADDITIVE_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around additive operators (+, -).",
+        get: |s| OptionValue::Bool(s.space_around_additive_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_additive_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_MULTIPLICATIVE_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around multiplicative operators (*, /, %).",
+        get: |s| OptionValue::Bool(s.space_around_multiplicative_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_multiplicative_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_SHIFT_OPERATORS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around shift operators (<<, >>, >>>).",
+        get: |s| OptionValue::Bool(s.space_around_shift_operators),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_shift_operators = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_UNARY_OPERATOR",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between a unary operator (!, ~, unary +/-, ++, --) and its operand.",
+        get: |s| OptionValue::Bool(s.space_around_unary_operator),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_unary_operator = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_LAMBDA_ARROW",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space around the lambda arrow (->).",
+        get: |s| OptionValue::Bool(s.space_around_lambda_arrow),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_lambda_arrow = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_METHOD_REF_DBL_COLON",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space around the method-reference separator (::).",
+        get: |s| OptionValue::Bool(s.space_around_method_ref_dbl_colon),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_method_ref_dbl_colon = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_TYPE_CAST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a type cast, between (Type) and the cast value.",
+        get: |s| OptionValue::Bool(s.space_after_type_cast),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_type_cast = b;
+            }
+        },
+    },
+    // --- Separator spacing (Spaces / After & before separators) ---
+    OptionDef {
+        xml_name: "SPACE_AFTER_COMMA",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a comma (declarations, calls, arrays).",
+        get: |s| OptionValue::Bool(s.space_after_comma),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_comma = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a comma in generic type arguments.",
+        get: |s| OptionValue::Bool(s.space_after_comma_in_type_arguments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_comma_in_type_arguments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_COMMA",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space before a comma.",
+        get: |s| OptionValue::Bool(s.space_before_comma),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_comma = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_SEMICOLON",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a semicolon inside a for header.",
+        get: |s| OptionValue::Bool(s.space_after_semicolon),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_semicolon = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_SEMICOLON",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space before a semicolon inside a for header.",
+        get: |s| OptionValue::Bool(s.space_before_semicolon),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_semicolon = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_QUEST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before a question mark in a ternary expression.",
+        get: |s| OptionValue::Bool(s.space_before_quest),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_quest = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_QUEST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a question mark in a ternary expression.",
+        get: |s| OptionValue::Bool(s.space_after_quest),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_quest = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_COLON",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before a colon in a ternary expression.",
+        get: |s| OptionValue::Bool(s.space_before_colon),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_colon = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_COLON",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space after a colon.",
+        get: |s| OptionValue::Bool(s.space_after_colon),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_colon = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_TYPE_PARAMETER_LIST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between a class / interface / record name and its type-parameter list.",
+        get: |s| OptionValue::Bool(s.space_before_type_parameter_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_type_parameter_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_COLON_IN_FOREACH",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the colon in an enhanced-for header.",
+        get: |s| OptionValue::Bool(s.space_before_colon_in_foreach),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_colon_in_foreach = b;
+            }
+        },
+    },
+    // --- spacing within parens / brackets / braces ---
+    OptionDef {
+        xml_name: "SPACE_WITHIN_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside any parentheses `( expr )`.",
+        get: |s| OptionValue::Bool(s.space_within_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_METHOD_CALL_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside method-call parentheses `f( args )`.",
+        get: |s| OptionValue::Bool(s.space_within_method_call_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_method_call_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_EMPTY_METHOD_CALL_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside empty method-call parentheses `f( )` vs `f()`.",
+        get: |s| OptionValue::Bool(s.space_within_empty_method_call_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_empty_method_call_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_METHOD_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside method-declaration parentheses `void f( params )`.",
+        get: |s| OptionValue::Bool(s.space_within_method_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_method_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_EMPTY_METHOD_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside empty method-declaration parentheses `void f( )` vs `void f()`.",
+        get: |s| OptionValue::Bool(s.space_within_empty_method_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_empty_method_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_IF_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside if-condition parentheses `if( cond )`.",
+        get: |s| OptionValue::Bool(s.space_within_if_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_if_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_WHILE_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside while / do-while parentheses `while( cond )`.",
+        get: |s| OptionValue::Bool(s.space_within_while_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_while_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_FOR_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside for-header parentheses `for( … )`.",
+        get: |s| OptionValue::Bool(s.space_within_for_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_for_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_TRY_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside try-with-resources parentheses `try( resource )`.",
+        get: |s| OptionValue::Bool(s.space_within_try_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_try_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_CATCH_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside catch parentheses `catch( exc )`.",
+        get: |s| OptionValue::Bool(s.space_within_catch_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_catch_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_SWITCH_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside switch parentheses `switch( expr )`.",
+        get: |s| OptionValue::Bool(s.space_within_switch_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_switch_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_SYNCHRONIZED_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside synchronized parentheses `synchronized( expr )`.",
+        get: |s| OptionValue::Bool(s.space_within_synchronized_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_synchronized_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_CAST_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside cast parentheses `( Type ) expr`.",
+        get: |s| OptionValue::Bool(s.space_within_cast_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_cast_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_BRACKETS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside brackets `[ expr ]` in array indexing.",
+        get: |s| OptionValue::Bool(s.space_within_brackets),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_brackets = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_BRACES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside code-block braces `{ … }`.",
+        get: |s| OptionValue::Bool(s.space_within_braces),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_braces = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_ARRAY_INITIALIZER_BRACES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside array-initializer braces `{ 1, 3, 5 }`.",
+        get: |s| OptionValue::Bool(s.space_within_array_initializer_braces),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_array_initializer_braces = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_EMPTY_ARRAY_INITIALIZER_BRACES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside empty array-initializer braces `{ }` vs `{}`.",
+        get: |s| OptionValue::Bool(s.space_within_empty_array_initializer_braces),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_empty_array_initializer_braces = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_ANNOTATION_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space inside annotation parentheses `@Anno( args )`.",
+        get: |s| OptionValue::Bool(s.space_within_annotation_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_annotation_parentheses = b;
+            }
+        },
+    },
+    // --- spacing before parentheses / braces / keywords ---
+    OptionDef {
+        xml_name: "SPACE_BEFORE_METHOD_CALL_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space before method-call parentheses `f (x)` vs `f(x)`.",
+        get: |s| OptionValue::Bool(s.space_before_method_call_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_method_call_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_METHOD_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space before method-declaration parentheses `void f (int p)` vs `void f(int p)`.",
+        get: |s| OptionValue::Bool(s.space_before_method_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_method_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_IF_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `if` and its condition `if (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_if_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_if_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_WHILE_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `while` and its condition `while (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_while_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_while_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_FOR_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `for` and its header `for (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_for_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_for_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_TRY_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `try` and its resource list `try (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_try_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_try_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_CATCH_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `catch` and its parameter `catch (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_catch_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_catch_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_SWITCH_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `switch` and its selector `switch (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_switch_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_switch_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_SYNCHRONIZED_PARENTHESES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `synchronized` and its lock `synchronized (...)`. ",
+        get: |s| OptionValue::Bool(s.space_before_synchronized_parentheses),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_synchronized_parentheses = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_ANOTATION_PARAMETER_LIST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between an annotation name and its parameter list `@Anno (...)`. (XML name spelled as in IntelliJ source.)",
+        get: |s| OptionValue::Bool(s.space_before_anotation_parameter_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_anotation_parameter_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_CLASS_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a class / interface / enum / record / anonymous-class body.",
+        get: |s| OptionValue::Bool(s.space_before_class_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_class_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_METHOD_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a method / constructor body.",
+        get: |s| OptionValue::Bool(s.space_before_method_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_method_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_IF_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of an `if` body.",
+        get: |s| OptionValue::Bool(s.space_before_if_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_if_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_ELSE_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `else` and its body's opening brace.",
+        get: |s| OptionValue::Bool(s.space_before_else_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_else_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_WHILE_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `while` body.",
+        get: |s| OptionValue::Bool(s.space_before_while_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_while_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_FOR_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `for` / enhanced-`for` body.",
+        get: |s| OptionValue::Bool(s.space_before_for_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_for_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_DO_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `do` and its body's opening brace.",
+        get: |s| OptionValue::Bool(s.space_before_do_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_do_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_SWITCH_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `switch` body.",
+        get: |s| OptionValue::Bool(s.space_before_switch_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_switch_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_TRY_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `try` body.",
+        get: |s| OptionValue::Bool(s.space_before_try_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_try_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_CATCH_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `catch` body.",
+        get: |s| OptionValue::Bool(s.space_before_catch_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_catch_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_FINALLY_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `finally` and its body's opening brace.",
+        get: |s| OptionValue::Bool(s.space_before_finally_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_finally_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_SYNCHRONIZED_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space before the opening brace of a `synchronized` body.",
+        get: |s| OptionValue::Bool(s.space_before_synchronized_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_synchronized_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between the dimensions of `new T[]` and its initializer `new int[] {`.",
+        get: |s| OptionValue::Bool(s.space_before_array_initializer_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_array_initializer_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_ANNOTATION_ARRAY_INITIALIZER_LBRACE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between an annotation's `(` and a bare array-initializer argument `@SuppressWarnings( {…)`.",
+        get: |s| OptionValue::Bool(s.space_before_annotation_array_initializer_lbrace),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_annotation_array_initializer_lbrace = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_ELSE_KEYWORD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `}` and the `else` keyword of an if-chain.",
+        get: |s| OptionValue::Bool(s.space_before_else_keyword),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_else_keyword = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_WHILE_KEYWORD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `}` and the trailing `while` of a do-statement.",
+        get: |s| OptionValue::Bool(s.space_before_while_keyword),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_while_keyword = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_CATCH_KEYWORD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `}` and the `catch` keyword of a try-statement.",
+        get: |s| OptionValue::Bool(s.space_before_catch_keyword),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_catch_keyword = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_FINALLY_KEYWORD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Space between `}` and the `finally` keyword of a try-statement.",
+        get: |s| OptionValue::Bool(s.space_before_finally_keyword),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_finally_keyword = b;
+            }
+        },
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -661,6 +2221,19 @@ impl<'a> OptionMap<'a> {
             .map(BraceStyle::from_int)
             .unwrap_or(default)
     }
+
+    fn get_force(&self, name: &str, default: ForceStyle) -> ForceStyle {
+        self.get(name)
+            .and_then(|v| v.parse::<u32>().ok())
+            .map(ForceStyle::from_int)
+            .unwrap_or(default)
+    }
+
+    fn get_line_sep(&self, name: &str, default: LineSeparator) -> LineSeparator {
+        self.get(name)
+            .and_then(LineSeparator::from_str)
+            .unwrap_or(default)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -709,11 +2282,24 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
                 None => continue,
             },
         };
+        // Options absent from the scheme keep the `JavaStyle` defaults the
+        // style was initialised with (identical to the registry defaults).
+        // Skipping them — rather than re-applying the default — lets an
+        // earlier option that shares a field keep its parsed value:
+        // `RIGHT_MARGIN` is registered before `SOFT_MARGINS`, so
+        // `SOFT_MARGINS` wins only when the scheme sets both.
+        if map.get(def.xml_name).is_none() {
+            continue;
+        }
         let value = match def.default {
             OptionValue::Bool(default) => OptionValue::Bool(map.get_bool(def.xml_name, default)),
             OptionValue::UInt(default) => OptionValue::UInt(map.get_u32(def.xml_name, default)),
             OptionValue::Wrap(default) => OptionValue::Wrap(map.get_wrap(def.xml_name, default)),
             OptionValue::Brace(default) => OptionValue::Brace(map.get_brace(def.xml_name, default)),
+            OptionValue::Force(default) => OptionValue::Force(map.get_force(def.xml_name, default)),
+            OptionValue::LineSep(default) => {
+                OptionValue::LineSep(map.get_line_sep(def.xml_name, default))
+            }
         };
         (def.set)(&mut style, value);
     }
@@ -747,6 +2333,12 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
             OptionValue::UInt(n) => n.to_string(),
             OptionValue::Wrap(w) => w.to_int().to_string(),
             OptionValue::Brace(b) => b.to_int().to_string(),
+            OptionValue::Force(f) => f.to_int().to_string(),
+            OptionValue::LineSep(s) => {
+                // The default (`System`) was already skipped above; the other
+                // separators are serialised in their XML-escaped forms.
+                s.to_xml().unwrap_or("").to_string()
+            }
         };
         let option = format!(
             r#"<option name="{}" value="{}" />"#,

@@ -92,6 +92,13 @@ scale (high / medium / low).
 | R13 | Tab indentation output for `USE_TAB_CHARACTER` / `TAB_SIZE`.                                                                                                                                                                      | U1, UC1     | functional     | low (delivered 2026-09-03)    |
 | R14 | Normalise spacing around generic type arguments to the canonical IntelliJ form (no inner padding, one space after commas).                                                                                                        | U1, UC1     | functional     | low (delivered 2026-09-03)    |
 | R15 | Invalid Java is detected: parse errors are reported as a warning on stderr while best-effort output is still emitted (exit 0), and the never-corrupt contract is documented.                                                      | U1, UC5     | non-functional | high (delivered 2026-09-02)   |
+| R16 | Vertical spacing follows the scheme's blank-line policy: the `KEEP_BLANK_LINES_*` caps limit how many pre-existing blank lines are preserved and the `BLANK_LINES_*` minimums insert the configured blanks around package/import boundaries, class headers/ends, fields, methods, initializer blocks and interface members. | U1, UC1/UC2 | functional | high (delivered 2026-09-03) |
+| R17 | Braces are forced on brace-less `if`/`else`, `for`/enhanced-`for`, `while` and `do … while` bodies per the `*_BRACE_FORCE` force codes (`0` do not force, `1` force when multiline, `3` always force), matching IntelliJ. | U1, UC1 | functional | high (delivered 2026-09-03) |
+| R18 | Operator spacing follows the scheme's `SPACE_AROUND_*` toggles: assignment, logical, equality, relational, bitwise, additive, multiplicative, shift and lambda-arrow operators space per their own toggle (all default on), unary operators and the method-reference `::` stay space-less by default, and a type cast renders as `(int) x` by default (`SPACE_AFTER_TYPE_CAST`). | U1, UC1/UC2 | functional | high (delivered 2026-09-03) |
+| R19 | Separator spacing follows the scheme's toggles: commas (`SPACE_AFTER_COMMA`, `SPACE_BEFORE_COMMA`, plus `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` for generic type arguments), `for`-header semicolons (`SPACE_AFTER_SEMICOLON`, `SPACE_BEFORE_SEMICOLON`), the ternary `?` / `:` (`SPACE_BEFORE_QUEST`, `SPACE_AFTER_QUEST`, `SPACE_BEFORE_COLON`, `SPACE_AFTER_COLON`), the enhanced-`for` colon (`SPACE_BEFORE_COLON_IN_FOREACH`) and the class / interface / record name-to-type-parameter-list gap (`SPACE_BEFORE_TYPE_PARAMETER_LIST`). | U1, UC1/UC2 | functional | high (delivered 2026-09-03) |
+| R20 | Padding inside parentheses, brackets and braces follows the scheme's `SPACE_WITHIN_*` toggles: each paren / bracket / brace kind spaces per its own toggle — plain parentheses, method-call and method-declaration parens with independent empty variants, `if` / `while` / `do … while` / `for` / `try` / `catch` / `switch` / `synchronized` conditions and headers, casts, array-index brackets, code-block and array-initialiser braces with an independent empty-array variant, and annotation argument parens — all defaulting to off. | U1, UC1/UC2 | functional | high (delivered 2026-09-03) |
+| R21 | The gap before parentheses, braces and clause keywords follows the scheme's `SPACE_BEFORE_*` toggles: the keyword-to-paren gap of `if` / `while` (incl. the do-`while` tail) / `for` / `try` / `catch` / `switch` / `synchronized` headers, of method calls (incl. constructor calls and chains) and method / constructor declarations, and of annotation parameter lists; the keyword-to-brace gap of class-like bodies (incl. anonymous classes), method / constructor bodies, `if` / `else` / `while` / `for` / `do` / `switch` / `try` / `catch` / `finally` / `synchronized` bodies, array and annotation-array initialisers; and the `}`-to-keyword gap of `else` / `catch` / `finally` / do-`while` — the paren and brace toggles defaulting to on except method-call / method-declaration / annotation-parameter / array- and annotation-array-initialiser gaps which default to off, matching IntelliJ. | U1, UC1/UC2 | functional | high (delivered 2026-09-03) |
+| R22 | Line length, line endings and line-break retention follow the scheme's root `RIGHT_MARGIN` / `LINE_SEPARATOR` options and the `WRAP_LONG_LINES` / `KEEP_LINE_BREAKS` toggles: the right margin (`SOFT_MARGINS` wins when a scheme sets both) drives the wrap decisions, the configured separator (LF / CRLF / CR) ends every line including the final newline, hard wrapping breaks an over-margin line at the last whitespace boundary at or before the margin without ever splitting a literal or comment, and a construct whose source spans multiple lines keeps its canonical wrapped layout unless `KEEP_LINE_BREAKS` is off (reflow). | U1, UC1/UC2 | functional | medium (delivered 2026-09-03) |
 
 ### Resolved ambiguities
 
@@ -122,11 +129,16 @@ recorded (crate `java-formatter` v0.1.0; see the [changelog](dev/changelog.md)),
 since extended by R15 (parse-error reporting), R10 (binary-expression
 wrapping per `BINARY_OPERATION_WRAP`), R11 (switch layout), R12
 (simple `try`/`synchronized` bodies on one line), R13 (tab indentation
-for `USE_TAB_CHARACTER` / `TAB_SIZE`) and R14 (generic type-argument
-spacing normalisation). On 2026-09-03 the single crate was restructured into
-the core/cli/gui workspace under `crates/` (workspace-split) so the library
-can be a dependency target for the GUI and other consumers without pulling in
-the CLI.
+for `USE_TAB_CHARACTER` / `TAB_SIZE`), R14 (generic type-argument
+spacing normalisation), R16 (blank-line policy), R17 (braces forced on
+statement bodies per the `*_BRACE_FORCE` options) and R18 (operator spacing
+per the `SPACE_AROUND_*` toggles). On 2026-09-03 the single
+crate was restructured into the core/cli/gui workspace under `crates/`
+(workspace-split) so the library can be a dependency target for the GUI and
+other consumers without pulling in the CLI. The line-length / line-ending
+requirements are delivered by R22 (right margin, line separator, hard
+wrapping and line-break retention per `RIGHT_MARGIN` / `LINE_SEPARATOR` /
+`WRAP_LONG_LINES` / `KEEP_LINE_BREAKS`).
 
 **Deferred (none).** Every deferred requirement is now delivered; the backlog
 holds future work.

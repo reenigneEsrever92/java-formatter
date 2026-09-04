@@ -22,13 +22,14 @@ option, n/a not a formatter concern).
 
 Options that appear as direct children of `<code_scheme>` (before any
 `<JavaCodeStyleSettings>` / `<codeStyleSettings>` block). java-formatter reads
-`SOFT_MARGINS` here; the rest are global scheme options.
+`SOFT_MARGINS`, `RIGHT_MARGIN` and `LINE_SEPARATOR` here; the rest are global
+scheme options.
 
 | Option                         | Type   | Default          | Values                                          | Effect                                                                                                                     | Support                                    |
 | ------------------------------ | ------ | ---------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `SOFT_MARGINS`                 | string | empty            | comma-separated integers, e.g. `100,120`        | Right margin(s) used for line-length decisions; java-formatter reads this for its line-length limit.                       | ✅ (first value used as the single margin) |
-| `RIGHT_MARGIN`                 | int    | `120`            | `≥ 0`                                           | Hard right margin; used for _wrap if long_ / _wrap long lines_ decisions when the language block has no margin of its own. | ❌ (only `SOFT_MARGINS` is read)           |
-| `LINE_SEPARATOR`               | string | system default   | `&#10;` (LF), `&#13;&#10;` (CRLF), `&#13;` (CR) | Line separator to emit.                                                                                                    | ❌                                         |
+| `SOFT_MARGINS`                 | string | empty            | comma-separated integers, e.g. `100,120`        | Right margin(s) used for line-length decisions; java-formatter reads this for its line-length limit.                       | ✅ (first value used as the single margin; wins over `RIGHT_MARGIN` when both are set) |
+| `RIGHT_MARGIN`                 | int    | `120`            | `≥ 0`                                           | Hard right margin; drives the line-length decisions when `SOFT_MARGINS` is absent.                                         | ✅                                        |
+| `LINE_SEPARATOR`               | string | system default   | `&#10;` (LF), `&#13;&#10;` (CRLF), `&#13;` (CR) | Line separator emitted at every line end, including the final newline.                                                     | ✅                                        |
 | `FORMATTER_TAGS_ENABLED`       | bool   | `true`           | `true` / `false`                                | Honour `// @formatter:off` / `// @formatter:on` comment tags.                                                              | n/a                                        |
 | `FORMATTER_TAGS_ACCEPT_REGEXP` | bool   | `false`          | `true` / `false`                                | Treat the formatter tags as regular expressions.                                                                           | n/a                                        |
 | `FORMATTER_ON_TAG`             | string | `@formatter:on`  | any                                             | Text of the "formatter on" tag.                                                                                            | n/a                                        |
@@ -49,11 +50,11 @@ Options controlling comment layout and line-break retention.
 | `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`    | bool | `false` | `true` / `false` | Add the space after `//` on reformat.                                          | ❌      |
 | `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` | bool | `false` | `true` / `false` | Add the space inside `// noinspection` suppression comments.                   | ❌      |
 | `DOCUMENTATION_LINE_COMMENT_PREFERRED`  | bool | `false` | `true` / `false` | Prefer documentation line comments where the language supports them.           | n/a     |
-| `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code.                                         | ❌      |
+| `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code: a construct whose source spans rows keeps its canonical wrapped layout.               | ✅      |
 | `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.              | ❌      |
 | `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line. | ❌      |
 | `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                        | ❌      |
-| `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap).                           | ❌      |
+| `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap) at the last whitespace boundary; literals and comments are never split. | ✅      |
 
 ## Blank lines
 
@@ -62,23 +63,23 @@ Options controlling comment layout and line-break retention.
 
 | Option                                                    | Type | Default | Values  | Effect                                                                     | Support |
 | --------------------------------------------------------- | ---- | ------- | ------- | -------------------------------------------------------------------------- | ------- |
-| `KEEP_BLANK_LINES_IN_CODE`                                | int  | `2`     | `0`–`n` | Max blank lines kept inside code (statement level).                        | ❌      |
-| `KEEP_BLANK_LINES_IN_DECLARATIONS`                        | int  | `2`     | `0`–`n` | Max blank lines kept between declarations.                                 | ❌      |
-| `KEEP_BLANK_LINES_BETWEEN_PACKAGE_DECLARATION_AND_HEADER` | int  | `2`     | `0`–`n` | Max blank lines between the package declaration and a file header comment. | ❌      |
-| `KEEP_BLANK_LINES_BEFORE_RBRACE`                          | int  | `2`     | `0`–`n` | Max blank lines kept before a closing `}`.                                 | ❌      |
-| `BLANK_LINES_BEFORE_PACKAGE`                              | int  | `0`     | `0`–`n` | Min blank lines before the package declaration.                            | ❌      |
-| `BLANK_LINES_AFTER_PACKAGE`                               | int  | `1`     | `0`–`n` | Min blank lines after the package declaration.                             | ❌      |
-| `BLANK_LINES_BEFORE_IMPORTS`                              | int  | `1`     | `0`–`n` | Min blank lines before the import section.                                 | ❌      |
-| `BLANK_LINES_AFTER_IMPORTS`                               | int  | `1`     | `0`–`n` | Min blank lines after the import section.                                  | ❌      |
-| `BLANK_LINES_AROUND_CLASS`                                | int  | `1`     | `0`–`n` | Min blank lines around class / interface declarations.                     | ❌      |
-| `BLANK_LINES_AROUND_FIELD`                                | int  | `0`     | `0`–`n` | Min blank lines around fields.                                             | ❌      |
-| `BLANK_LINES_AROUND_METHOD`                               | int  | `1`     | `0`–`n` | Min blank lines around methods.                                            | ❌      |
-| `BLANK_LINES_BEFORE_METHOD_BODY`                          | int  | `0`     | `0`–`n` | Min blank lines before a method body.                                      | ❌      |
-| `BLANK_LINES_AROUND_FIELD_IN_INTERFACE`                   | int  | `0`     | `0`–`n` | Min blank lines around fields declared in interfaces.                      | ❌      |
-| `BLANK_LINES_AROUND_METHOD_IN_INTERFACE`                  | int  | `1`     | `0`–`n` | Min blank lines around methods declared in interfaces.                     | ❌      |
-| `BLANK_LINES_AFTER_CLASS_HEADER`                          | int  | `0`     | `0`–`n` | Min blank lines after the class header / before the first member.          | ❌      |
-| `BLANK_LINES_AFTER_ANONYMOUS_CLASS_HEADER`                | int  | `0`     | `0`–`n` | Min blank lines after an anonymous class header.                           | ❌      |
-| `BLANK_LINES_BEFORE_CLASS_END`                            | int  | `0`     | `0`–`n` | Min blank lines before the class closing brace.                            | ❌      |
+| `KEEP_BLANK_LINES_IN_CODE`                                | int  | `2`     | `0`–`n` | Max blank lines kept inside code (statement level).                        | ✅      |
+| `KEEP_BLANK_LINES_IN_DECLARATIONS`                        | int  | `2`     | `0`–`n` | Max blank lines kept between declarations.                                 | ✅      |
+| `KEEP_BLANK_LINES_BETWEEN_PACKAGE_DECLARATION_AND_HEADER` | int  | `2`     | `0`–`n` | Max blank lines between the package declaration and a file header comment. | ✅      |
+| `KEEP_BLANK_LINES_BEFORE_RBRACE`                          | int  | `2`     | `0`–`n` | Max blank lines kept before a closing `}`.                                 | ✅      |
+| `BLANK_LINES_BEFORE_PACKAGE`                              | int  | `0`     | `0`–`n` | Min blank lines before the package declaration.                            | ✅      |
+| `BLANK_LINES_AFTER_PACKAGE`                               | int  | `1`     | `0`–`n` | Min blank lines after the package declaration.                             | ✅      |
+| `BLANK_LINES_BEFORE_IMPORTS`                              | int  | `1`     | `0`–`n` | Min blank lines before the import section.                                 | ✅      |
+| `BLANK_LINES_AFTER_IMPORTS`                               | int  | `1`     | `0`–`n` | Min blank lines after the import section.                                  | ✅      |
+| `BLANK_LINES_AROUND_CLASS`                                | int  | `1`     | `0`–`n` | Min blank lines around class / interface declarations.                     | ✅      |
+| `BLANK_LINES_AROUND_FIELD`                                | int  | `0`     | `0`–`n` | Min blank lines around fields.                                             | ✅      |
+| `BLANK_LINES_AROUND_METHOD`                               | int  | `1`     | `0`–`n` | Min blank lines around methods.                                            | ✅      |
+| `BLANK_LINES_BEFORE_METHOD_BODY`                          | int  | `0`     | `0`–`n` | Min blank lines before a method body.                                      | ✅      |
+| `BLANK_LINES_AROUND_FIELD_IN_INTERFACE`                   | int  | `0`     | `0`–`n` | Min blank lines around fields declared in interfaces.                      | ✅      |
+| `BLANK_LINES_AROUND_METHOD_IN_INTERFACE`                  | int  | `1`     | `0`–`n` | Min blank lines around methods declared in interfaces.                     | ✅      |
+| `BLANK_LINES_AFTER_CLASS_HEADER`                          | int  | `0`     | `0`–`n` | Min blank lines after the class header / before the first member.          | ✅      |
+| `BLANK_LINES_AFTER_ANONYMOUS_CLASS_HEADER`                | int  | `0`     | `0`–`n` | Min blank lines after an anonymous class header.                           | ✅      |
+| `BLANK_LINES_BEFORE_CLASS_END`                            | int  | `0`     | `0`–`n` | Min blank lines before the class closing brace.                            | ✅      |
 
 ## Braces & indentation
 
@@ -130,89 +131,89 @@ align under the first element instead of using the continuation indent.
 
 | Option                                  | Type | Default | Operators                                  | Support                        |
 | --------------------------------------- | ---- | ------- | ------------------------------------------ | ------------------------------ |
-| `SPACE_AROUND_ASSIGNMENT_OPERATORS`     | bool | `true`  | `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, ` | =`, `^=`, `<<=`, `>>=`, `>>>=` | ❌  |
-| `SPACE_AROUND_LOGICAL_OPERATORS`        | bool | `true`  | `&&`, `\|\|`                               | ❌                             |
-| `SPACE_AROUND_EQUALITY_OPERATORS`       | bool | `true`  | `==`, `!=`                                 | ❌                             |
-| `SPACE_AROUND_RELATIONAL_OPERATORS`     | bool | `true`  | `<`, `>`, `<=`, `>=`                       | ❌                             |
-| `SPACE_AROUND_BITWISE_OPERATORS`        | bool | `true`  | `&`, `\|`, `^`                             | ❌                             |
-| `SPACE_AROUND_ADDITIVE_OPERATORS`       | bool | `true`  | `+`, `-`                                   | ❌                             |
-| `SPACE_AROUND_MULTIPLICATIVE_OPERATORS` | bool | `true`  | `*`, `/`, `%`                              | ❌                             |
-| `SPACE_AROUND_SHIFT_OPERATORS`          | bool | `true`  | `<<`, `>>`, `>>>`                          | ❌                             |
-| `SPACE_AROUND_UNARY_OPERATOR`           | bool | `false` | `!`, `~`, unary `+` / `-`, `++`, `--`      | ❌                             |
-| `SPACE_AROUND_LAMBDA_ARROW`             | bool | `true`  | `->`                                       | ❌                             |
-| `SPACE_AROUND_METHOD_REF_DBL_COLON`     | bool | `false` | `::`                                       | ❌                             |
-| `SPACE_AFTER_TYPE_CAST`                 | bool | `true`  | `(Type) expr`                              | ❌                             |
+| `SPACE_AROUND_ASSIGNMENT_OPERATORS`     | bool | `true`  | `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, ` | =`, `^=`, `<<=`, `>>=`, `>>>=` | ✅  |
+| `SPACE_AROUND_LOGICAL_OPERATORS`        | bool | `true`  | `&&`, `\|\|`                               | ✅                             |
+| `SPACE_AROUND_EQUALITY_OPERATORS`       | bool | `true`  | `==`, `!=`                                 | ✅                             |
+| `SPACE_AROUND_RELATIONAL_OPERATORS`     | bool | `true`  | `<`, `>`, `<=`, `>=`                       | ✅                             |
+| `SPACE_AROUND_BITWISE_OPERATORS`        | bool | `true`  | `&`, `\|`, `^`                             | ✅                             |
+| `SPACE_AROUND_ADDITIVE_OPERATORS`       | bool | `true`  | `+`, `-`                                   | ✅                             |
+| `SPACE_AROUND_MULTIPLICATIVE_OPERATORS` | bool | `true`  | `*`, `/`, `%`                              | ✅                             |
+| `SPACE_AROUND_SHIFT_OPERATORS`          | bool | `true`  | `<<`, `>>`, `>>>`                          | ✅                             |
+| `SPACE_AROUND_UNARY_OPERATOR`           | bool | `false` | `!`, `~`, unary `+` / `-`, `++`, `--`      | ✅                             |
+| `SPACE_AROUND_LAMBDA_ARROW`             | bool | `true`  | `->`                                       | ✅                             |
+| `SPACE_AROUND_METHOD_REF_DBL_COLON`     | bool | `false` | `::`                                       | ✅                             |
+| `SPACE_AFTER_TYPE_CAST`                 | bool | `true`  | `(Type) expr`                              | ✅                             |
 
 ### After / before separators
 
 | Option                                | Type | Default | Effect                                                                   | Support |
 | ------------------------------------- | ---- | ------- | ------------------------------------------------------------------------ | ------- |
-| `SPACE_AFTER_COMMA`                   | bool | `true`  | Space after `,` (declarations, calls, arrays).                           | ❌      |
-| `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` | bool | `true`  | Space after `,` in generic type arguments.                               | ❌      |
-| `SPACE_BEFORE_COMMA`                  | bool | `false` | Space before `,`.                                                        | ❌      |
-| `SPACE_AFTER_SEMICOLON`               | bool | `true`  | Space after `;` inside a `for` header.                                   | ❌      |
-| `SPACE_BEFORE_SEMICOLON`              | bool | `false` | Space before `;` inside a `for` header.                                  | ❌      |
-| `SPACE_BEFORE_QUEST`                  | bool | `true`  | Space before `?` in a ternary expression.                                | ❌      |
-| `SPACE_AFTER_QUEST`                   | bool | `true`  | Space after `?` in a ternary expression.                                 | ❌      |
-| `SPACE_BEFORE_COLON`                  | bool | `true`  | Space before `:` (ternary, `for-each`, labels, `case`).                  | ❌      |
-| `SPACE_AFTER_COLON`                   | bool | `true`  | Space after `:`.                                                         | ❌      |
-| `SPACE_BEFORE_TYPE_PARAMETER_LIST`    | bool | `false` | Space between a class / method name and its type-parameter list (`<…>`). | ❌      |
+| `SPACE_AFTER_COMMA`                   | bool | `true`  | Space after `,` (declarations, calls, arrays).                           | ✅      |
+| `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` | bool | `true`  | Space after `,` in generic type arguments.                               | ✅      |
+| `SPACE_BEFORE_COMMA`                  | bool | `false` | Space before `,`.                                                        | ✅      |
+| `SPACE_AFTER_SEMICOLON`               | bool | `true`  | Space after `;` inside a `for` header.                                   | ✅      |
+| `SPACE_BEFORE_SEMICOLON`              | bool | `false` | Space before `;` inside a `for` header.                                  | ✅      |
+| `SPACE_BEFORE_QUEST`                  | bool | `true`  | Space before `?` in a ternary expression.                                | ✅      |
+| `SPACE_AFTER_QUEST`                   | bool | `true`  | Space after `?` in a ternary expression.                                 | ✅      |
+| `SPACE_BEFORE_COLON`                  | bool | `true`  | Space before `:` in a ternary expression.                                | ✅      |
+| `SPACE_AFTER_COLON`                   | bool | `true`  | Space after `:` (ternary, `for-each`).                                   | ✅      |
+| `SPACE_BEFORE_TYPE_PARAMETER_LIST`    | bool | `false` | Space between a class / method name and its type-parameter list (`<…>`). | ✅      |
 
 ### Within parentheses, brackets, braces
 
 | Option                                        | Type | Default | Applies to                    | Support |
 | --------------------------------------------- | ---- | ------- | ----------------------------- | ------- |
-| `SPACE_WITHIN_PARENTHESES`                    | bool | `false` | Any parentheses `( expr )`.   | ❌      |
-| `SPACE_WITHIN_METHOD_CALL_PARENTHESES`        | bool | `false` | `f( args )`.                  | ❌      |
-| `SPACE_WITHIN_EMPTY_METHOD_CALL_PARENTHESES`  | bool | `false` | `f( )` vs `f()`.              | ❌      |
-| `SPACE_WITHIN_METHOD_PARENTHESES`             | bool | `false` | `void f( params )`.           | ❌      |
-| `SPACE_WITHIN_EMPTY_METHOD_PARENTHESES`       | bool | `false` | `void f( )` vs `void f()`.    | ❌      |
-| `SPACE_WITHIN_IF_PARENTHESES`                 | bool | `false` | `if( cond )`.                 | ❌      |
-| `SPACE_WITHIN_WHILE_PARENTHESES`              | bool | `false` | `while( cond )`.              | ❌      |
-| `SPACE_WITHIN_FOR_PARENTHESES`                | bool | `false` | `for( … )`.                   | ❌      |
-| `SPACE_WITHIN_TRY_PARENTHESES`                | bool | `false` | `try( resource )`.            | ❌      |
-| `SPACE_WITHIN_CATCH_PARENTHESES`              | bool | `false` | `catch( exc )`.               | ❌      |
-| `SPACE_WITHIN_SWITCH_PARENTHESES`             | bool | `false` | `switch( expr )`.             | ❌      |
-| `SPACE_WITHIN_SYNCHRONIZED_PARENTHESES`       | bool | `false` | `synchronized( expr )`.       | ❌      |
-| `SPACE_WITHIN_CAST_PARENTHESES`               | bool | `false` | `( Type ) expr`.              | ❌      |
-| `SPACE_WITHIN_BRACKETS`                       | bool | `false` | `[ expr ]` in array indexing. | ❌      |
-| `SPACE_WITHIN_BRACES`                         | bool | `false` | `{ … }` code blocks.          | ❌      |
-| `SPACE_WITHIN_ARRAY_INITIALIZER_BRACES`       | bool | `false` | `{ 1, 3, 5 }`.                | ❌      |
-| `SPACE_WITHIN_EMPTY_ARRAY_INITIALIZER_BRACES` | bool | `false` | `{ }` vs `{}`.                | ❌      |
-| `SPACE_WITHIN_ANNOTATION_PARENTHESES`         | bool | `false` | `@Anno( args )`.              | ❌      |
+| `SPACE_WITHIN_PARENTHESES`                    | bool | `false` | Any parentheses `( expr )`.   | ✅      |
+| `SPACE_WITHIN_METHOD_CALL_PARENTHESES`        | bool | `false` | `f( args )`.                  | ✅      |
+| `SPACE_WITHIN_EMPTY_METHOD_CALL_PARENTHESES`  | bool | `false` | `f( )` vs `f()`.              | ✅      |
+| `SPACE_WITHIN_METHOD_PARENTHESES`             | bool | `false` | `void f( params )`.           | ✅      |
+| `SPACE_WITHIN_EMPTY_METHOD_PARENTHESES`       | bool | `false` | `void f( )` vs `void f()`.    | ✅      |
+| `SPACE_WITHIN_IF_PARENTHESES`                 | bool | `false` | `if( cond )`.                 | ✅      |
+| `SPACE_WITHIN_WHILE_PARENTHESES`              | bool | `false` | `while( cond )`.              | ✅      |
+| `SPACE_WITHIN_FOR_PARENTHESES`                | bool | `false` | `for( … )`.                   | ✅      |
+| `SPACE_WITHIN_TRY_PARENTHESES`                | bool | `false` | `try( resource )`.            | ✅      |
+| `SPACE_WITHIN_CATCH_PARENTHESES`              | bool | `false` | `catch( exc )`.               | ✅      |
+| `SPACE_WITHIN_SWITCH_PARENTHESES`             | bool | `false` | `switch( expr )`.             | ✅      |
+| `SPACE_WITHIN_SYNCHRONIZED_PARENTHESES`       | bool | `false` | `synchronized( expr )`.       | ✅      |
+| `SPACE_WITHIN_CAST_PARENTHESES`               | bool | `false` | `( Type ) expr`.              | ✅      |
+| `SPACE_WITHIN_BRACKETS`                       | bool | `false` | `[ expr ]` in array indexing. | ✅      |
+| `SPACE_WITHIN_BRACES`                         | bool | `false` | `{ … }` code blocks.          | ✅      |
+| `SPACE_WITHIN_ARRAY_INITIALIZER_BRACES`       | bool | `false` | `{ 1, 3, 5 }`.                | ✅      |
+| `SPACE_WITHIN_EMPTY_ARRAY_INITIALIZER_BRACES` | bool | `false` | `{ }` vs `{}`.                | ✅      |
+| `SPACE_WITHIN_ANNOTATION_PARENTHESES`         | bool | `false` | `@Anno( args )`.              | ✅      |
 
 ### Before parentheses / braces / keywords
 
 | Option                                             | Type | Default | Effect                                               | Support |
 | -------------------------------------------------- | ---- | ------- | ---------------------------------------------------- | ------- |
-| `SPACE_BEFORE_METHOD_CALL_PARENTHESES`             | bool | `false` | `f (x)` vs `f(x)`.                                   | ❌      |
-| `SPACE_BEFORE_METHOD_PARENTHESES`                  | bool | `false` | `void f (int p)` vs `void f(int p)`.                 | ❌      |
-| `SPACE_BEFORE_IF_PARENTHESES`                      | bool | `true`  | `if (...)`.                                          | ❌      |
-| `SPACE_BEFORE_WHILE_PARENTHESES`                   | bool | `true`  | `while (...)`.                                       | ❌      |
-| `SPACE_BEFORE_FOR_PARENTHESES`                     | bool | `true`  | `for (...)`.                                         | ❌      |
-| `SPACE_BEFORE_TRY_PARENTHESES`                     | bool | `true`  | `try (...)`.                                         | ❌      |
-| `SPACE_BEFORE_CATCH_PARENTHESES`                   | bool | `true`  | `catch (...)`.                                       | ❌      |
-| `SPACE_BEFORE_SWITCH_PARENTHESES`                  | bool | `true`  | `switch (...)`.                                      | ❌      |
-| `SPACE_BEFORE_SYNCHRONIZED_PARENTHESES`            | bool | `true`  | `synchronized (...)`.                                | ❌      |
-| `SPACE_BEFORE_ANOTATION_PARAMETER_LIST`            | bool | `false` | `@Anno (...)`. (Name spelled as in IntelliJ source.) | ❌      |
-| `SPACE_BEFORE_CLASS_LBRACE`                        | bool | `true`  | `class A {`.                                         | ❌      |
-| `SPACE_BEFORE_METHOD_LBRACE`                       | bool | `true`  | `void f() {`.                                        | ❌      |
-| `SPACE_BEFORE_IF_LBRACE`                           | bool | `true`  | `if (…) {`.                                          | ❌      |
-| `SPACE_BEFORE_ELSE_LBRACE`                         | bool | `true`  | `else {`.                                            | ❌      |
-| `SPACE_BEFORE_WHILE_LBRACE`                        | bool | `true`  | `while (…) {`.                                       | ❌      |
-| `SPACE_BEFORE_FOR_LBRACE`                          | bool | `true`  | `for (…) {`.                                         | ❌      |
-| `SPACE_BEFORE_DO_LBRACE`                           | bool | `true`  | `do {`.                                              | ❌      |
-| `SPACE_BEFORE_SWITCH_LBRACE`                       | bool | `true`  | `switch (…) {`.                                      | ❌      |
-| `SPACE_BEFORE_TRY_LBRACE`                          | bool | `true`  | `try {`.                                             | ❌      |
-| `SPACE_BEFORE_CATCH_LBRACE`                        | bool | `true`  | `catch (…) {`.                                       | ❌      |
-| `SPACE_BEFORE_FINALLY_LBRACE`                      | bool | `true`  | `finally {`.                                         | ❌      |
-| `SPACE_BEFORE_SYNCHRONIZED_LBRACE`                 | bool | `true`  | `synchronized (…) {`.                                | ❌      |
-| `SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE`            | bool | `false` | `new int[] {`.                                       | ❌      |
-| `SPACE_BEFORE_ANNOTATION_ARRAY_INITIALIZER_LBRACE` | bool | `false` | `@SuppressWarnings( {…)`.                            | ❌      |
-| `SPACE_BEFORE_ELSE_KEYWORD`                        | bool | `true`  | `} else {`.                                          | ❌      |
-| `SPACE_BEFORE_WHILE_KEYWORD`                       | bool | `true`  | `} while (…)`.                                       | ❌      |
-| `SPACE_BEFORE_CATCH_KEYWORD`                       | bool | `true`  | `} catch (…)`.                                       | ❌      |
-| `SPACE_BEFORE_FINALLY_KEYWORD`                     | bool | `true`  | `} finally`.                                         | ❌      |
+| `SPACE_BEFORE_METHOD_CALL_PARENTHESES`             | bool | `false` | `f (x)` vs `f(x)`.                                   | ✅      |
+| `SPACE_BEFORE_METHOD_PARENTHESES`                  | bool | `false` | `void f (int p)` vs `void f(int p)`.                 | ✅      |
+| `SPACE_BEFORE_IF_PARENTHESES`                      | bool | `true`  | `if (...)`.                                          | ✅      |
+| `SPACE_BEFORE_WHILE_PARENTHESES`                   | bool | `true`  | `while (...)`.                                       | ✅      |
+| `SPACE_BEFORE_FOR_PARENTHESES`                     | bool | `true`  | `for (...)`.                                         | ✅      |
+| `SPACE_BEFORE_TRY_PARENTHESES`                     | bool | `true`  | `try (...)`.                                         | ✅      |
+| `SPACE_BEFORE_CATCH_PARENTHESES`                   | bool | `true`  | `catch (...)`.                                       | ✅      |
+| `SPACE_BEFORE_SWITCH_PARENTHESES`                  | bool | `true`  | `switch (...)`.                                      | ✅      |
+| `SPACE_BEFORE_SYNCHRONIZED_PARENTHESES`            | bool | `true`  | `synchronized (...)`.                                | ✅      |
+| `SPACE_BEFORE_ANOTATION_PARAMETER_LIST`            | bool | `false` | `@Anno (...)`. (Name spelled as in IntelliJ source.) | ✅      |
+| `SPACE_BEFORE_CLASS_LBRACE`                        | bool | `true`  | `class A {`.                                         | ✅      |
+| `SPACE_BEFORE_METHOD_LBRACE`                       | bool | `true`  | `void f() {`.                                        | ✅      |
+| `SPACE_BEFORE_IF_LBRACE`                           | bool | `true`  | `if (…) {`.                                          | ✅      |
+| `SPACE_BEFORE_ELSE_LBRACE`                         | bool | `true`  | `else {`.                                            | ✅      |
+| `SPACE_BEFORE_WHILE_LBRACE`                        | bool | `true`  | `while (…) {`.                                       | ✅      |
+| `SPACE_BEFORE_FOR_LBRACE`                          | bool | `true`  | `for (…) {`.                                         | ✅      |
+| `SPACE_BEFORE_DO_LBRACE`                           | bool | `true`  | `do {`.                                              | ✅      |
+| `SPACE_BEFORE_SWITCH_LBRACE`                       | bool | `true`  | `switch (…) {`.                                      | ✅      |
+| `SPACE_BEFORE_TRY_LBRACE`                          | bool | `true`  | `try {`.                                             | ✅      |
+| `SPACE_BEFORE_CATCH_LBRACE`                        | bool | `true`  | `catch (…) {`.                                       | ✅      |
+| `SPACE_BEFORE_FINALLY_LBRACE`                      | bool | `true`  | `finally {`.                                         | ✅      |
+| `SPACE_BEFORE_SYNCHRONIZED_LBRACE`                 | bool | `true`  | `synchronized (…) {`.                                | ✅      |
+| `SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE`            | bool | `false` | `new int[] {`.                                       | ✅      |
+| `SPACE_BEFORE_ANNOTATION_ARRAY_INITIALIZER_LBRACE` | bool | `false` | `@SuppressWarnings( {…)`.                            | ✅      |
+| `SPACE_BEFORE_ELSE_KEYWORD`                        | bool | `true`  | `} else {`.                                          | ✅      |
+| `SPACE_BEFORE_WHILE_KEYWORD`                       | bool | `true`  | `} while (…)`.                                       | ✅      |
+| `SPACE_BEFORE_CATCH_KEYWORD`                       | bool | `true`  | `} catch (…)`.                                       | ✅      |
+| `SPACE_BEFORE_FINALLY_KEYWORD`                     | bool | `true`  | `} finally`.                                         | ✅      |
 
 ## Wrapping & braces
 
@@ -281,10 +282,10 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 
 | Option                | Type | Default | Values                                    | Effect                                   | Support |
 | --------------------- | ---- | ------- | ----------------------------------------- | ---------------------------------------- | ------- |
-| `IF_BRACE_FORCE`      | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `if` bodies.         | ❌      |
-| `FOR_BRACE_FORCE`     | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `for` bodies.        | ❌      |
-| `WHILE_BRACE_FORCE`   | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `while` bodies.      | ❌      |
-| `DOWHILE_BRACE_FORCE` | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `do … while` bodies. | ❌      |
+| `IF_BRACE_FORCE`      | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `if` / `else` bodies.                     | ✅      |
+| `FOR_BRACE_FORCE`     | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `for` / enhanced-`for` bodies.            | ✅      |
+| `WHILE_BRACE_FORCE`   | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `while` bodies.                           | ✅      |
+| `DOWHILE_BRACE_FORCE` | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `do … while` bodies.                      | ✅      |
 
 ## Annotations
 

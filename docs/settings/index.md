@@ -126,12 +126,13 @@ Each option table marks java-formatter's current support:
 
 ## Caveats
 
-java-formatter's `config.rs` decodes the wrap and brace codes exactly as
-documented above (wrap `2` = wrap always, `5` = chop down if long; brace `1` =
-end of line, `5` = next line if wrapped), so a scheme written by the GUI or
-exported from IntelliJ means the same thing to both. Values IntelliJ never
-writes on its own (`3` / `4` wrap codes, brace code `0`) fall back to the
-safe defaults (`do not wrap`, `end of line`).
+java-formatter's `config.rs` decodes the wrap, brace and force-brace codes
+exactly as documented above (wrap `2` = wrap always, `5` = chop down if
+long; brace `1` = end of line, `5` = next line if wrapped; force `1` = force
+if multiline, `3` = always force), so a scheme written by the GUI or exported
+from IntelliJ means the same thing to both. Values IntelliJ never writes on
+its own (`3` / `4` wrap codes, brace code `0`, force codes outside `0`/`1`/`3`)
+fall back to the safe defaults (`do not wrap`, `end of line`, `do not force`).
 
 Everything marked ❌ or n/a below is ignored until supported: ❌ options are
 tracked as [backlog](../dev/backlog/index.md) change requests and n/a options

@@ -194,12 +194,12 @@ the common block — see [Annotations](common.md#annotations).
 
 | Option                                            | Type | Default | Effect                                                                                 | Support |
 | ------------------------------------------------- | ---- | ------- | -------------------------------------------------------------------------------------- | ------- |
-| `SPACE_BEFORE_COLON_IN_FOREACH`                   | bool | `true`  | `for (T t : xs)` vs `for (T t: xs)`.                                                   | ❌      |
+| `SPACE_BEFORE_COLON_IN_FOREACH`                   | bool | `true`  | `for (T t : xs)` vs `for (T t: xs)`.                                                   | ✅      |
 | `SPACE_INSIDE_ONE_LINE_ENUM_BRACES`               | bool | `false` | `enum E { A, B }` vs `enum E {A, B}`.                                                  | ❌      |
 | `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT` | bool | `false` | Spaces inside `{ … }` of a non-empty one-line block when `SPACE_WITHIN_BRACES` is off. | ❌      |
 | `NEW_LINE_WHEN_BODY_IS_PRESENTED`                 | bool | `false` | Put the body of a one-line block on a new line.                                        | ❌      |
-| `BLANK_LINES_AROUND_INITIALIZER`                  | int  | `1`     | Blank lines around instance / static initializer blocks.                               | ❌      |
-| `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS`       | int  | `0`     | Blank lines around annotated fields.                                                   | ❌      |
+| `BLANK_LINES_AROUND_INITIALIZER`                  | int  | `1`     | Blank lines around instance / static initializer blocks.                               | ✅      |
+| `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS`       | int  | `0`     | Blank lines around annotated fields.                                                   | ✅      |
 | `BLANK_LINES_BETWEEN_RECORD_COMPONENTS`           | int  | `0`     | Blank lines between record components.                                                 | ❌      |
 | `WRAP_SEMICOLON_AFTER_CALL_CHAIN`                 | bool | `false` | Put `;` of a wrapped chained call on its own line.                                     | ❌      |
 

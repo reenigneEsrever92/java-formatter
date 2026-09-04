@@ -1,4 +1,5 @@
 class TabIndent {
+
 		void method(boolean flag) {
 				if (flag) {
 						int total = alpha()

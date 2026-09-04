@@ -1,14 +1,15 @@
 //! Desktop GUI for editing IntelliJ codestyle files.
 //!
 //! Renders every option in the core [`OPTIONS`] registry with a control
-//! matching its type (bool → checkbox, `u32` → drag value, wrap/brace →
-//! labeled combo of the IntelliJ meaning), shows a live formatting preview,
+//! matching its type (bool → checkbox, `u32` → drag value, wrap/brace/force →
+//! labeled combo of the IntelliJ meaning, line separator → labeled combo of
+//! the separator choices), shows a live formatting preview,
 //! and saves a minimal `<code_scheme>` via [`serialize_codestyle`].
 
 use eframe::egui;
 use java_formatter_core::config::{
-    parse_codestyle, serialize_codestyle, BraceStyle, JavaStyle, OptionDef, OptionValue, WrapStyle,
-    OPTIONS,
+    parse_codestyle, serialize_codestyle, BraceStyle, ForceStyle, JavaStyle, LineSeparator,
+    OptionDef, OptionValue, WrapStyle, OPTIONS,
 };
 use java_formatter_core::formatter::format_java;
 use std::path::Path;
@@ -172,6 +173,35 @@ impl CodestyleApp {
                             }
                         });
                 }
+                OptionValue::Force(f) => {
+                    egui::ComboBox::from_id_salt(def.xml_name)
+                        .selected_text(force_label(*f))
+                        .width(190.0)
+                        .show_ui(ui, |ui| {
+                            for candidate in [
+                                ForceStyle::DoNotForce,
+                                ForceStyle::ForceIfMultiline,
+                                ForceStyle::ForceAlways,
+                            ] {
+                                ui.selectable_value(f, candidate, force_label(candidate));
+                            }
+                        });
+                }
+                OptionValue::LineSep(s) => {
+                    egui::ComboBox::from_id_salt(def.xml_name)
+                        .selected_text(line_sep_label(*s))
+                        .width(190.0)
+                        .show_ui(ui, |ui| {
+                            for candidate in [
+                                LineSeparator::System,
+                                LineSeparator::Lf,
+                                LineSeparator::Crlf,
+                                LineSeparator::Cr,
+                            ] {
+                                ui.selectable_value(s, candidate, line_sep_label(candidate));
+                            }
+                        });
+                }
             }
             (def.set)(&mut self.style, value);
             let response = ui.label(egui::RichText::new(def.xml_name).monospace());
@@ -261,5 +291,22 @@ fn brace_label(b: BraceStyle) -> &'static str {
         BraceStyle::NextLineShifted => "Next line, shifted",
         BraceStyle::NextLineShifted2 => "Next line, shifted (2)",
         BraceStyle::NextLineIfWrapped => "Next line if wrapped",
+    }
+}
+
+fn force_label(f: ForceStyle) -> &'static str {
+    match f {
+        ForceStyle::DoNotForce => "Do not force",
+        ForceStyle::ForceIfMultiline => "Force braces if multiline",
+        ForceStyle::ForceAlways => "Force braces always",
+    }
+}
+
+fn line_sep_label(s: LineSeparator) -> &'static str {
+    match s {
+        LineSeparator::System => "System",
+        LineSeparator::Lf => "LF (\\n)",
+        LineSeparator::Crlf => "CRLF (\\r\\n)",
+        LineSeparator::Cr => "CR (\\r)",
     }
 }

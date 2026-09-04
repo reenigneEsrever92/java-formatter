@@ -9,6 +9,143 @@ tags: [dev, changelog]
 
 ## 2026-09-03
 
+- **The line-length and line-ending options are honoured (R22,
+  line-length-and-line-endings)**: the root-level `RIGHT_MARGIN` (default
+  `120`) and `LINE_SEPARATOR` (default system) options and the JAVA-block
+  `WRAP_LONG_LINES` (default false) / `KEEP_LINE_BREAKS` (default true)
+  toggles — previously ignored (R7) and marked ❌ in docs/settings/common.md
+  — are now parsed into `JavaStyle` (a new `LineSeparator` enum over
+  System / LF / CRLF / CR with a resolve helper, a new
+  `OptionValue::LineSep` registry variant serialised in the XML-escaped
+  `&#10;` / `&#13;&#10;` / `&#13;` forms, three new fields, and four new
+  `OptionDef` entries: `RIGHT_MARGIN` registered before `SOFT_MARGINS` so
+  the latter keeps precedence when a scheme sets both, with absent options
+  now skipped by `parse_codestyle` so the earlier shared-field option keeps
+  its parsed value) and applied in the engine: a finalisation helper in
+  `format_java_diagnosed` collapses verbatim CRLF echoes, trims to one
+  trailing line end and substitutes the configured separator at every line
+  end including the final newline (LF output byte-identical to before); a
+  deterministic `WRAP_LONG_LINES` post-pass hard-wraps over-margin lines at
+  the rightmost whitespace at or before the margin (continuations at the
+  line's indent plus `CONTINUATION_INDENT_SIZE`), scanning each line
+  string/char/comment/text-block aware so literals and comments are never
+  split and comment-only lines are skipped; and the listed layout sites
+  (call argument lists, declaration parameter lists, initialisers,
+  binary/ternary spines, chains, annotation arguments, `new` arguments and
+  array initialisers) render their canonical wrapped layout when
+  `KEEP_LINE_BREAKS` is on and the construct's source carries a line break
+  at its own join level, while `false` keeps the flatten-if-fits reflow.
+  The GUI gained a `LineSep` combo arm (Margins group). Default and
+  absent-scheme output stays byte-identical: the existing suite needed no
+  golden regeneration, and each new golden was re-formatted under its own
+  style to confirm idempotency (R6). The existing `SOFT_MARGINS` test
+  module, misnamed `right_margin.rs`, was renamed to `soft_margins.rs`
+  (fixtures moved to `tests/java/soft_margins/`). Covered by new per-option
+  golden test files `right_margin.rs`, `line_separator.rs` (CRLF and CR
+  goldens store the real separator bytes), `keep_line_breaks.rs` and
+  `wrap_long_lines.rs`; the suite grew from 300 to 314 tests, all green
+  (`cargo test`). No IntelliJ installation was available to cross-check the
+  goldens; the wrap/keep goldens pin `KEEP_LINE_BREAKS` off so the hard-wrap
+  round trip is deterministic.
+
+- **The spacing-around-operators options are honoured (R18,
+  spaces-around-operators)**: the `SPACE_AROUND_*` toggles — assignment,
+  logical, equality, relational, bitwise, additive, multiplicative, shift,
+  unary, lambda arrow and the method-reference `::`, plus `SPACE_AFTER_TYPE_CAST`
+  — previously ignored (R7) and marked ❌ in docs/settings/common.md are now
+  parsed into `JavaStyle` (twelve `bool` fields with the IntelliJ built-in
+  defaults from the settings table, twelve `OptionDef` entries under a new
+  "Spaces" GUI group in the `OPTIONS` registry) and applied in the engine: a
+  small operator-classifying helper returns the separator (one space when the
+  toggle is on, nothing when off) and every emission site is routed through it
+  in both the structured `expr` renderer and the newline-free `flat` renderer —
+  binary expressions (flat joins, the wrapped `BINARY_OPERATION_WRAP`
+  continuation lines, and the chop-down recursion), assignments (statement
+  form, flat form, the wrapped `assign_expr` path, and the `field_decl` /
+  `local_var` declarator joins), unary arms plus the `update_expression`
+  rebuild (`i ++` now canonicalises to `i++`), the lambda `->` separator with
+  body-column bookkeeping derived from the emitted separator, the
+  `method_reference` rebuild (`A::new`, on → `A :: new`; unexpected shapes and
+  comment-bearing nodes fall back to the verbatim echo, R4) and the cast
+  separator. The column constants that assumed the old canonical spacing (`c +
+  ty.len() + 2`, `+ name.len() + 3`, `+ op.len() + 2`, `c + left.len() + 4`, `c
+  + params.len() + 4`) were replaced by arithmetic over the separator actually
+  emitted so margin/wrap decisions stay exact. One deliberate consequence:
+  `SPACE_AFTER_TYPE_CAST` defaults `true`, so a cast now renders `(int) x`
+  (matching IntelliJ) instead of the old `(int)x` — a fidelity fix, not a
+  regression, since no existing golden contains a cast or a method reference.
+  The change is whitespace-only (R5), inserting/removing one space is
+  idempotent (R6), and default/absent schemes keep byte-identical goldens.
+  Covered by twelve new per-option golden test files
+  (`tests/options/space_around_*.rs`, `space_after_type_cast.rs`) each testing
+  the option toggled away from its default plus the absent-option default;
+  `space_around_additive_operators` also covers the wrapped long-sum (margin
+  40 + `WrapIfLong` + off → glued `+beta()` continuation lines) and
+  `space_around_lambda_arrow` one-line lambdas under
+  `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`; the suite grew from 160 to 186 tests, all
+  green (`cargo test`). No IntelliJ installation was available to cross-check
+  the cast / unary-on / `::`-on goldens; the defaults follow the settings
+  table in docs/settings/common.md.
+
+- **Braces are forced on statement bodies per the `*_BRACE_FORCE` options (R17,
+  force-braces)**: `IF_BRACE_FORCE`, `FOR_BRACE_FORCE`, `WHILE_BRACE_FORCE` and
+  `DOWHILE_BRACE_FORCE` — previously ignored (R7) and marked ❌ in
+  docs/settings/common.md — are now parsed into `JavaStyle` (four `ForceStyle`
+  fields, `OptionValue::Force`, a `get_force` decoder beside `get_wrap` /
+  `get_brace`, and four `OptionDef` entries in the Braces group of the `OPTIONS`
+  registry, so the GUI lists them as labeled combos like the brace styles) and
+  applied in the engine: a brace-less single-statement body of the governed
+  construct is wrapped in `{ … }` with the statement indented one level, using
+  exactly the bytes a real block would render so a forced body and a braced
+  source converge on identical canonical output. Force codes follow
+  docs/settings/index.md: `3` always braces, `1` (force if multiline) braces
+  only when the rendered body spans multiple lines (a brace-less nested
+  statement body, e.g. `for (...) if (c) x();`), `0` and out-of-set values fall
+  back to do-not-force and keep today's output byte-for-byte. `if` governs both
+  its consequence and a brace-less `else` body; the classic and enhanced `for`
+  both count as `for` bodies. Braces are only ever added, never stripped, so
+  reformatting braced output stays a no-op (R6) and the insertion is
+  whitespace-only (R5); default/absent schemes are unchanged and every existing
+  golden stays green. Covered by four new per-option golden test files
+  (`tests/options/if_brace_force.rs`, `for_brace_force.rs`,
+  `while_brace_force.rs`, `dowhile_brace_force.rs`) at force codes `0`/`1`/`3`
+  plus an absent-option default and an already-braced idempotency pair each;
+  the suite grew from 140 to 160 tests, all green (`cargo test`). No IntelliJ
+  installation was available to cross-check the goldens; the convention recorded
+  here is that both the classic and the enhanced `for` are governed by
+  `FOR_BRACE_FORCE`, `else` bodies by `IF_BRACE_FORCE`, and an unbraced
+  `do` body keeps the engine's pre-existing brace-less layout (the closing
+  `while` line carries the engine's canonical spacing) unless forced.
+
+- **The blank-line policy options are honoured (R16, blank-line-policy)**: the
+  `KEEP_BLANK_LINES_*` caps and `BLANK_LINES_*` minimums are parsed into
+  `JavaStyle` (19 new fields; `OptionDef` entries in the `OPTIONS` registry
+  under a new "Blank lines" GUI group — the common rows serialize under the
+  JAVA `codeStyleSettings` block, `BLANK_LINES_AROUND_INITIALIZER` and
+  `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS` under `<JavaCodeStyleSettings>`)
+  and applied in the engine. Vertical spacing now follows one shared rule
+  `emitted = max(min(existing, keep_cap), required_min)` at every gap:
+  `KEEP_BLANK_LINES_IN_CODE` / `KEEP_BLANK_LINES_BEFORE_RBRACE` govern
+  statement blocks, `BLANK_LINES_BEFORE_METHOD_BODY` leads method bodies,
+  `Fmt::program` spaces package/import/type boundaries per the
+  `BLANK_LINES_*`/keep options (the `java.*`/`javax.*` group separator stays an
+  import-layout convention), and class/enum bodies space members by their
+  per-kind around minimum (fields — annotated fields use the annotations
+  variant — methods/constructors, nested types, initializers, the
+  `*_IN_INTERFACE` variants, `AFTER_CLASS_HEADER`,
+  `AFTER_ANONYMOUS_CLASS_HEADER`, `BEFORE_CLASS_END`). The new engine keeps
+  source blank runs up to the configured caps, so fields are no longer forced
+  apart and 2+ blank runs are preserved, and a previously unmodelled
+  construct — anonymous class bodies — is now rendered (their `class_body`
+  child is found by kind, since the grammar gives it no field name) so the
+  anonymous-class-header option applies. Default output is unchanged wherever
+  it already matched IntelliJ; the five `tab_indent` goldens that removed the
+  blank line after a class header were regenerated (IntelliJ keeps it up to
+  `KEEP_BLANK_LINES_IN_DECLARATIONS`). Covered by 19 new per-option test files
+  (one per XML option, golden pairs under `tests/java/<option>/`, including an
+  absent-option default check per file and idempotent goldens); the suite grew
+  from 84 to 140 tests, all green (`cargo test`).
+
 - **The per-option test suite is now pure golden pairs (per-option-test-suite)**:
   every test formats a `.java` fixture under a specific style and compares
   byte-exact to a `*.out.java` golden next to it, so each option's
@@ -140,6 +277,169 @@ tags: [dev, changelog]
   (one-line collapse vs multi-line fallback, idempotent) fixtures.
   No IntelliJ installation was available to cross-check the golden; the
   label/body indentation follows IntelliJ's default switch layout.
+
+- **The spacing-around-separators options are honoured (R19,
+  spaces-around-separators)**: the `SPACE_AFTER_COMMA`,
+  `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS`, `SPACE_BEFORE_COMMA`,
+  `SPACE_AFTER_SEMICOLON`, `SPACE_BEFORE_SEMICOLON`, `SPACE_BEFORE_QUEST`,
+  `SPACE_AFTER_QUEST`, `SPACE_BEFORE_COLON`, `SPACE_AFTER_COLON`,
+  `SPACE_BEFORE_TYPE_PARAMETER_LIST` and `SPACE_BEFORE_COLON_IN_FOREACH`
+  options — previously ignored (R7) and marked ❌ in the docs/settings
+  separator tables — are now parsed into `JavaStyle` (eleven `bool` fields
+  with the IntelliJ built-in defaults from the settings tables:
+  `SPACE_BEFORE_COMMA`, `SPACE_BEFORE_SEMICOLON` and
+  `SPACE_BEFORE_TYPE_PARAMETER_LIST` default false, the rest true — equal to
+  today's canonical output, so absent/default schemes keep byte-identical
+  goldens; eleven `OptionDef` entries in a new separator-spacing group of the
+  `OPTIONS` registry, ten in the JAVA `codeStyleSettings` block and
+  `SPACE_BEFORE_COLON_IN_FOREACH` in `<JavaCodeStyleSettings>`) and applied
+  in the engine: a `comma_sep(after)` helper builds the comma separator from
+  `SPACE_BEFORE_COMMA` and the after toggle, and every single-line comma join
+  is routed through it — calls (`flat_args`), declarations (`formal_params`,
+  `flat_formal_params`, `field_decl`, `local_var` declarator lists),
+  annotations (`flat_ann_args`), arrays (`flat_arr_init`), record components
+  (`record_components`), lambda inferred parameters, `throws` lists and
+  `implements`/`extends` type lists (`flat_type_list`) under
+  `SPACE_AFTER_COMMA`, while `flat_type_args` uses
+  `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` (the `",\n"` wrapped joins stay as-is:
+  a newline already replaces the after space). The `for` header keeps its
+  raw echo but normalises the whitespace around each `;` per
+  `SPACE_BEFORE_SEMICOLON` / `SPACE_AFTER_SEMICOLON` (never inserting a
+  space before `)`) and falls back to rebuilding the header from the
+  statement's init/condition/update children on awkward empty-slot edges
+  (`for (;;)` stays compact). Ternary rendering (both the `ternary` function
+  and the flat ternary arm) builds the `?` / `:` separators from
+  `SPACE_BEFORE_QUEST` / `SPACE_AFTER_QUEST` and `SPACE_BEFORE_COLON` /
+  `SPACE_AFTER_COLON` instead of the hard-coded `" ? "` / `" : "`; the
+  enhanced-`for` colon takes its before space from
+  `SPACE_BEFORE_COLON_IN_FOREACH` and its after space from `SPACE_AFTER_COLON`;
+  and `SPACE_BEFORE_TYPE_PARAMETER_LIST` inserts the name→`<…>` gap in
+  `class_decl` / `iface_decl` / `record_decl` (default off keeps
+  `class Foo<T>`, generic method/constructor type-parameter lists are left
+  alone). Deliberately unchanged (defaults already match today):
+  statement-terminating `;`, switch `case`-label colons, the assert colon and
+  enum-constant commas. The change is whitespace-only (R5), inserting or
+  removing a single space is idempotent (R6 — verified by formatting each
+  new golden under its own style), and unmodelled shapes are echoed verbatim
+  (R4). Covered by eleven new per-option golden test files under
+  `tests/options/` (each asserting the option toggled away from its default
+  plus the absent-option default, fixtures under `tests/java/<option>/`); the
+  suite grew from 186 to 208 tests, all green (`cargo test`).
+
+- **The within-parentheses/brackets/braces spacing options are honoured (R20,
+  spaces-within-parentheses-brackets-braces)**: the 18 `SPACE_WITHIN_*`
+  options — `SPACE_WITHIN_PARENTHESES`, `SPACE_WITHIN_METHOD_CALL_PARENTHESES`,
+  `SPACE_WITHIN_EMPTY_METHOD_CALL_PARENTHESES`, `SPACE_WITHIN_METHOD_PARENTHESES`,
+  `SPACE_WITHIN_EMPTY_METHOD_PARENTHESES`, `SPACE_WITHIN_IF_PARENTHESES`,
+  `SPACE_WITHIN_WHILE_PARENTHESES`, `SPACE_WITHIN_FOR_PARENTHESES`,
+  `SPACE_WITHIN_TRY_PARENTHESES`, `SPACE_WITHIN_CATCH_PARENTHESES`,
+  `SPACE_WITHIN_SWITCH_PARENTHESES`, `SPACE_WITHIN_SYNCHRONIZED_PARENTHESES`,
+  `SPACE_WITHIN_CAST_PARENTHESES`, `SPACE_WITHIN_BRACKETS`, `SPACE_WITHIN_BRACES`,
+  `SPACE_WITHIN_ARRAY_INITIALIZER_BRACES`,
+  `SPACE_WITHIN_EMPTY_ARRAY_INITIALIZER_BRACES` and
+  `SPACE_WITHIN_ANNOTATION_PARENTHESES` — previously ignored (R7) and marked ❌
+  in the docs/settings/common.md "Within parentheses, brackets, braces" table
+  are now parsed into `JavaStyle` (eighteen `bool` fields defaulting to
+  `false` — equal to today's tight output, so absent/default schemes keep
+  byte-identical goldens — and eighteen `OptionDef` entries in the `OPTIONS`
+  registry under the existing "Spaces" GUI group, ten in the JAVA
+  `codeStyleSettings` block) and applied in the engine: a `within(open, close,
+  pad, inner)` helper (plus an empty-aware `within_opt` for the constructs
+  with empty variants) rebuilds every structured paren/bracket/brace pair,
+  padding one space per side when the toggle is on, keeping the pair bare for
+  an empty inner unless the construct has an empty variant in the request, and
+  leaving a side bare when its neighbour is a newline so wrapped layouts never
+  gain trailing whitespace. Per-construct granularity is preserved by
+  destructuring: keyword conditions (`if`, `while` / `do … while`, `switch`,
+  `synchronized`) are rendered by `keyword_cond` / `flat_keyword_cond`, which
+  unwrap the outer `parenthesized_expression` and rebuild the paren pair with
+  the keyword's own toggle so plain `SPACE_WITHIN_PARENTHESES` does not leak
+  into them (nested parentheses inside a condition still flow through
+  `expr`/`flat` and pad as plain parentheses); the textual `for` header and
+  try-with-resources list are padded at their outermost paren pair via an
+  idempotent insertion (`pad_outer_parens` — a space is added only when the
+  neighbour is not already a space, so a padded header reformats to itself);
+  and the empty variants are independent (`f( )`, `void f( )`, `{ }`), while
+  a bare `@A()` stays tight (no empty annotation variant in the request). The
+  change is whitespace-only (R5) and idempotent (R6 — each new golden was
+  re-formatted under its own style and confirmed byte-identical); unmodelled
+  shapes are echoed verbatim (R4). Covered by eighteen new per-option golden
+  test files under `tests/options/` (each asserting the option on → padded
+  golden and the absent-option default → tight golden, fixtures under
+  `tests/java/<option>/`); the suite grew from 208 to 244 tests, all green
+  (`cargo test`). No IntelliJ installation was available to cross-check the
+  goldens; the defaults follow the settings table in docs/settings/common.md.
+
+- **The before-parentheses/braces/keywords spacing options are honoured (R21,
+  spaces-before-keywords-and-parens)**: the 28 `SPACE_BEFORE_*` options of the
+  "Before parentheses / braces / keywords" table — the keyword-to-paren gaps
+  `SPACE_BEFORE_IF_PARENTHESES`, `SPACE_BEFORE_WHILE_PARENTHESES`,
+  `SPACE_BEFORE_FOR_PARENTHESES`, `SPACE_BEFORE_TRY_PARENTHESES`,
+  `SPACE_BEFORE_CATCH_PARENTHESES`, `SPACE_BEFORE_SWITCH_PARENTHESES` and
+  `SPACE_BEFORE_SYNCHRONIZED_PARENTHESES`, the name-to-paren gaps
+  `SPACE_BEFORE_METHOD_CALL_PARENTHESES`, `SPACE_BEFORE_METHOD_PARENTHESES`
+  and `SPACE_BEFORE_ANOTATION_PARAMETER_LIST` (XML name spelled as in IntelliJ
+  sources, typo included), the brace gaps `SPACE_BEFORE_CLASS_LBRACE`,
+  `SPACE_BEFORE_METHOD_LBRACE`, `SPACE_BEFORE_IF_LBRACE`,
+  `SPACE_BEFORE_ELSE_LBRACE`, `SPACE_BEFORE_WHILE_LBRACE`,
+  `SPACE_BEFORE_FOR_LBRACE`, `SPACE_BEFORE_DO_LBRACE`,
+  `SPACE_BEFORE_SWITCH_LBRACE`, `SPACE_BEFORE_TRY_LBRACE`,
+  `SPACE_BEFORE_CATCH_LBRACE`, `SPACE_BEFORE_FINALLY_LBRACE`,
+  `SPACE_BEFORE_SYNCHRONIZED_LBRACE`, `SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE`
+  and `SPACE_BEFORE_ANNOTATION_ARRAY_INITIALIZER_LBRACE`, and the `}`-to-keyword
+  gaps `SPACE_BEFORE_ELSE_KEYWORD`, `SPACE_BEFORE_WHILE_KEYWORD`,
+  `SPACE_BEFORE_CATCH_KEYWORD` and `SPACE_BEFORE_FINALLY_KEYWORD` — previously
+  ignored (R7) and marked ❌ in the docs/settings/common.md "Before
+  parentheses / braces / keywords" table, are now parsed into `JavaStyle`
+  (twenty-eight `bool` fields and twenty-eight `OptionDef` entries in the
+  `OPTIONS` registry under the existing "Spaces" GUI group, all in the JAVA
+  `codeStyleSettings` block) and applied in the engine. Defaults follow the
+  table exactly: the clause-keyword paren and brace toggles plus the four
+  keyword toggles default to `true` — equal to today's canonical gap — while
+  `SPACE_BEFORE_METHOD_CALL_PARENTHESES`, `SPACE_BEFORE_METHOD_PARENTHESES`,
+  `SPACE_BEFORE_ANOTATION_PARAMETER_LIST`,
+  `SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE` and
+  `SPACE_BEFORE_ANNOTATION_ARRAY_INITIALIZER_LBRACE` default to `false`, so
+  absent/default schemes keep byte-identical goldens except for one
+  deliberate tightening: `array_creation` / `flat_arr_creation` always
+  printed `new int[] {…}` (a space) whereas the option defaults `false`, so
+  default output for that construct is now `new int[]{…}` (the IntelliJ
+  built-in); the two `space_within_array_initializer_braces` goldens that
+  contained the spaced form were regenerated, and no other existing golden
+  changed. A tiny `sp(bool)` helper returns the gap (`" "` / `""`) and every
+  emission site routes its single gap through it across all three rendering
+  paths (the multi-line emitter, the keep-simple one-line candidates and the
+  flat emitter used for inline contexts and margin checks): the name→`(`
+  joins of method calls (`flat_inv`, `inv_wrapped`, `fmt_chain`, `new_expr`
+  constructor calls), method/constructor declarations, and annotations
+  (`annotation` / `annotation_expanded` / `flat_annotation` — raw-echoed
+  annotation positions are untouched, R4); the keyword→`(` joins of `if` /
+  `while` / `do … while` / `switch` / `synchronized` conditions and of the
+  textual `for` / `try` headers (the classic-`for` header is rebuilt from
+  source bytes and its `for`↔`(` gap pinned to the toggle, and the
+  try-with-resources list is joined with the toggle rather than a fixed
+  space); the `{` joins of class-like bodies (`with_brace`, plus the
+  anonymous-class join in `new_expr`), method/constructor bodies
+  (`brace_before_body` and the one-line push in `method_body`), the statement
+  bodies of `if` / `else` / `while` / `for` / `enhanced-for` / `do` / `switch` /
+  `try` / `catch` / `finally` / `synchronized` (`stmt_as_block_or_inline`
+  gained an `lbrace` parameter; the one-line candidate formats follow suit),
+  and the array / annotation-array initialisers (`array_creation` /
+  `flat_arr_creation` and the annotation `(`→`{` join via a new `ann_parens`
+  helper); and the `}`→keyword joins of `else`, `catch`, `finally` and the
+  do-`while` tail combine with the paren/brace toggles to produce the
+  `} else {`, `}else{`, `} while(x);` variants. The change is whitespace-only
+  (R5) and inserting/removing one space is idempotent (R6 — every new golden
+  was re-formatted under its own style and confirmed byte-identical);
+  unmodelled shapes are echoed verbatim (R4). Covered by twenty-eight new
+  per-option golden test files under `tests/options/` (each asserting the
+  option toggled away from its default plus the absent-option default,
+  fixtures under `tests/java/<option>/`); the suite grew from 244 to 300
+  tests, all green (`cargo test`). No IntelliJ installation was available to
+  cross-check the goldens; the defaults follow the settings table in
+  docs/settings/common.md and the constructor-call and anonymous-class joins
+  are mapped to the method-call-parentheses and class-lbrace toggles
+  respectively.
 
 ## 2026-09-02
 
