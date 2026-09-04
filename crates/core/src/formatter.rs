@@ -2279,7 +2279,7 @@ impl<'s> Fmt<'s> {
             // In tree-sitter-java 0.23 the switch statement and the switch
             // expression are the same node kind (`switch_expression`); the
             // statement position always uses the multi-line layout.
-            "switch_expression" => self.switch_stmt(node, indent, c),
+            "switch_expression" => self.switch_stmt(node, indent, c, false),
             "assert_statement" => self.assert_stmt(node, indent, c),
             "break_statement" => {
                 let label = node
@@ -3136,9 +3136,14 @@ impl<'s> Fmt<'s> {
     /// with this single kind. Renders `switch (cond) {` on the header line,
     /// `case`/`default` labels indented one level and their statements a
     /// further level, and the closing `}` at the statement indent, matching
-    /// IntelliJ's default switch layout. Any unmodelled shape falls back to
-    /// the verbatim source echo (R4).
-    fn switch_stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    /// IntelliJ's default switch layout. The case-layout options
+    /// (`INDENT_CASE_FROM_SWITCH`, `CASE_STATEMENT_ON_NEW_LINE`,
+    /// `INDENT_BREAK_FROM_CASE`) govern the layout; `is_value` is true when
+    /// the switch is used as a value (see [`Self::switch_expr`]), which lets
+    /// [`Self::switch_rule`] honour the `SWITCH_EXPRESSIONS_WRAP` chop-down
+    /// behaviour for overflowing nested switch expressions. Any unmodelled
+    /// shape falls back to the verbatim source echo (R4).
+    fn switch_stmt(&self, node: Node<'s>, indent: usize, c: usize, is_value: bool) -> String {
         let p_gap = self.sp(self.style.space_before_switch_parentheses);
         let l_gap = self.sp(self.style.space_before_switch_lbrace);
         let cond = self
@@ -3173,18 +3178,28 @@ impl<'s> Fmt<'s> {
             );
         }
 
-        let inner = indent + 1;
+        // `INDENT_CASE_FROM_SWITCH` (default on): labels one level below the
+        // `switch`; off, labels sit at the switch indent. Statements are
+        // always one further level.
+        let label_level = if self.style.indent_case_from_switch {
+            indent + 1
+        } else {
+            indent
+        };
+        let statement_level = label_level + 1;
         let mut out = format!("switch{}{}{}{{\n", p_gap, cond, l_gap);
 
         for ch in self.named(body) {
             match ch.kind() {
-                "switch_block_statement_group" => self.switch_group(ch, inner, &mut out),
-                "switch_rule" => self.switch_rule(ch, inner, &mut out),
+                "switch_block_statement_group" => {
+                    self.switch_group(ch, label_level, statement_level, &mut out)
+                }
+                "switch_rule" => self.switch_rule(ch, label_level, is_value, &mut out),
                 // Comments and any other stray nodes keep their text; `comment`
                 // renders the full line(s), indented to the label level unless
                 // a column-1 option applies (R4).
                 _ => {
-                    out.push_str(&self.comment(ch, inner));
+                    out.push_str(&self.comment(ch, label_level));
                     out.push('\n');
                 }
             }
@@ -3197,33 +3212,90 @@ impl<'s> Fmt<'s> {
 
     /// Lay out one colon-form case group (`switch_block_statement_group`):
     /// each `switch_label` on its own line followed by `:`, then the group's
-    /// statements one indent level deeper.
-    fn switch_group(&self, node: Node<'s>, indent: usize, out: &mut String) {
+    /// statements one indent level deeper. `label_level` is the indent level
+    /// of the labels, `statement_level` of their statements. With
+    /// `CASE_STATEMENT_ON_NEW_LINE` off the group's first (single-line)
+    /// statement is joined onto the last label's line (`case 1: foo();`);
+    /// with `INDENT_BREAK_FROM_CASE` off `break` / `continue` / `return`
+    /// statements render at the label level.
+    fn switch_group(
+        &self,
+        node: Node<'s>,
+        label_level: usize,
+        statement_level: usize,
+        out: &mut String,
+    ) {
+        let inline_first = !self.style.case_statement_on_new_line;
+        // The current line ends with a `label:` that has not yet been closed.
+        let mut open_label = false;
         for ch in self.named(node) {
             if ch.kind() == "switch_label" {
-                out.push_str(&self.ind(indent));
+                if open_label {
+                    out.push('\n');
+                }
+                out.push_str(&self.ind(label_level));
                 out.push_str(self.txt(ch));
-                out.push_str(":\n");
+                out.push(':');
+                open_label = true;
             } else if self.is_comment_node(ch) {
+                if open_label {
+                    out.push('\n');
+                    open_label = false;
+                }
                 // Comments inside a case group render through the comment
                 // helper (full line, column-1 / space / wrap options); the
                 // statement indent prefix is skipped here.
-                out.push_str(&self.comment(ch, indent + 1));
+                out.push_str(&self.comment(ch, statement_level));
                 out.push('\n');
             } else {
-                let sc = self.col_after(0, &self.ind(indent + 1));
-                out.push_str(&self.ind(indent + 1));
-                out.push_str(&self.stmt(ch, indent + 1, sc));
+                // `INDENT_BREAK_FROM_CASE` off: the jump statements line up
+                // with the case label instead of the statement indent.
+                let level = if !self.style.indent_break_from_case
+                    && matches!(
+                        ch.kind(),
+                        "break_statement" | "continue_statement" | "return_statement"
+                    ) {
+                    label_level
+                } else {
+                    statement_level
+                };
+                let sc = self.col_after(0, &self.ind(level));
+                // `CASE_STATEMENT_ON_NEW_LINE` off joins the group's first
+                // statement onto the label line (single-line bodies only; a
+                // body that itself wraps keeps its own line).
+                if open_label && inline_first && level == statement_level {
+                    let s = self.stmt(ch, level, sc);
+                    if !s.contains('\n') {
+                        out.push(' ');
+                        out.push_str(&s);
+                        out.push('\n');
+                        open_label = false;
+                        continue;
+                    }
+                }
+                if open_label {
+                    out.push('\n');
+                    open_label = false;
+                }
+                out.push_str(&self.ind(level));
+                out.push_str(&self.stmt(ch, level, sc));
                 out.push('\n');
             }
+        }
+        if open_label {
+            out.push('\n');
         }
     }
 
     /// Lay out one arrow-form rule (`switch_rule`): `case X -> body` with an
     /// inline expression/throw body or a block body. If the body would wrap
     /// (render with a newline), the whole rule is echoed verbatim (R4) rather
-    /// than producing a misaligned continuation.
-    fn switch_rule(&self, node: Node<'s>, indent: usize, out: &mut String) {
+    /// than producing a misaligned continuation — except that a switch
+    /// expression used as a value (`is_value`) under
+    /// `SWITCH_EXPRESSIONS_WRAP` = chop-down (`5`) breaks an overflowing
+    /// nested switch-expression body into its (self-aligned) multi-line
+    /// layout instead.
+    fn switch_rule(&self, node: Node<'s>, indent: usize, is_value: bool, out: &mut String) {
         let mut label = String::new();
         let mut body: Option<Node<'s>> = None;
         for ch in self.named(node) {
@@ -3244,9 +3316,19 @@ impl<'s> Fmt<'s> {
             Some(b) => {
                 let s = self.stmt(b, indent, 0);
                 if s.contains('\n') {
-                    out.push_str(&self.ind(indent));
-                    out.push_str(self.txt(node));
-                    out.push('\n');
+                    let chop_nested = is_value
+                        && self.style.switch_expressions_wrap == WrapStyle::ChopDownIfLong
+                        && b.kind() == "expression_statement"
+                        && self.named(b).first().map(|n| n.kind()) == Some("switch_expression");
+                    if chop_nested {
+                        out.push_str(&head);
+                        out.push_str(&s);
+                        out.push('\n');
+                    } else {
+                        out.push_str(&self.ind(indent));
+                        out.push_str(self.txt(node));
+                        out.push('\n');
+                    }
                 } else {
                     out.push_str(&head);
                     out.push_str(&s);
@@ -3262,16 +3344,30 @@ impl<'s> Fmt<'s> {
     }
 
     /// Render a `switch_expression` used in expression position (assignment
-    /// RHS, return value, argument): a single line when the whole switch fits
-    /// the current column, otherwise the multi-line [`Self::switch_stmt`]
-    /// layout.
+    /// RHS, return value, argument) per `SWITCH_EXPRESSIONS_WRAP`: `0`
+    /// (DoNotWrap) keeps the single-line form whenever one exists, `1`
+    /// (WrapIfLong, the default) and `5` (ChopDownIfLong) use it only when it
+    /// fits the current column, and `2` (WrapAlways) always uses the
+    /// multi-line [`Self::switch_stmt`] layout. `5` additionally breaks an
+    /// overflowing nested switch expression in the body (see
+    /// [`Self::switch_rule`]).
     fn switch_expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        if let Some(one) = self.switch_one_line(node) {
-            if self.fits(c, &one) {
-                return one;
+        match self.style.switch_expressions_wrap {
+            WrapStyle::DoNotWrap => {
+                if let Some(one) = self.switch_one_line(node) {
+                    return one;
+                }
+            }
+            WrapStyle::WrapAlways => {}
+            _ => {
+                if let Some(one) = self.switch_one_line(node) {
+                    if self.fits(c, &one) {
+                        return one;
+                    }
+                }
             }
         }
-        self.switch_stmt(node, indent, c)
+        self.switch_stmt(node, indent, c, true)
     }
 
     /// One-line rendering of a whole switch; `None` when any part (condition,

@@ -86,6 +86,9 @@ The options currently honoured are:
 | `CATCH_ON_NEW_LINE`                      | Put each `catch` clause of a `try` on a new line                                                                                  |
 | `FINALLY_ON_NEW_LINE`                    | Put the `finally` clause of a `try` on a new line                                                                                 |
 | `SPECIAL_ELSE_IF_TREATMENT`              | Keep `else if` fused as one construct instead of nesting `else { if … }`                                                          |
+| `INDENT_CASE_FROM_SWITCH`                | Indent `case` / `default` labels one level from the `switch`                                                                          |
+| `CASE_STATEMENT_ON_NEW_LINE`             | Put the statement after a `case` / `default` label on a new line                                                                      |
+| `INDENT_BREAK_FROM_CASE`                 | Indent `break` / `continue` / `return` one level from the `case` label                                                                |
 | `CALL_PARAMETERS_WRAP`                   | Wrapping of method-call argument lists                                                                                          |
 | `CALL_PARAMETERS_LPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `(` goes on its own line                                                                               |
 | `CALL_PARAMETERS_RPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `)` goes on its own line                                                                               |
@@ -95,6 +98,7 @@ The options currently honoured are:
 | `METHOD_CALL_CHAIN_WRAP`                 | Wrapping of chained method calls                                                                                                |
 | `ASSIGNMENT_WRAP`                        | Wrapping of assignment statements and variable / field initialisers                                                             |
 | `BINARY_OPERATION_WRAP`                  | Wrapping of binary expressions at their operators                                                                               |
+| `SWITCH_EXPRESSIONS_WRAP`                | Wrapping of switch expressions used as values                                                                                    |
 | `WRAP_LONG_LINES`                        | Hard-wrap lines longer than the right margin at the last whitespace boundary (literals and comments are never split)            |
 | `KEEP_LINE_BREAKS`                       | Keep a construct's existing line breaks (its canonical wrapped layout) instead of joining it onto one line                        |
 | `LINE_COMMENT_AT_FIRST_COLUMN`           | Place `//` line comments at the first column (no indent)                                                                           |
@@ -278,9 +282,19 @@ braces when the body spans multiple lines, `3` = always force braces.
   `USE_TAB_CHARACTER`, output is space-indented as before.
 - `switch` statements are laid out with `case` / `default` labels indented one
   level and their statements a further level; colon and arrow (`case x ->`)
-  forms are preserved. A switch expression used as a value (assignment,
-  return, argument) stays on one line when the whole construct fits the
-  margin, and falls back to the same multi-line layout otherwise.
+  forms are preserved. The layout follows the scheme's case options:
+  `INDENT_CASE_FROM_SWITCH` (default on) puts the labels one level below the
+  `switch` — off, they sit at the `switch` indent; `CASE_STATEMENT_ON_NEW_LINE`
+  (default on) starts the statement after a label on a new line — off, the
+  group's first single-line statement is joined onto the label's line; and
+  `INDENT_BREAK_FROM_CASE` (default on) keeps `break` / `continue` / `return`
+  one level from the label — off, they line up with the label.
+- A switch expression used as a value (assignment, return, argument) stays on
+  one line when it fits the margin and falls back to the same multi-line
+  layout otherwise, per `SWITCH_EXPRESSIONS_WRAP` (default wrap if long, code
+  `1`): code `0` keeps the one-line form whenever one exists, code `2` always
+  uses the multi-line layout, and code `5` additionally breaks an overflowing
+  nested switch expression in the body.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
   (naming the construct and its line:column), while the best-effort formatted

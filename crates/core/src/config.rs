@@ -264,6 +264,12 @@ pub struct JavaStyle {
     pub keep_simple_lambdas_in_one_line: bool,
     pub keep_control_statement_in_one_line: bool,
 
+    // --- switch / case layout ---
+    pub indent_case_from_switch: bool,
+    pub case_statement_on_new_line: bool,
+    pub indent_break_from_case: bool,
+    pub switch_expressions_wrap: WrapStyle,
+
     // --- record-specific (JavaCodeStyleSettings) ---
     pub record_components_wrap: WrapStyle,
     pub align_multiline_records: bool,
@@ -418,6 +424,10 @@ impl Default for JavaStyle {
             keep_simple_methods_in_one_line: false,
             keep_simple_lambdas_in_one_line: false,
             keep_control_statement_in_one_line: true,
+            indent_case_from_switch: true,
+            case_statement_on_new_line: true,
+            indent_break_from_case: true,
+            switch_expressions_wrap: WrapStyle::WrapIfLong,
             record_components_wrap: WrapStyle::DoNotWrap,
             align_multiline_records: true,
             new_line_after_lparen_in_record_header: false,
@@ -828,6 +838,45 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "INDENT_CASE_FROM_SWITCH",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Braces",
+        description: "Indent case / default labels one level from the switch.",
+        get: |s| OptionValue::Bool(s.indent_case_from_switch),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.indent_case_from_switch = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CASE_STATEMENT_ON_NEW_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Braces",
+        description: "Put the statement after a case label on a new line.",
+        get: |s| OptionValue::Bool(s.case_statement_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.case_statement_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "INDENT_BREAK_FROM_CASE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Braces",
+        description: "Indent break / continue / return statements one level from the case label.",
+        get: |s| OptionValue::Bool(s.indent_break_from_case),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.indent_break_from_case = b;
+            }
+        },
+    },
     // --- Call-site parameter wrapping ---
     OptionDef {
         xml_name: "CALL_PARAMETERS_WRAP",
@@ -971,6 +1020,19 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.keep_line_breaks = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SWITCH_EXPRESSIONS_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::WrapIfLong),
+        group: "Wrapping",
+        description: "Wrapping of switch expressions used as values.",
+        get: |s| OptionValue::Wrap(s.switch_expressions_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.switch_expressions_wrap = w;
             }
         },
     },

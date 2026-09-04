@@ -95,9 +95,9 @@ Options controlling comment layout and line-break retention.
 | `CATCH_ON_NEW_LINE`                     | bool | `false`           | `true` / `false`                    | `} catch (…)` → `}\ncatch (…)`.                                          | ✅                              |
 | `FINALLY_ON_NEW_LINE`                   | bool | `false`           | `true` / `false`                    | `} finally` → `}\nfinally`.                                              | ✅                              |
 | `SPECIAL_ELSE_IF_TREATMENT`             | bool | `true`            | `true` / `false`                    | Keep `else if` as one construct instead of nested `else { if … }`.       | ✅                              |
-| `INDENT_CASE_FROM_SWITCH`               | bool | `true`            | `true` / `false`                    | Indent `case` labels from the `switch`.                                  | ❌                              |
-| `CASE_STATEMENT_ON_NEW_LINE`            | bool | `true`            | `true` / `false`                    | Put the statement after a `case` label on a new line.                    | ❌                              |
-| `INDENT_BREAK_FROM_CASE`                | bool | `true`            | `true` / `false`                    | Indent `break` / `continue` / `return` one level from the `case` label.  | ❌                              |
+| `INDENT_CASE_FROM_SWITCH`               | bool | `true`            | `true` / `false`                    | Indent `case` labels from the `switch`.                                  | ✅                              |
+| `CASE_STATEMENT_ON_NEW_LINE`            | bool | `true`            | `true` / `false`                    | Put the statement after a `case` label on a new line.                    | ✅                              |
+| `INDENT_BREAK_FROM_CASE`                | bool | `true`            | `true` / `false`                    | Indent `break` / `continue` / `return` one level from the `case` label.  | ✅                              |
 
 ## Alignment
 
@@ -259,7 +259,7 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 | `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`    | bool | `false` | Put the assignment operator at the start of the continuation line. | ❌      |
 | `ASSERT_STATEMENT_WRAP`                 | int  | `0`     | Wrapping of `assert` statements.                                   | ❌      |
 | `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`   | bool | `false` | Put the `:` of an `assert` on the next line.                       | ❌      |
-| `SWITCH_EXPRESSIONS_WRAP`               | int  | `1`     | Wrapping of `switch` expressions used as values.                   | ❌      |
+| `SWITCH_EXPRESSIONS_WRAP`               | int  | `1`     | Wrapping of `switch` expressions used as values.                   | ✅      |
 | `FOR_STATEMENT_WRAP`                    | int  | `0`     | Wrapping of `for` headers.                                         | ❌      |
 | `FOR_STATEMENT_LPAREN_ON_NEXT_LINE`     | bool | `false` | `(` of a wrapped `for` on its own line.                            | ❌      |
 | `FOR_STATEMENT_RPAREN_ON_NEXT_LINE`     | bool | `false` | `)` of a wrapped `for` on its own line.                            | ❌      |

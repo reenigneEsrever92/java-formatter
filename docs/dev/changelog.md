@@ -7,6 +7,47 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-04
+
+- **The switch / case indentation and wrapping options are honoured (R25,
+  switch-case-layout)**: the four layout options — `INDENT_CASE_FROM_SWITCH`
+  (default true), `CASE_STATEMENT_ON_NEW_LINE` (default true),
+  `INDENT_BREAK_FROM_CASE` (default true) and `SWITCH_EXPRESSIONS_WRAP`
+  (default wrap if long) — previously ignored (R7) and marked ❌ in the
+  docs/settings/common.md "Braces & indentation" and "Wrapping & braces →
+  Expressions and statements" tables, are now parsed into `JavaStyle` (three
+  `bool` fields and one `WrapStyle` field with the IntelliJ built-in defaults
+  and four `OptionDef` entries in the `OPTIONS` registry — the flags under
+  the "Braces" GUI group next to the clause rows,
+  `SWITCH_EXPRESSIONS_WRAP` under "Wrapping", all in the JAVA
+  `codeStyleSettings` block) and applied in the engine:
+  `Fmt::switch_stmt` computes the label / statement indent levels from
+  `INDENT_CASE_FROM_SWITCH` (labels one level below the `switch` when on,
+  at the `switch` indent when off) and threads them through `switch_group`,
+  `switch_rule` and the comment fallback; `Fmt::switch_group` joins the
+  group's first single-line statement onto the label's line when
+  `CASE_STATEMENT_ON_NEW_LINE` is off (following statements still start
+  their own lines) and renders `break` / `continue` / `return` at the label
+  level when `INDENT_BREAK_FROM_CASE` is off; and `Fmt::switch_expr` decides
+  the one-line vs multi-line layout of a switch expression used as a value
+  per `SWITCH_EXPRESSIONS_WRAP` (`0` do not wrap keeps the one-line form
+  whenever one exists, `1` wrap if long is the shipped fits-based default,
+  `2` wrap always, `5` chop down if long additionally breaks an overflowing
+  nested switch expression in the body via `Fmt::switch_rule`), with
+  statement-position switches and the `flat` echo untouched. Layout /
+  whitespace only (R5), absent options keep the defaults, default and
+  absent-scheme output stays byte-identical (no existing golden changed),
+  and each new golden was re-formatted under its own style and confirmed
+  byte-identical (R6). Covered by four new per-option golden test files
+  under `tests/options/` (`indent_case_from_switch.rs`,
+  `case_statement_on_new_line.rs`, `indent_break_from_case.rs`,
+  `switch_expressions_wrap.rs`), each asserting its interesting values plus
+  the absent-option default, with fixtures under `tests/java/<option>/`; the
+  suite grew from 350 to 362 tests, all green (`cargo test --workspace`). No
+  IntelliJ installation was available to cross-check the goldens; the case
+  layouts and the chop-down behaviour follow the settings table and the
+  request's decisions.
+
 ## 2026-09-03
 
 - **The clause-keyword and brace-less control-statement layout options are

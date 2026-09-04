@@ -53,6 +53,8 @@ mod call_parameters_lparen_on_next_line;
 mod call_parameters_rparen_on_next_line;
 #[path = "options/call_parameters_wrap.rs"]
 mod call_parameters_wrap;
+#[path = "options/case_statement_on_new_line.rs"]
+mod case_statement_on_new_line;
 #[path = "options/catch_on_new_line.rs"]
 mod catch_on_new_line;
 #[path = "options/class_brace_style.rs"]
@@ -71,6 +73,10 @@ mod finally_on_new_line;
 mod for_brace_force;
 #[path = "options/if_brace_force.rs"]
 mod if_brace_force;
+#[path = "options/indent_break_from_case.rs"]
+mod indent_break_from_case;
+#[path = "options/indent_case_from_switch.rs"]
+mod indent_case_from_switch;
 #[path = "options/indent_size.rs"]
 mod indent_size;
 #[path = "options/keep_blank_lines_before_rbrace.rs"]
@@ -261,6 +267,8 @@ mod space_within_try_parentheses;
 mod space_within_while_parentheses;
 #[path = "options/special_else_if_treatment.rs"]
 mod special_else_if_treatment;
+#[path = "options/switch_expressions_wrap.rs"]
+mod switch_expressions_wrap;
 #[path = "options/tab_size.rs"]
 mod tab_size;
 #[path = "options/use_tab_character.rs"]

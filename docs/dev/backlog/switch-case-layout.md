@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the switch/case indentation and wrapping options
 description: Implement the case-label indentation options and SWITCH_EXPRESSIONS_WRAP on top of the shipped switch layout.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-04T21:41:48Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -143,35 +144,36 @@ by reformatting the golden and comparing it to itself (the
 in "Braces & indentation", `SWITCH_EXPRESSIONS_WRAP` in "Wrapping & braces →
 Expressions and statements") from ❌ to ✅; add the four options to the README
 honoured-options table and update the switch bullet in _Formatting behaviour
-notes_; add a requirement row (R16) and a milestones note to
-`docs/requirements.md`; append a `docs/dev/changelog.md` entry (newest first).
+notes_; add a requirement row (the next free number after R24, added as R25)
+and a milestones note to `docs/requirements.md`; append a
+`docs/dev/changelog.md` entry (newest first).
 
 ## Steps
 
-- [ ] crates/core/src/config.rs: add the four `JavaStyle` fields + `Default`
+- [x] crates/core/src/config.rs: add the four `JavaStyle` fields + `Default`
       values (bools `true`, wrap `WrapStyle::WrapIfLong`) and the four `OPTIONS`
       entries (`Section::CodeStyleJava`; three `OptionValue::Bool`, one
       `OptionValue::Wrap`); the registry-driven parse/serialize and GUI pick
       them up with no further code. Verify the crate builds and the existing
       suite stays green (defaults match the shipped layout) (AC: config
       mapping, defaults).
-- [ ] crates/core/src/formatter.rs: compute `label_level` / `statement_level`
+- [x] crates/core/src/formatter.rs: compute `label_level` / `statement_level`
       in `switch_stmt` from `indent_case_from_switch` and thread them through
       `switch_group`, `switch_rule` and the comment fallback, so labels outdent
       to the switch indent when the option is false (AC2: `INDENT_CASE_FROM_SWITCH`).
-- [ ] crates/core/src/formatter.rs: `switch_group` — put the group's first
+- [x] crates/core/src/formatter.rs: `switch_group` — put the group's first
       statement on the label line when `case_statement_on_new_line` is false,
       and indent `break` / `continue` / `return` children at `label_level` when
       `indent_break_from_case` is false (AC2: `CASE_STATEMENT_ON_NEW_LINE`,
       `INDENT_BREAK_FROM_CASE`).
-- [ ] crates/core/src/formatter.rs: `switch_expr` — decide one-line vs
+- [x] crates/core/src/formatter.rs: `switch_expr` — decide one-line vs
       multi-line per `switch_expressions_wrap` (0 always one-line when a
       one-line form exists, 1 fits-based default unchanged, 2 always
       multi-line, 5 wrap-if-long plus chop-down of overflowing nested
       constructs, pinned by golden and cross-checked with IntelliJ if
       available); statement-position switches and the `flat` arm unchanged
       (AC3).
-- [ ] Tests: create `crates/core/tests/options/indent_case_from_switch.rs`,
+- [x] Tests: create `crates/core/tests/options/indent_case_from_switch.rs`,
       `case_statement_on_new_line.rs`, `indent_break_from_case.rs` and
       `switch_expressions_wrap.rs` with golden pairs under
       `tests/java/<option>/` (per-value goldens — the three case options at
@@ -179,14 +181,18 @@ notes_; add a requirement row (R16) and a milestones note to
       at codes 0/1/2/5 plus a short-expression wrap-always case and a default
       check), wire them into `tests/options.rs`, and assert each new golden is
       idempotent by reformatting it (AC1, AC2, AC3, AC4).
-- [ ] Run `cargo test`: all existing goldens stay green (defaults
+- [x] Run `cargo test`: all existing goldens stay green (defaults
       byte-compatible) and the four new option files pass (AC4).
-- [ ] Docs: flip the four `docs/settings/common.md` rows to ✅; add the four
+- [x] Docs: flip the four `docs/settings/common.md` rows to ✅; add the four
       options to the README honoured-options table and update the switch
-      _Formatting behaviour notes_ bullet; add requirement row R16 to
+      _Formatting behaviour notes_ bullet; add requirement row R25 to
       `docs/requirements.md` and touch the milestones paragraph; append a
       `docs/dev/changelog.md` entry; run `cargo test` once more to confirm the
       suite is green (AC5).
+
+Note: the plan originally named the requirement row "R16" — the free number
+at the time of writing; R16–R24 were already taken when this request was
+implemented, so the row was added as R25 (see docs/requirements.md).
 
 Commit: not committed (worktree changes only — the repository is left for the
 owner to commit).
