@@ -43,17 +43,17 @@ Options controlling comment layout and line-break retention.
 
 | Option                                  | Type | Default | Values           | Effect                                                                         | Support |
 | --------------------------------------- | ---- | ------- | ---------------- | ------------------------------------------------------------------------------ | ------- |
-| `LINE_COMMENT_AT_FIRST_COLUMN`          | bool | `true`  | `true` / `false` | Keep `//` line comments in the first column (no indent).                       | ❌      |
-| `BLOCK_COMMENT_AT_FIRST_COLUMN`         | bool | `true`  | `true` / `false` | Keep `/* */` block comments in the first column.                               | ❌      |
+| `LINE_COMMENT_AT_FIRST_COLUMN`          | bool | `true`  | `true` / `false` | Keep `//` line comments in the first column (no indent).                       | ✅      |
+| `BLOCK_COMMENT_AT_FIRST_COLUMN`         | bool | `true`  | `true` / `false` | Keep `/* */` block comments in the first column.                               | ✅      |
 | `LINE_COMMENT_ADD_SPACE`                | bool | `false` | `true` / `false` | Insert a space after `//` when commenting / uncommenting lines.                | n/a     |
 | `BLOCK_COMMENT_ADD_SPACE`               | bool | `false` | `true` / `false` | Insert a space after `/*` and before `*/`.                                     | n/a     |
-| `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`    | bool | `false` | `true` / `false` | Add the space after `//` on reformat.                                          | ❌      |
-| `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` | bool | `false` | `true` / `false` | Add the space inside `// noinspection` suppression comments.                   | ❌      |
+| `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`    | bool | `false` | `true` / `false` | Add the space after `//` on reformat.                                          | ✅      |
+| `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` | bool | `false` | `true` / `false` | Add the space inside `// noinspection` suppression comments.                   | ✅      |
 | `DOCUMENTATION_LINE_COMMENT_PREFERRED`  | bool | `false` | `true` / `false` | Prefer documentation line comments where the language supports them.           | n/a     |
 | `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code: a construct whose source spans rows keeps its canonical wrapped layout.               | ✅      |
-| `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.              | ❌      |
+| `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.              | ✅      |
 | `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line. | ❌      |
-| `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                        | ❌      |
+| `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                        | ✅      |
 | `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap) at the last whitespace boundary; literals and comments are never split. | ✅      |
 
 ## Blank lines

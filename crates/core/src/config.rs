@@ -213,6 +213,14 @@ pub struct JavaStyle {
     pub wrap_long_lines: bool,
     pub keep_line_breaks: bool,
 
+    // --- comments ---
+    pub line_comment_at_first_column: bool,
+    pub block_comment_at_first_column: bool,
+    pub line_comment_add_space_on_reformat: bool,
+    pub line_comment_add_space_in_suppression: bool,
+    pub keep_first_column_comment: bool,
+    pub wrap_comments: bool,
+
     // --- brace styles ---
     pub class_brace_style: BraceStyle,
     pub method_brace_style: BraceStyle,
@@ -368,6 +376,12 @@ impl Default for JavaStyle {
             line_separator: LineSeparator::System,
             wrap_long_lines: false,
             keep_line_breaks: true,
+            line_comment_at_first_column: true,
+            block_comment_at_first_column: true,
+            line_comment_add_space_on_reformat: false,
+            line_comment_add_space_in_suppression: false,
+            keep_first_column_comment: true,
+            wrap_comments: false,
             class_brace_style: BraceStyle::EndOfLine,
             method_brace_style: BraceStyle::EndOfLine,
             other_brace_style: BraceStyle::EndOfLine,
@@ -863,6 +877,85 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.keep_line_breaks = b;
+            }
+        },
+    },
+    // --- Comments ---
+    OptionDef {
+        xml_name: "LINE_COMMENT_AT_FIRST_COLUMN",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Comments",
+        description: "Place // line comments at the first column (no indent).",
+        get: |s| OptionValue::Bool(s.line_comment_at_first_column),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.line_comment_at_first_column = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLOCK_COMMENT_AT_FIRST_COLUMN",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Comments",
+        description: "Place /* */ block comments at the first column.",
+        get: |s| OptionValue::Bool(s.block_comment_at_first_column),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.block_comment_at_first_column = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LINE_COMMENT_ADD_SPACE_ON_REFORMAT",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Comments",
+        description: "Add the space after // on reformat.",
+        get: |s| OptionValue::Bool(s.line_comment_add_space_on_reformat),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.line_comment_add_space_on_reformat = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Comments",
+        description: "Add the space inside //noinspection suppression comments.",
+        get: |s| OptionValue::Bool(s.line_comment_add_space_in_suppression),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.line_comment_add_space_in_suppression = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_FIRST_COLUMN_COMMENT",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Comments",
+        description: "Keep comments that start in the first column at the first column.",
+        get: |s| OptionValue::Bool(s.keep_first_column_comment),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_first_column_comment = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "WRAP_COMMENTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Comments",
+        description: "Wrap long comments to the right margin.",
+        get: |s| OptionValue::Bool(s.wrap_comments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.wrap_comments = b;
             }
         },
     },

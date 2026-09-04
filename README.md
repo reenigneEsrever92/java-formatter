@@ -91,6 +91,12 @@ The options currently honoured are:
 | `BINARY_OPERATION_WRAP`                  | Wrapping of binary expressions at their operators                                                                               |
 | `WRAP_LONG_LINES`                        | Hard-wrap lines longer than the right margin at the last whitespace boundary (literals and comments are never split)            |
 | `KEEP_LINE_BREAKS`                       | Keep a construct's existing line breaks (its canonical wrapped layout) instead of joining it onto one line                        |
+| `LINE_COMMENT_AT_FIRST_COLUMN`           | Place `//` line comments at the first column (no indent)                                                                           |
+| `BLOCK_COMMENT_AT_FIRST_COLUMN`          | Place `/* */` block comments at the first column                                                                                   |
+| `KEEP_FIRST_COLUMN_COMMENT`              | Keep comments that start in the first column at the first column                                                                   |
+| `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`     | Insert the space after `//` on reformat                                                                                            |
+| `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION`  | Insert the space after `//` inside `//noinspection` suppression comments                                                           |
+| `WRAP_COMMENTS`                          | Wrap long comments to the right margin                                                                                             |
 | `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`         | Keep one-statement blocks of `if` / `else` / `for` / `while` / `do`, `try` / `catch` / `finally` and `synchronized` on one line |
 | `KEEP_SIMPLE_METHODS_IN_ONE_LINE`        | Keep single-statement method / constructor bodies on one line                                                                   |
 | `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`        | Keep single-statement lambda bodies on one line                                                                                 |
@@ -348,6 +354,23 @@ braces when the body spans multiple lines, `3` = always force braces.
   (`WRAP_COMMENTS` governs those); an over-long line with no safe boundary (a
   long string literal or single token) stays over-long. The wrap points are a
   pure function of the flat text, so re-formatting reproduces them (R6).
+- Comments follow the scheme's comment layout options: a comment whose source
+  starts in the first column stays there under `KEEP_FIRST_COLUMN_COMMENT`
+  (default on), and `LINE_COMMENT_AT_FIRST_COLUMN` /
+  `BLOCK_COMMENT_AT_FIRST_COLUMN` (both default on) pin `//` and `/* */`
+  comments to the first column — matching IntelliJ, the built-in defaults
+  place comments at column 1 rather than the code indent. With those toggles
+  off, comments are emitted at the indentation of the surrounding code.
+  `LINE_COMMENT_ADD_SPACE_ON_REFORMAT` inserts the missing space after `//`
+  of ordinary line comments; `//noinspection` suppression comments are
+  governed separately by `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` (a space
+  there would break the suppression). Under `WRAP_COMMENTS`, a single-line
+  comment longer than the right margin is wrapped at word boundaries with the
+  continuation lines repeating the comment's column prefix (`//` for line
+  comments, aligned ` * ` text for block comments); multi-line block comments
+  keep their source text verbatim. Comment text is never invented — only the
+  indentation, the optional space after `//` and the line breaks change (R5),
+  and re-formatting the output reproduces the layout (R6).
 
 ## Desktop GUI
 

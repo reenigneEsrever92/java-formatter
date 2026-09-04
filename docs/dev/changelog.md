@@ -9,6 +9,52 @@ tags: [dev, changelog]
 
 ## 2026-09-03
 
+- **The comment layout options are honoured (R23, comment-layout)**: the six
+  comment options — `LINE_COMMENT_AT_FIRST_COLUMN` (default true),
+  `BLOCK_COMMENT_AT_FIRST_COLUMN` (default true),
+  `LINE_COMMENT_ADD_SPACE_ON_REFORMAT` (default false),
+  `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` (default false),
+  `KEEP_FIRST_COLUMN_COMMENT` (default true) and `WRAP_COMMENTS` (default
+  false) — previously ignored (R7) and marked ❌ in the docs/settings/common.md
+  "General & comments" table, are now parsed into `JavaStyle` (six `bool`
+  fields with the IntelliJ built-in defaults from the table and six
+  `OptionDef` entries in the `OPTIONS` registry under a new "Comments" GUI
+  group, all in the JAVA `codeStyleSettings` block) and applied in the
+  engine: every standalone-comment emit site (file-header comments in
+  `Fmt::program`, comment members of class / interface / record / anonymous
+  bodies (`Fmt::class_body`), enum-body declaration members (`Fmt::enum_body`)
+  and the `Fmt::class_member` comment arm, in-block extras (`Fmt::block`), the
+  `Fmt::stmt` comment arm and switch-block strays (`Fmt::switch_stmt` /
+  `Fmt::switch_group`), and the inline extra shortcut in `Fmt::expr`) now
+  routes through one shared `comment` helper that decides, in order: the
+  column — a source first-column comment stays there when
+  `KEEP_FIRST_COLUMN_COMMENT` is on, otherwise the per-kind `*_AT_FIRST_COLUMN`
+  toggle pins the comment to column 1, else the contextual indent (the call
+  sites drop their indent prefix for column-1 comments); the space after `//`
+  — `LINE_COMMENT_ADD_SPACE_ON_REFORMAT` inserts one space after `//` of an
+  ordinary line comment when absent, while `//noinspection` suppression
+  comments are governed separately by `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION`
+  (a space there would break the suppression); and `WRAP_COMMENTS`
+  word-wraps a single-line comment longer than the right margin, repeating
+  the comment's column prefix on continuation lines (`//` for line comments,
+  aligned ` * ` text for block comments) — multi-line block comments keep
+  their source text verbatim (R4). Comment text is preserved: indentation,
+  the optional space and line breaks only change (R5), and each new golden
+  was re-formatted under its own style and confirmed byte-identical (R6).
+  Default and absent-scheme output stays byte-identical for comment-free
+  sources — the existing suite needed no golden regeneration — and the
+  built-in defaults (true/true) place comments at column 1, matching
+  IntelliJ. Covered by six new per-option golden test files under
+  `tests/options/` (`line_comment_at_first_column.rs`,
+  `block_comment_at_first_column.rs`, `keep_first_column_comment.rs`,
+  `line_comment_add_space_on_reformat.rs`,
+  `line_comment_add_space_in_suppression.rs`, `wrap_comments.rs`), each
+  asserting both values plus the absent-option default, with fixtures under
+  `tests/java/<option>/`; the suite grew from 314 to 334 tests, all green
+  (`cargo test`). No IntelliJ installation was available to cross-check the
+  goldens; the column / space / wrap layouts follow the settings table and
+  the request's decisions.
+
 - **The line-length and line-ending options are honoured (R22,
   line-length-and-line-endings)**: the root-level `RIGHT_MARGIN` (default
   `120`) and `LINE_SEPARATOR` (default system) options and the JAVA-block

@@ -43,6 +43,8 @@ mod blank_lines_before_imports;
 mod blank_lines_before_method_body;
 #[path = "options/blank_lines_before_package.rs"]
 mod blank_lines_before_package;
+#[path = "options/block_comment_at_first_column.rs"]
+mod block_comment_at_first_column;
 #[path = "options/brace_style.rs"]
 mod brace_style;
 #[path = "options/call_parameters_lparen_on_next_line.rs"]
@@ -73,6 +75,8 @@ mod keep_blank_lines_between_package_declaration_and_header;
 mod keep_blank_lines_in_code;
 #[path = "options/keep_blank_lines_in_declarations.rs"]
 mod keep_blank_lines_in_declarations;
+#[path = "options/keep_first_column_comment.rs"]
+mod keep_first_column_comment;
 #[path = "options/keep_line_breaks.rs"]
 mod keep_line_breaks;
 #[path = "options/keep_simple_blocks_in_one_line.rs"]
@@ -81,6 +85,12 @@ mod keep_simple_blocks_in_one_line;
 mod keep_simple_lambdas_in_one_line;
 #[path = "options/keep_simple_methods_in_one_line.rs"]
 mod keep_simple_methods_in_one_line;
+#[path = "options/line_comment_add_space_in_suppression.rs"]
+mod line_comment_add_space_in_suppression;
+#[path = "options/line_comment_add_space_on_reformat.rs"]
+mod line_comment_add_space_on_reformat;
+#[path = "options/line_comment_at_first_column.rs"]
+mod line_comment_at_first_column;
 #[path = "options/line_separator.rs"]
 mod line_separator;
 #[path = "options/method_brace_style.rs"]
@@ -245,5 +255,7 @@ mod tab_size;
 mod use_tab_character;
 #[path = "options/while_brace_force.rs"]
 mod while_brace_force;
+#[path = "options/wrap_comments.rs"]
+mod wrap_comments;
 #[path = "options/wrap_long_lines.rs"]
 mod wrap_long_lines;

@@ -653,6 +653,170 @@ impl<'s> Fmt<'s> {
         node.is_extra() || matches!(node.kind(), "line_comment" | "block_comment")
     }
 
+    // ── comments ─────────────────────────────────────────────────────────────
+
+    /// Render a `line_comment` / `block_comment` node as its complete output
+    /// line(s). Every standalone-comment emit site routes through here so the
+    /// comment layout options apply uniformly:
+    ///
+    /// 1. **Column.** A comment whose source text starts in column 1 stays at
+    ///    column 1 when `KEEP_FIRST_COLUMN_COMMENT` is set; otherwise a line
+    ///    comment goes to column 1 when `LINE_COMMENT_AT_FIRST_COLUMN` is set
+    ///    and a block comment when `BLOCK_COMMENT_AT_FIRST_COLUMN` is set;
+    ///    otherwise it is emitted at the contextual `indent`.
+    /// 2. **Space after `//`.** With `LINE_COMMENT_ADD_SPACE_ON_REFORMAT` one
+    ///    space follows the `//` of an ordinary line comment when absent;
+    ///    `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` does the same for
+    ///    `//noinspection` suppression comments only (a space there would
+    ///    break the suppression, so the two flags are independent).
+    /// 3. **Wrap.** With `WRAP_COMMENTS` an over-margin single-line comment is
+    ///    broken at word boundaries; continuation lines repeat the comment's
+    ///    column prefix (`//` for line comments, aligned ` * ` text for block
+    ///    comments).
+    ///
+    /// Comment text is preserved — only indentation, the optional space and
+    /// line breaks change (R5); multi-line block comments keep their source
+    /// interior verbatim (R4). Stray non-comment extras keep the historical
+    /// indented echo so call sites can route any extra through here.
+    fn comment(&self, node: Node<'s>, indent: usize) -> String {
+        let text = self.txt(node);
+        if !matches!(node.kind(), "line_comment" | "block_comment") {
+            return format!("{}{}", self.ind(indent), text);
+        }
+        let is_line = node.kind() == "line_comment";
+
+        // 1. Column placement: a first-column source comment is kept there by
+        //    KEEP_FIRST_COLUMN_COMMENT, and the per-kind *_AT_FIRST_COLUMN
+        //    toggle pins the comment to column 1; otherwise the contextual
+        //    indent is used.
+        let src_col0 = node.start_position().column == 0;
+        let first_column = (src_col0 && self.style.keep_first_column_comment)
+            || (is_line && self.style.line_comment_at_first_column)
+            || (!is_line && self.style.block_comment_at_first_column);
+        let ind = self.ind(indent);
+        let pad = if first_column { "" } else { ind.as_str() };
+
+        // 2. Optional space after `//`: ON_REFORMAT for ordinary line
+        //    comments, IN_SUPPRESSION for `//noinspection` comments only.
+        let mut body = text.to_string();
+        if is_line {
+            let suppression = body.starts_with("//noinspection");
+            let add_space = if suppression {
+                self.style.line_comment_add_space_in_suppression
+            } else {
+                self.style.line_comment_add_space_on_reformat
+            };
+            let rest = &body[2..];
+            if add_space && !rest.is_empty() && !rest.starts_with(' ') {
+                body = format!("// {}", rest);
+            }
+        }
+
+        // 3. WRAP_COMMENTS: break an over-margin single-line comment at word
+        //    boundaries. Multi-line comments (block comments spanning rows)
+        //    keep their source layout verbatim (R4).
+        if self.style.wrap_comments && !body.contains('\n') && !body.contains('\r') {
+            let pad_col = self.col_after(0, pad);
+            if !self.fits(pad_col, &body) {
+                return if is_line {
+                    self.wrap_line_comment(pad, &body)
+                } else {
+                    self.wrap_block_comment(pad, &body)
+                };
+            }
+        }
+
+        format!("{}{}", pad, body)
+    }
+
+    /// `WRAP_COMMENTS` for a single-line `//…` comment: words are moved onto
+    /// continuation lines that repeat the comment's own marker form (with or
+    /// without the space after `//`), each line within the right margin.
+    fn wrap_line_comment(&self, pad: &str, body: &str) -> String {
+        let words: Vec<&str> = body[2..].split_whitespace().collect();
+        if words.is_empty() {
+            return format!("{}{}", pad, body);
+        }
+        let marker = if body[2..].starts_with(' ') {
+            "// "
+        } else {
+            "//"
+        };
+        let margin = self.style.right_margin as usize;
+        let start_col = self.col_after(0, pad) + marker.chars().count();
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut cur_col = start_col;
+        for w in &words {
+            let wc = w.chars().count();
+            if !cur.is_empty() {
+                if cur_col + 1 + wc > margin {
+                    lines.push(cur.clone());
+                    cur.clear();
+                    cur_col = start_col;
+                } else {
+                    cur.push(' ');
+                    cur_col += 1;
+                }
+            }
+            cur.push_str(w);
+            cur_col += wc;
+        }
+        lines.push(cur);
+        lines
+            .iter()
+            .map(|l| format!("{}{}{}", pad, marker, l))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// `WRAP_COMMENTS` for a single-line `/* … */` comment: the content words
+    /// are laid out with the first line opening `/* ` and continuation lines
+    /// aligning under the `*` (` * `), closing with ` */` on the last line.
+    fn wrap_block_comment(&self, pad: &str, body: &str) -> String {
+        let words: Vec<&str> = body[2..body.len() - 2].split_whitespace().collect();
+        if words.is_empty() {
+            return format!("{}{}", pad, body);
+        }
+        let margin = self.style.right_margin as usize;
+        let first_col = self.col_after(0, pad) + 3; // "/* "
+        let cont_col = self.col_after(0, pad) + 3; // " * "
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut cur_col = first_col;
+        let last_idx = words.len() - 1;
+        for (i, w) in words.iter().enumerate() {
+            let last = i == last_idx;
+            let wc = w.chars().count();
+            // The closing ` */` rides on the line holding the last word.
+            let closing = if last { 3 } else { 0 };
+            if !cur.is_empty() {
+                if cur_col + 1 + wc + closing > margin {
+                    lines.push(cur.clone());
+                    cur.clear();
+                    cur_col = cont_col;
+                } else {
+                    cur.push(' ');
+                    cur_col += 1;
+                }
+            }
+            cur.push_str(w);
+            cur_col += wc;
+        }
+        lines.push(cur);
+        let n = lines.len();
+        lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let prefix = if i == 0 { "/* " } else { " * " };
+                let close = if i + 1 == n { " */" } else { "" };
+                format!("{}{}{}{}", pad, prefix, l, close)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     /// Governing `BLANK_LINES_*` "around" minimum for one class-body member:
     /// fields (annotated fields use `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS`),
     /// methods/constructors, nested types and initializer blocks; interfaces
@@ -759,7 +923,7 @@ impl<'s> Fmt<'s> {
         let mut out = String::new();
 
         for c in &header_comments {
-            out.push_str(self.txt(*c));
+            out.push_str(&self.comment(*c, 0));
             out.push('\n');
         }
 
@@ -1130,8 +1294,7 @@ impl<'s> Fmt<'s> {
                     let mut prev = last_const;
                     for member in self.named(child) {
                         if self.is_comment_node(member) {
-                            out.push_str(&self.ind(inner));
-                            out.push_str(self.txt(member));
+                            out.push_str(&self.comment(member, inner));
                             out.push('\n');
                             continue;
                         }
@@ -1312,8 +1475,10 @@ impl<'s> Fmt<'s> {
             if self.is_comment_node(m) {
                 // Comments are content but take no part in the spacing
                 // options: they are emitted in place, without their own gap.
-                out.push_str(&self.ind(inner));
-                out.push_str(self.txt(m));
+                // `comment` renders the full line(s) (column placement, the
+                // optional space after `//`, wrapping), so the member indent
+                // prefix is not added here.
+                out.push_str(&self.comment(m, inner));
                 out.push('\n');
                 last = Some(m);
                 continue;
@@ -1373,7 +1538,7 @@ impl<'s> Fmt<'s> {
                     blk
                 }
             }
-            "line_comment" | "block_comment" => self.txt(node).to_string(),
+            "line_comment" | "block_comment" => self.comment(node, indent),
             _ => self.txt(node).to_string(),
         }
     }
@@ -1974,11 +2139,14 @@ impl<'s> Fmt<'s> {
                 self.spacing(existing, keep, 0)
             };
             self.push_blanks(&mut out, blanks);
-            out.push_str(&self.ind(inner));
             let sc = self.col_after(0, &self.ind(inner));
             if s.is_extra() {
-                out.push_str(self.txt(*s));
+                // `comment` renders the full line(s) — column placement, the
+                // optional space after `//`, and WRAP_COMMENTS — so the
+                // statement indent prefix is not added for extras.
+                out.push_str(&self.comment(*s, inner));
             } else {
+                out.push_str(&self.ind(inner));
                 out.push_str(&self.stmt(*s, inner, sc));
             }
             out.push('\n');
@@ -2138,7 +2306,7 @@ impl<'s> Fmt<'s> {
             }
             "block" => self.block(node, indent, c, 0),
             "empty_statement" => ";".to_string(),
-            "line_comment" | "block_comment" => self.txt(node).to_string(),
+            "line_comment" | "block_comment" => self.comment(node, indent),
             _ => self.txt(node).to_string(),
         }
     }
@@ -2886,11 +3054,11 @@ impl<'s> Fmt<'s> {
             match ch.kind() {
                 "switch_block_statement_group" => self.switch_group(ch, inner, &mut out),
                 "switch_rule" => self.switch_rule(ch, inner, &mut out),
-                // Comments and any other stray nodes keep their text,
-                // indented to the label level (R4).
+                // Comments and any other stray nodes keep their text; `comment`
+                // renders the full line(s), indented to the label level unless
+                // a column-1 option applies (R4).
                 _ => {
-                    out.push_str(&self.ind(inner));
-                    out.push_str(self.txt(ch));
+                    out.push_str(&self.comment(ch, inner));
                     out.push('\n');
                 }
             }
@@ -2910,6 +3078,12 @@ impl<'s> Fmt<'s> {
                 out.push_str(&self.ind(indent));
                 out.push_str(self.txt(ch));
                 out.push_str(":\n");
+            } else if self.is_comment_node(ch) {
+                // Comments inside a case group render through the comment
+                // helper (full line, column-1 / space / wrap options); the
+                // statement indent prefix is skipped here.
+                out.push_str(&self.comment(ch, indent + 1));
+                out.push('\n');
             } else {
                 let sc = self.col_after(0, &self.ind(indent + 1));
                 out.push_str(&self.ind(indent + 1));
@@ -3053,6 +3227,9 @@ impl<'s> Fmt<'s> {
 
     fn expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         if node.is_extra() {
+            if matches!(node.kind(), "line_comment" | "block_comment") {
+                return self.comment(node, indent);
+            }
             return self.txt(node).to_string();
         }
         match node.kind() {
