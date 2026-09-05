@@ -257,9 +257,22 @@ impl<'s> Fmt<'s> {
 
     /// Continuation-indent string: `level` indent units + continuation offset.
     fn cont(&self, level: usize) -> String {
-        self.indent_str(
-            level * self.style.indent_size as usize + self.style.continuation_indent_size as usize,
-        )
+        let cont_size = self.style.continuation_indent_size as usize;
+        // `USE_RELATIVE_INDENTS` (gated on `USE_TAB_CHARACTER`): the
+        // continuation width is measured from the construct's own indent
+        // level — the continuation offset over one indent unit (`cont_size -
+        // indent_size`) is added to the level's own indentation instead of
+        // to the full level columns, so deeper nesting still deepens the
+        // continuation but it sits one unit closer to the statement. The
+        // default (`false`, or any space-indented scheme) keeps today's
+        // `level * indent + continuation` width byte-identical.
+        let width = if self.style.use_relative_indents && self.style.use_tab_character {
+            let indent = self.style.indent_size as usize;
+            level * indent + cont_size.saturating_sub(indent)
+        } else {
+            level * self.style.indent_size as usize + cont_size
+        };
+        self.indent_str(width)
     }
 
     /// Alignment prefix: `width` spaces, so the following token starts at
@@ -275,14 +288,33 @@ impl<'s> Fmt<'s> {
     /// `USE_TAB_CHARACTER` is set, each full `tab_size` column becomes a tab
     /// character and the remainder spaces — a tab-stop model matching
     /// IntelliJ (so `indent_size == tab_size` yields exactly one tab per
-    /// level). Otherwise plain spaces are emitted, byte-identical to the
-    /// historical output.
+    /// level). `SMART_TABS` restricts tab characters to indentation that
+    /// lands exactly on a tab stop: an indent whose width is not a whole
+    /// number of tabs is emitted as pure spaces (alignment and continuation
+    /// indents that cannot land on a tab stay space-based). Otherwise plain
+    /// spaces are emitted, byte-identical to the historical output.
     fn indent_str(&self, width: usize) -> String {
         if !self.style.use_tab_character {
             return " ".repeat(width);
         }
         let tab = self.style.tab_size as usize;
+        if self.style.smart_tabs && !width.is_multiple_of(tab) {
+            return " ".repeat(width);
+        }
         format!("{}{}", "\t".repeat(width / tab), " ".repeat(width % tab))
+    }
+
+    /// Per-construct continuation width: an explicit width (`>= 0`) renders
+    /// `level` indent units plus `width` continuation columns (the scheme's
+    /// per-construct override of the continuation indent for that construct
+    /// kind); `-1` (the built-in default, "inherit") returns `fallback`
+    /// byte-for-byte, keeping today's layout (AC2).
+    fn construct_ind(&self, level: usize, width: i32, fallback: &str) -> String {
+        if width >= 0 {
+            self.indent_str(level * self.style.indent_size as usize + width as usize)
+        } else {
+            fallback.to_string()
+        }
     }
 
     /// Column reached by appending `s` at column `c`: a newline resets the
@@ -684,6 +716,25 @@ impl<'s> Fmt<'s> {
     fn push_blanks(&self, out: &mut String, n: usize) {
         for _ in 0..n {
             out.push('\n');
+        }
+    }
+
+    /// Push `n` blank lines inside a block body at indent level `level`. With
+    /// `KEEP_INDENTS_ON_EMPTY_LINES` each preserved blank line carries the
+    /// level's indent before the newline (IntelliJ keeps the indent on empty
+    /// lines "as if they contained some code"); otherwise plain blank lines,
+    /// byte-identical to the historical output. The indented blanks still
+    /// count as blank lines on re-format (whitespace-only), so the emitted
+    /// output stays idempotent.
+    fn push_indented_blanks(&self, out: &mut String, n: usize, level: usize) {
+        if self.style.keep_indents_on_empty_lines && n > 0 {
+            let pad = self.ind(level);
+            for _ in 0..n {
+                out.push_str(&pad);
+                out.push('\n');
+            }
+        } else {
+            self.push_blanks(out, n);
         }
     }
 
@@ -1675,6 +1726,18 @@ impl<'s> Fmt<'s> {
 
     // ── class body ────────────────────────────────────────────────────────────
 
+    /// True when `node` (a class / interface / record body) belongs to a
+    /// type declaration reached at the top level — the declaration sits
+    /// directly under the `program` node, so `body → declaration → program`.
+    /// Anonymous class bodies and nested type declarations (whose declaration
+    /// sits under a class body) report `false`.
+    fn is_top_level_class_body(&self, node: Node<'s>) -> bool {
+        node.parent()
+            .and_then(|decl| decl.parent())
+            .map(|gp| gp.kind() == "program")
+            .unwrap_or(false)
+    }
+
     fn class_body(&self, node: Node<'s>, indent: usize, kind: BodyKind) -> String {
         let members = self.named(node);
         if members.is_empty() {
@@ -1687,7 +1750,20 @@ impl<'s> Fmt<'s> {
             );
         }
 
-        let inner = indent + 1;
+        let inner = if self.style.do_not_indent_top_level_class_members
+            && indent == 0
+            && self.is_top_level_class_body(node)
+        {
+            // `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS`: members of a class
+            // reached at the top level (via `program` → `type_decl`) sit at
+            // the class declaration indent instead of one level deeper.
+            // Nested classes — even when the un-indented top-level member
+            // layout puts them at level 0 — and anonymous classes keep the
+            // normal `indent + 1`.
+            0
+        } else {
+            indent + 1
+        };
         let anchor = node.start_byte(); // the opening `{`
         let mut prev: Option<Node<'s>> = None;
         let mut last: Option<Node<'s>> = None;
@@ -2691,7 +2767,19 @@ impl<'s> Fmt<'s> {
         }
 
         let inner = indent + 1;
-        let ind = self.ind(inner);
+        // `DECLARATION_PARAMETER_INDENT` / `CALL_PARAMETER_INDENT`: an
+        // explicit width overrides the continuation indent for this construct
+        // kind only (the other kinds keep their widths); `-1` (default)
+        // inherits today's `ind(inner)` byte-for-byte.
+        let ind = if is_call {
+            self.construct_ind(indent, self.style.call_parameter_indent, &self.ind(inner))
+        } else {
+            self.construct_ind(
+                indent,
+                self.style.declaration_parameter_indent,
+                &self.ind(inner),
+            )
+        };
         // `ALIGN_MULTILINE_PARAMETERS` (declarations) /
         // `ALIGN_MULTILINE_PARAMETERS_IN_CALLS` (calls): when the first
         // parameter stays on the header line after `(` (the
@@ -3050,7 +3138,7 @@ impl<'s> Fmt<'s> {
 
         let mut out = String::from("{\n");
         for l in lines {
-            self.push_blanks(&mut out, l.blanks);
+            self.push_indented_blanks(&mut out, l.blanks, inner);
             if l.indented {
                 out.push_str(&self.ind(inner));
             }
@@ -3062,7 +3150,7 @@ impl<'s> Fmt<'s> {
         let last = stmts[stmts.len() - 1];
         let existing = self.blank_lines_between(last.end_byte(), node.end_byte().saturating_sub(1));
         let blanks = self.spacing(existing, self.style.keep_blank_lines_before_rbrace, 0);
-        self.push_blanks(&mut out, blanks);
+        self.push_indented_blanks(&mut out, blanks, inner);
 
         out.push_str(&self.ind(indent));
         out.push('}');
@@ -3276,13 +3364,39 @@ impl<'s> Fmt<'s> {
                 format!("continue{};", label)
             }
             "labeled_statement" => {
-                let label = self.fld(node, "label").map(|n| self.txt(n)).unwrap_or("");
-                let body = self
-                    .fld(node, "statement")
-                    .or_else(|| node.named_child(1))
+                // tree-sitter-java 0.23 gives the node no field names:
+                // `named_child(0)` is the label identifier, `named_child(1)`
+                // the labeled statement.
+                let label = node.named_child(0).map(|n| self.txt(n)).unwrap_or_default();
+                let body = node
+                    .named_child(1)
                     .map(|n| self.stmt(n, indent, c))
                     .unwrap_or_default();
-                format!("{}:\n{}{}", label, self.ind(indent), body)
+                // `LABEL_INDENT_SIZE` / `LABEL_INDENT_ABSOLUTE`: the label
+                // line's position. The label is the (caller-prefixed) first
+                // line of the statement text, so relative adds the configured
+                // width to the statement indent (`ind(indent)`), while
+                // absolute puts the label at the width from the margin — the
+                // caller's statement-indent prefix is compensated on the
+                // label line, so labels whose width is shallower than the
+                // statement indent stay at the smallest achievable column.
+                // The default (`0`, non-absolute) puts the label at the
+                // statement indent, as before.
+                let width = self.style.label_indent_size as usize;
+                let stmt_col = indent * self.style.indent_size as usize;
+                let label_col = if self.style.label_indent_absolute {
+                    width
+                } else {
+                    stmt_col + width
+                };
+                let extra = label_col.saturating_sub(stmt_col);
+                format!(
+                    "{}{}:\n{}{}",
+                    self.indent_str(extra),
+                    label,
+                    self.ind(indent),
+                    body
+                )
             }
             "block" => self.block(node, indent, c, 0),
             "empty_statement" => ";".to_string(),
@@ -5165,7 +5279,10 @@ impl<'s> Fmt<'s> {
         }
 
         let inner = indent + 1;
-        let ind = self.ind(inner);
+        // `CALL_PARAMETER_INDENT`: an explicit width overrides the
+        // continuation indent for call arguments only; `-1` (default)
+        // inherits today's `ind(inner)` byte-for-byte.
+        let ind = self.construct_ind(indent, self.style.call_parameter_indent, &self.ind(inner));
         let arg_strs: Vec<String> = args
             .iter()
             .map(|&a| {
@@ -5295,7 +5412,10 @@ impl<'s> Fmt<'s> {
         c: usize,
         acol: Option<usize>,
     ) -> String {
-        let cont = self.cont(indent);
+        // `CHAINED_CALL_INDENT`: an explicit width overrides the continuation
+        // indent for the chain's link lines only; `-1` (default) inherits
+        // today's `cont(indent)` byte-for-byte.
+        let cont = self.construct_ind(indent, self.style.chained_call_indent, &self.cont(indent));
         let mut out = String::new();
         let gap = self.sp(self.style.space_before_method_call_parentheses);
         // `WRAP_FIRST_METHOD_IN_CALL_CHAIN`: the first link also starts a
@@ -5923,7 +6043,10 @@ impl<'s> Fmt<'s> {
             return flat;
         }
         let inner = indent + 1;
-        let ind = self.ind(inner);
+        // `ARRAY_ELEMENT_INDENT`: an explicit width overrides the continuation
+        // indent for array elements only; `-1` (default) inherits today's
+        // `ind(inner)` byte-for-byte.
+        let ind = self.construct_ind(indent, self.style.array_element_indent, &self.ind(inner));
         let elems: Vec<Node<'s>> = self.named(node);
         let pad = self.style.space_within_array_initializer_braces;
 

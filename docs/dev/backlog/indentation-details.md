@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the remaining indentation options (labels, smart tabs, relative indents, per-construct indents)
 description: Implement the indent options beyond INDENT_SIZE/CONTINUATION_INDENT_SIZE/TAB_SIZE/USE_TAB_CHARACTER.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-05T18:00Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -53,14 +54,20 @@ Docs touched: `docs/settings/common.md` "Braces & indentation" and "Indent optio
 
 ## Steps
 
-- [ ] crates/core/src/config.rs: add `OptionValue::Int(i32)`, `OptionMap::get_int`, and `Int` arms in `parse_codestyle` / `serialize_codestyle`; add the eleven `JavaStyle` fields + `Default` values and the eleven `OPTIONS` entries (`DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` in `Section::CodeStyleJava`, the rest in `Section::IndentOptions`; five `Int(-1)`, one `UInt(0)`, five `Bool(false)`). Verify the crate builds and the existing suite stays green (defaults equal today's effective values) (AC: config mapping, defaults).
-- [ ] crates/gui/src/main.rs: add the `OptionValue::Int` arm to `option_row` (signed drag value, range covering `-1` and reasonable widths) so the workspace compiles; the registry-driven parse/serialize and GUI need no other changes (AC: config mapping completeness).
-- [ ] crates/core/src/formatter.rs: add the per-construct width helper and apply it at `formal_params` declaration path (`DECLARATION_PARAMETER_INDENT`), the call path `args_wrapped` / `formal_params` `is_call == true` (`CALL_PARAMETER_INDENT`), `fmt_chain` (`CHAINED_CALL_INDENT`) and `array_init` (`ARRAY_ELEMENT_INDENT`), with `-1` returning today's exact string; wire `GENERIC_TYPE_PARAMETER_INDENT` at the `flat_type_params` sites (inert until generic-parameter wrapping exists — documented, no visible effect) (AC1 for the visible constructs).
-- [ ] crates/core/src/formatter.rs: `labeled_statement` in `stmt` — compute the label line's indent from `LABEL_INDENT_SIZE` / `LABEL_INDENT_ABSOLUTE` (absolute = width from margin; relative = statement indent + width), default `0`/relative byte-identical (AC1 labels).
-- [ ] crates/core/src/formatter.rs: `class_body` — when `do_not_indent_top_level_class_members` is set and `indent == 0`, indent members at `ind(indent)`; `block` — when `keep_indents_on_empty_lines` is set, emit the inner indent on preserved blank lines (AC1).
-- [ ] crates/core/src/formatter.rs: `SMART_TABS` and `USE_RELATIVE_INDENTS` refinements in `indent_str` / `cont`, gated on `USE_TAB_CHARACTER`, defaults byte-identical; pin the enabled semantics with goldens, cross-checked against IntelliJ when available (AC3 tab refinement).
-- [ ] Tests: create the eleven `crates/core/tests/options/<option>.rs` files with golden pairs under `tests/java/<option>/` (bools at `true`; each `*_INDENT` at an explicit width on a fixture also exercising the sibling constructs; labels plain + absolute; tab-refinement fixtures under `USE_TAB_CHARACTER`), wire them into `tests/options.rs`, include an absent-option default check per file, and assert each new golden idempotent by reformatting it (AC1, AC2, AC3).
-- [ ] Run `cargo test`: all existing goldens stay green (defaults byte-compatible) and the eleven new option files pass (AC2).
-- [ ] Docs: flip the eleven `docs/settings/common.md` rows to ✅; add the eleven options to the README honoured-options table and extend the _Formatting behaviour notes_; add the next-free requirement row (R16 unless `switch-case-layout` claims it first, then R17) to `docs/requirements.md` and touch the milestones paragraph; append a `docs/dev/changelog.md` entry; run `cargo test` once more to confirm the suite is green (AC4).
+- [x] crates/core/src/config.rs: add `OptionValue::Int(i32)`, `OptionMap::get_int`, and `Int` arms in `parse_codestyle` / `serialize_codestyle`; add the eleven `JavaStyle` fields + `Default` values and the eleven `OPTIONS` entries (`DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` in `Section::CodeStyleJava`, the rest in `Section::IndentOptions`; five `Int(-1)`, one `UInt(0)`, five `Bool(false)`). Verify the crate builds and the existing suite stays green (defaults equal today's effective values) (AC: config mapping, defaults).
+- [x] crates/gui/src/main.rs: add the `OptionValue::Int` arm to `option_row` (signed drag value, range covering `-1` and reasonable widths) so the workspace compiles; the registry-driven parse/serialize and GUI need no other changes (AC: config mapping completeness).
+- [x] crates/core/src/formatter.rs: add the per-construct width helper and apply it at `formal_params` declaration path (`DECLARATION_PARAMETER_INDENT`), the call path `args_wrapped` / `formal_params` `is_call == true` (`CALL_PARAMETER_INDENT`), `fmt_chain` (`CHAINED_CALL_INDENT`) and `array_init` (`ARRAY_ELEMENT_INDENT`), with `-1` returning today's exact string; wire `GENERIC_TYPE_PARAMETER_INDENT` at the `flat_type_params` sites (inert until generic-parameter wrapping exists — documented, no visible effect) (AC1 for the visible constructs).
+- [x] crates/core/src/formatter.rs: `labeled_statement` in `stmt` — compute the label line's indent from `LABEL_INDENT_SIZE` / `LABEL_INDENT_ABSOLUTE` (absolute = width from margin; relative = statement indent + width), default `0`/relative byte-identical (AC1 labels). Also fixed the pre-existing dropped-label bug: tree-sitter-java 0.23 gives the node no field names, so the label is read via `named_child(0)`.
+- [x] crates/core/src/formatter.rs: `class_body` — when `do_not_indent_top_level_class_members` is set and the class is top-level (`indent == 0` and its declaration sits directly under `program` — `is_top_level_class_body`), indent members at `ind(indent)`; `block` — when `keep_indents_on_empty_lines` is set, emit the inner indent on preserved blank lines (AC1).
+- [x] crates/core/src/formatter.rs: `SMART_TABS` and `USE_RELATIVE_INDENTS` refinements in `indent_str` / `cont`, gated on `USE_TAB_CHARACTER`, defaults byte-identical; pin the enabled semantics with goldens, cross-checked against IntelliJ when available (AC3 tab refinement).
+- [x] Tests: create the eleven `crates/core/tests/options/<option>.rs` files with golden pairs under `tests/java/<option>/` (bools at `true`; each `*_INDENT` at an explicit width on a fixture also exercising the sibling constructs; labels plain + absolute; tab-refinement fixtures under `USE_TAB_CHARACTER`), wire them into `tests/options.rs`, include an absent-option default check per file, and assert each new golden idempotent by reformatting it (AC1, AC2, AC3).
+- [x] Run `cargo test`: all existing goldens stay green (defaults byte-compatible) and the eleven new option files pass (AC2).
+- [x] Docs: flip the eleven `docs/settings/common.md` rows to ✅; add the eleven options to the README honoured-options table and extend the _Formatting behaviour notes_; add the next-free requirement row (R32) to `docs/requirements.md` and touch the milestones paragraph; append a `docs/dev/changelog.md` entry; run `cargo test` once more to confirm the suite is green (AC4).
+
+## Verification
+
+- `cargo build --workspace` succeeds (the GUI `Int` arm is required for compilation).
+- `cargo test --workspace`: 639 passed, 0 failed (was 604 before this change) — all pre-existing goldens are byte-identical.
+- parse(serialize(style)) == style for the signed widths holds by construction: `-1` equals the registry default and is skipped on serialize, explicit widths serialize as `n.to_string()` and parse back via `get_int` (AC3).
 
 Commit: not committed (worktree changes only — the repository is left for the owner to commit).

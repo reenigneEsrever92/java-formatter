@@ -200,6 +200,17 @@ The options currently honoured are:
 | `CONTINUATION_INDENT_SIZE`               | Continuation-indent width                                                                                                       |
 | `TAB_SIZE`                               | Width of a tab in columns; drives tab output and column arithmetic                                                              |
 | `USE_TAB_CHARACTER`                      | Emit indentation as tab characters (tab-stop model; unset means spaces)                                                         |
+| `SMART_TABS`                             | With `USE_TAB_CHARACTER`, use tab characters only for indentation that lands exactly on a tab stop (off-stop indents stay spaces) |
+| `LABEL_INDENT_SIZE`                      | Indent for `label:` lines (relative to the statement indent by default)                                                         |
+| `LABEL_INDENT_ABSOLUTE`                  | Measure the label indent from the left margin regardless of nesting                                                              |
+| `USE_RELATIVE_INDENTS`                   | With `USE_TAB_CHARACTER`, measure continuation indents from the construct's own indent level                                     |
+| `KEEP_INDENTS_ON_EMPTY_LINES`            | Keep the block's inner indent on preserved blank lines                                                                          |
+| `DECLARATION_PARAMETER_INDENT`           | Per-construct continuation indent for wrapped declaration parameters (`-1` = inherit)                                           |
+| `GENERIC_TYPE_PARAMETER_INDENT`          | Per-construct continuation indent for generic type parameters (`-1` = inherit; inert — generic lists render flat)                |
+| `CALL_PARAMETER_INDENT`                  | Per-construct continuation indent for wrapped call arguments (`-1` = inherit)                                                   |
+| `CHAINED_CALL_INDENT`                    | Per-construct continuation indent for wrapped chained-call links (`-1` = inherit)                                               |
+| `ARRAY_ELEMENT_INDENT`                   | Per-construct continuation indent for wrapped array elements (`-1` = inherit)                                                   |
+| `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS`  | Do not indent the members of a top-level class (they sit at the class declaration indent)                                        |
 | `SPACE_AROUND_ASSIGNMENT_OPERATORS`      | Space around `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`                                          |
 | `SPACE_AROUND_LOGICAL_OPERATORS`         | Space around `&&` and `\|\|`                                                                                                  |
 | `SPACE_AROUND_EQUALITY_OPERATORS`        | Space around `==` and `!=`                                                                                                      |
@@ -415,11 +426,34 @@ braces when the body spans multiple lines, `3` = always force braces.
   and any remainder becomes spaces — so with `INDENT_SIZE == TAB_SIZE` each
   level is exactly one tab, while continuation indents that are not a whole
   number of tabs (e.g. `TAB_SIZE` 4 with a continuation indent of 6) emit a
-  tab plus trailing spaces. Alignment that needs exact columns (e.g. record
-  components aligned under the opening paren) stays space-based. Margin and
-  wrap decisions always use logical columns — a tab counts as `TAB_SIZE` — so
-  a tab scheme wraps exactly where the equivalent space scheme does. Without
-  `USE_TAB_CHARACTER`, output is space-indented as before.
+  tab plus trailing spaces. `SMART_TABS` restricts tab characters to
+  indentation that lands exactly on a tab stop: an indent whose width is not
+  a whole number of tabs is emitted as pure spaces (alignment and
+  off-stop continuation indents stay space-based). Alignment that needs exact
+  columns (e.g. record components aligned under the opening paren) stays
+  space-based. Margin and wrap decisions always use logical columns — a tab
+  counts as `TAB_SIZE` — so a tab scheme wraps exactly where the equivalent
+  space scheme does. Without `USE_TAB_CHARACTER`, output is space-indented as
+  before.
+- The remaining indentation refinements apply on top: `LABEL_INDENT_SIZE`
+  shifts `label:` lines from the statement indent (relative, the default) or,
+  with `LABEL_INDENT_ABSOLUTE`, pins them to the width from the left margin
+  regardless of nesting; `KEEP_INDENTS_ON_EMPTY_LINES` keeps the block's
+  inner indent on preserved blank lines; `USE_RELATIVE_INDENTS` (with
+  `USE_TAB_CHARACTER`) measures continuation indents from the construct's
+  own indent level instead of adding the full continuation offset to the
+  level columns; and the five per-construct continuations
+  `DECLARATION_PARAMETER_INDENT`, `GENERIC_TYPE_PARAMETER_INDENT`,
+  `CALL_PARAMETER_INDENT`, `CHAINED_CALL_INDENT` and `ARRAY_ELEMENT_INDENT`
+  override the continuation indent of their construct kind only (an explicit
+  width replaces the construct's continuation; `-1` = inherit, the built-in
+  default, keeps today's layout). `GENERIC_TYPE_PARAMETER_INDENT` is parsed
+  and round-trips but is otherwise inert today: generic parameter lists
+  always render flat and never wrap. `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS`
+  places the members of a top-level class at the class declaration indent
+  (nested classes keep the normal one-level indent). All of these are layout
+  / whitespace-only; absent options keep the IntelliJ built-in defaults and
+  today's byte-identical output.
 - The align-when-multiline family replaces the continuation indent of a wrapped
   construct's continuation lines with spaces to the first element's column,
   exactly like the record-header alignment (`ALIGN_MULTILINE_RECORDS` aligns

@@ -142,6 +142,11 @@ impl CodestyleApp {
                 OptionValue::UInt(n) => {
                     ui.add(egui::DragValue::new(n).speed(1).range(0..=u32::MAX));
                 }
+                // Signed options (`-1` = inherit for the per-construct indent
+                // widths): a drag value covering `-1` and reasonable widths.
+                OptionValue::Int(n) => {
+                    ui.add(egui::DragValue::new(n).speed(1).range(-1..=1024));
+                }
                 OptionValue::Wrap(w) => {
                     egui::ComboBox::from_id_salt(def.xml_name)
                         .selected_text(wrap_label(*w))

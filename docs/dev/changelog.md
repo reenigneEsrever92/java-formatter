@@ -9,6 +9,52 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **The remaining indentation options are honoured (R32, indentation-details)**:
+  the eleven options previously ignored (R7) and marked ❌ in the
+  docs/settings tables — `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` (JAVA
+  `codeStyleSettings` block) and the ten `<indentOptions>` rows `SMART_TABS`,
+  `LABEL_INDENT_SIZE`, `LABEL_INDENT_ABSOLUTE`, `USE_RELATIVE_INDENTS`,
+  `KEEP_INDENTS_ON_EMPTY_LINES`, `DECLARATION_PARAMETER_INDENT`,
+  `GENERIC_TYPE_PARAMETER_INDENT`, `CALL_PARAMETER_INDENT`,
+  `CHAINED_CALL_INDENT` and `ARRAY_ELEMENT_INDENT` — are now parsed into
+  `JavaStyle` and applied in the engine. The registry gains a signed
+  `OptionValue::Int` variant (with an `OptionMap::get_int` decoder and `Int`
+  arms in `parse_codestyle` / `serialize_codestyle`) so the five
+  per-construct widths can default to `-1` (= inherit
+  `CONTINUATION_INDENT_SIZE`) and still round-trip through
+  parse(serialize(style)) == style; the GUI's `option_row` gets a signed
+  drag-value arm. Semantics: `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` places
+  the members of a top-level class at the class declaration indent (nested
+  classes keep the one-level indent); `LABEL_INDENT_SIZE` /
+  `LABEL_INDENT_ABSOLUTE` position `label:` lines at the statement indent
+  plus the width (relative, the default) or at the width from the margin
+  regardless of nesting (absolute) — the `labeled_statement` arm now reads
+  the label identifier via `named_child(0)` (tree-sitter-java 0.23 gives the
+  node no field names, so the label previously rendered empty);
+  `KEEP_INDENTS_ON_EMPTY_LINES` keeps the block's inner indent on preserved
+  blank lines; `SMART_TABS` (with `USE_TAB_CHARACTER`) restricts tab
+  characters to indentation that lands exactly on a tab stop, off-stop
+  indents staying pure spaces; `USE_RELATIVE_INDENTS` (with
+  `USE_TAB_CHARACTER`) measures continuation indents from the construct's
+  own indent level (one indent unit closer to the statement); and the four
+  visible per-construct widths override the continuation indent of their
+  construct kind only — declaration parameter lists, call argument lists,
+  chained-call link lines and array elements — while `-1` inherits today's
+  exact string. `GENERIC_TYPE_PARAMETER_INDENT` is wired through
+  config/registry/GUI but inert: generic parameter lists always render flat.
+  All changes are whitespace/layout only (R5, R6), absent and default
+  options keep today's output byte-for-byte (no existing golden moved), and
+  each new golden is asserted idempotent by re-formatting it. Covered by
+  eleven new per-option golden test files under `tests/options/` (fixtures
+  under `tests/java/<option>/`; bools at `true`, the four visible widths at
+  an explicit value on a fixture exercising the sibling constructs at their
+  default widths, labels under plain and absolute indents, tab refinements
+  under `USE_TAB_CHARACTER`, and an absent-option default check per file);
+  the suite grew from 604 to 639 tests, all green (`cargo test
+  --workspace`). No IntelliJ installation was available to cross-check the
+  goldens; the pinned semantics follow the docs/settings table and the
+  R13 tab-stop model.
+
 - **Annotation placement and annotation-body layout options are honoured
   (R31, annotation-layout)**: the twelve annotation options —
   `METHOD_ANNOTATION_WRAP`, `CLASS_ANNOTATION_WRAP`, `FIELD_ANNOTATION_WRAP`

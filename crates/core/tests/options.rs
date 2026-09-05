@@ -47,6 +47,8 @@ mod align_subsequent_simple_methods;
 mod align_throws_keyword;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
+#[path = "options/array_element_indent.rs"]
+mod array_element_indent;
 #[path = "options/array_initializer_lbrace_on_next_line.rs"]
 mod array_initializer_lbrace_on_next_line;
 #[path = "options/array_initializer_rbrace_on_next_line.rs"]
@@ -97,6 +99,8 @@ mod blank_lines_before_package;
 mod block_comment_at_first_column;
 #[path = "options/brace_style.rs"]
 mod brace_style;
+#[path = "options/call_parameter_indent.rs"]
+mod call_parameter_indent;
 #[path = "options/call_parameters_lparen_on_next_line.rs"]
 mod call_parameters_lparen_on_next_line;
 #[path = "options/call_parameters_rparen_on_next_line.rs"]
@@ -107,6 +111,8 @@ mod call_parameters_wrap;
 mod case_statement_on_new_line;
 #[path = "options/catch_on_new_line.rs"]
 mod catch_on_new_line;
+#[path = "options/chained_call_indent.rs"]
+mod chained_call_indent;
 #[path = "options/class_annotation_wrap.rs"]
 mod class_annotation_wrap;
 #[path = "options/class_brace_style.rs"]
@@ -115,6 +121,10 @@ mod class_brace_style;
 mod class_count_to_use_import_on_demand;
 #[path = "options/continuation_indent_size.rs"]
 mod continuation_indent_size;
+#[path = "options/declaration_parameter_indent.rs"]
+mod declaration_parameter_indent;
+#[path = "options/do_not_indent_top_level_class_members.rs"]
+mod do_not_indent_top_level_class_members;
 #[path = "options/do_not_wrap_after_single_annotation.rs"]
 mod do_not_wrap_after_single_annotation;
 #[path = "options/do_not_wrap_after_single_annotation_in_parameter.rs"]
@@ -141,6 +151,8 @@ mod for_statement_lparen_on_next_line;
 mod for_statement_rparen_on_next_line;
 #[path = "options/for_statement_wrap.rs"]
 mod for_statement_wrap;
+#[path = "options/generic_type_parameter_indent.rs"]
+mod generic_type_parameter_indent;
 #[path = "options/if_brace_force.rs"]
 mod if_brace_force;
 #[path = "options/indent_break_from_case.rs"]
@@ -161,6 +173,8 @@ mod keep_blank_lines_in_declarations;
 mod keep_control_statement_in_one_line;
 #[path = "options/keep_first_column_comment.rs"]
 mod keep_first_column_comment;
+#[path = "options/keep_indents_on_empty_lines.rs"]
+mod keep_indents_on_empty_lines;
 #[path = "options/keep_line_breaks.rs"]
 mod keep_line_breaks;
 #[path = "options/keep_multiple_expressions_in_one_line.rs"]
@@ -173,6 +187,10 @@ mod keep_simple_classes_in_one_line;
 mod keep_simple_lambdas_in_one_line;
 #[path = "options/keep_simple_methods_in_one_line.rs"]
 mod keep_simple_methods_in_one_line;
+#[path = "options/label_indent_absolute.rs"]
+mod label_indent_absolute;
+#[path = "options/label_indent_size.rs"]
+mod label_indent_size;
 #[path = "options/lambda_brace_style.rs"]
 mod lambda_brace_style;
 #[path = "options/line_comment_add_space_in_suppression.rs"]
@@ -225,6 +243,8 @@ mod resource_list_wrap;
 mod right_margin;
 #[path = "options/rparen_on_new_line_in_annotation.rs"]
 mod rparen_on_new_line_in_annotation;
+#[path = "options/smart_tabs.rs"]
+mod smart_tabs;
 #[path = "options/soft_margins.rs"]
 mod soft_margins;
 #[path = "options/space_after_colon.rs"]
@@ -383,6 +403,8 @@ mod ternary_operation_wrap;
 mod throws_keyword_wrap;
 #[path = "options/throws_list_wrap.rs"]
 mod throws_list_wrap;
+#[path = "options/use_relative_indents.rs"]
+mod use_relative_indents;
 #[path = "options/use_tab_character.rs"]
 mod use_tab_character;
 #[path = "options/variable_annotation_wrap.rs"]

@@ -206,6 +206,19 @@ pub struct JavaStyle {
     pub continuation_indent_size: u32,
     pub tab_size: u32,
     pub use_tab_character: bool,
+    pub smart_tabs: bool,
+    pub label_indent_size: u32,
+    pub label_indent_absolute: bool,
+    pub use_relative_indents: bool,
+    pub keep_indents_on_empty_lines: bool,
+    pub do_not_indent_top_level_class_members: bool,
+    // Per-construct continuation-indent widths, each defaulting to `-1`
+    // (= "inherit": use `CONTINUATION_INDENT_SIZE`).
+    pub declaration_parameter_indent: i32,
+    pub generic_type_parameter_indent: i32,
+    pub call_parameter_indent: i32,
+    pub chained_call_indent: i32,
+    pub array_element_indent: i32,
 
     // --- line length ---
     pub right_margin: u32,
@@ -458,6 +471,17 @@ impl Default for JavaStyle {
             continuation_indent_size: 8,
             tab_size: 4,
             use_tab_character: false,
+            smart_tabs: false,
+            label_indent_size: 0,
+            label_indent_absolute: false,
+            use_relative_indents: false,
+            keep_indents_on_empty_lines: false,
+            do_not_indent_top_level_class_members: false,
+            declaration_parameter_indent: -1,
+            generic_type_parameter_indent: -1,
+            call_parameter_indent: -1,
+            chained_call_indent: -1,
+            array_element_indent: -1,
             right_margin: 120,
             line_separator: LineSeparator::System,
             wrap_long_lines: false,
@@ -676,6 +700,10 @@ pub enum Section {
 pub enum OptionValue {
     Bool(bool),
     UInt(u32),
+    /// A signed integer option. The five per-construct indent widths default
+    /// to `-1` = "inherit" (use `CONTINUATION_INDENT_SIZE`), which the
+    /// unsigned [`OptionValue::UInt`] cannot represent.
+    Int(i32),
     Wrap(WrapStyle),
     Brace(BraceStyle),
     Force(ForceStyle),
@@ -755,6 +783,136 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.use_tab_character = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SMART_TABS",
+        section: Section::IndentOptions,
+        default: OptionValue::Bool(false),
+        group: "Indentation",
+        description: "Use tab characters only for indentation that lands exactly on tab stops; other indents use spaces.",
+        get: |s| OptionValue::Bool(s.smart_tabs),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.smart_tabs = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LABEL_INDENT_SIZE",
+        section: Section::IndentOptions,
+        default: OptionValue::UInt(0),
+        group: "Indentation",
+        description: "Indent for `label:` statements.",
+        get: |s| OptionValue::UInt(s.label_indent_size),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.label_indent_size = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LABEL_INDENT_ABSOLUTE",
+        section: Section::IndentOptions,
+        default: OptionValue::Bool(false),
+        group: "Indentation",
+        description: "Indent labels by LABEL_INDENT_SIZE from the margin regardless of nesting.",
+        get: |s| OptionValue::Bool(s.label_indent_absolute),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.label_indent_absolute = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "USE_RELATIVE_INDENTS",
+        section: Section::IndentOptions,
+        default: OptionValue::Bool(false),
+        group: "Indentation",
+        description: "Measure continuation indents relative to the construct's own indent level.",
+        get: |s| OptionValue::Bool(s.use_relative_indents),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.use_relative_indents = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_INDENTS_ON_EMPTY_LINES",
+        section: Section::IndentOptions,
+        default: OptionValue::Bool(false),
+        group: "Indentation",
+        description: "Keep the block's inner indent on preserved blank lines.",
+        get: |s| OptionValue::Bool(s.keep_indents_on_empty_lines),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_indents_on_empty_lines = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DECLARATION_PARAMETER_INDENT",
+        section: Section::IndentOptions,
+        default: OptionValue::Int(-1),
+        group: "Indentation",
+        description: "Per-construct continuation indent for declaration parameters (-1 = use CONTINUATION_INDENT_SIZE).",
+        get: |s| OptionValue::Int(s.declaration_parameter_indent),
+        set: |s, v| {
+            if let OptionValue::Int(n) = v {
+                s.declaration_parameter_indent = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "GENERIC_TYPE_PARAMETER_INDENT",
+        section: Section::IndentOptions,
+        default: OptionValue::Int(-1),
+        group: "Indentation",
+        description: "Per-construct continuation indent for generic type parameters (-1 = use CONTINUATION_INDENT_SIZE).",
+        get: |s| OptionValue::Int(s.generic_type_parameter_indent),
+        set: |s, v| {
+            if let OptionValue::Int(n) = v {
+                s.generic_type_parameter_indent = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CALL_PARAMETER_INDENT",
+        section: Section::IndentOptions,
+        default: OptionValue::Int(-1),
+        group: "Indentation",
+        description: "Per-construct continuation indent for call arguments (-1 = use CONTINUATION_INDENT_SIZE).",
+        get: |s| OptionValue::Int(s.call_parameter_indent),
+        set: |s, v| {
+            if let OptionValue::Int(n) = v {
+                s.call_parameter_indent = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CHAINED_CALL_INDENT",
+        section: Section::IndentOptions,
+        default: OptionValue::Int(-1),
+        group: "Indentation",
+        description: "Per-construct continuation indent for chained calls (-1 = use CONTINUATION_INDENT_SIZE).",
+        get: |s| OptionValue::Int(s.chained_call_indent),
+        set: |s, v| {
+            if let OptionValue::Int(n) = v {
+                s.chained_call_indent = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ARRAY_ELEMENT_INDENT",
+        section: Section::IndentOptions,
+        default: OptionValue::Int(-1),
+        group: "Indentation",
+        description: "Per-construct continuation indent for array elements (-1 = use CONTINUATION_INDENT_SIZE).",
+        get: |s| OptionValue::Int(s.array_element_indent),
+        set: |s, v| {
+            if let OptionValue::Int(n) = v {
+                s.array_element_indent = n;
             }
         },
     },
@@ -965,6 +1123,19 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.special_else_if_treatment = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Braces",
+        description: "Do not indent the members of a top-level class (they sit at the class declaration indent).",
+        get: |s| OptionValue::Bool(s.do_not_indent_top_level_class_members),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.do_not_indent_top_level_class_members = b;
             }
         },
     },
@@ -3363,6 +3534,12 @@ impl<'a> OptionMap<'a> {
             .unwrap_or(default)
     }
 
+    fn get_int(&self, name: &str, default: i32) -> i32 {
+        self.get(name)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
     fn get_bool(&self, name: &str, default: bool) -> bool {
         match self.get(name) {
             Some("true") => true,
@@ -3457,6 +3634,7 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
         let value = match def.default {
             OptionValue::Bool(default) => OptionValue::Bool(map.get_bool(def.xml_name, default)),
             OptionValue::UInt(default) => OptionValue::UInt(map.get_u32(def.xml_name, default)),
+            OptionValue::Int(default) => OptionValue::Int(map.get_int(def.xml_name, default)),
             OptionValue::Wrap(default) => OptionValue::Wrap(map.get_wrap(def.xml_name, default)),
             OptionValue::Brace(default) => OptionValue::Brace(map.get_brace(def.xml_name, default)),
             OptionValue::Force(default) => OptionValue::Force(map.get_force(def.xml_name, default)),
@@ -3494,6 +3672,7 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
         let xml_value = match value {
             OptionValue::Bool(b) => b.to_string(),
             OptionValue::UInt(n) => n.to_string(),
+            OptionValue::Int(n) => n.to_string(),
             OptionValue::Wrap(w) => w.to_int().to_string(),
             OptionValue::Brace(b) => b.to_int().to_string(),
             OptionValue::Force(f) => f.to_int().to_string(),
