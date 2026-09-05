@@ -20,7 +20,12 @@ const BLOCK_BRACE_DEFAULT_OUT: &str =
 
 #[test]
 fn end_of_line_brace_style_allows_one_line_simple_blocks() {
-    let style = style(|s| s.keep_simple_blocks_in_one_line = true);
+    let style = style(|s| {
+        s.keep_simple_blocks_in_one_line = true;
+        // Keep the goldens' padded `{ s }` one-line blocks (the absent
+        // padding default is flush `{s}`).
+        s.spaces_inside_block_braces_when_body_is_present = true;
+    });
     assert_eq!(format_with(BLOCK_BRACE, &style), BLOCK_BRACE_EOL_OUT);
 }
 

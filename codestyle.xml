@@ -18,6 +18,7 @@
     <option name="RECORD_COMPONENTS_WRAP" value="5" />
     <option name="ALIGN_MULTILINE_RECORDS" value="false" />
     <option name="NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER" value="true" />
+    <option name="SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT" value="true" />
   </JavaCodeStyleSettings>
   <TypeScriptCodeStyleSettings version="0">
     <option name="FORCE_SEMICOLON_STYLE" value="true" />

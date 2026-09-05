@@ -23,7 +23,13 @@ const MULTI_STATEMENT_BODY_OUT: &str =
     include_str!("../java/keep_simple_methods_in_one_line/multi_statement_body.out.java");
 
 fn keep_simple() -> JavaStyle {
-    style(|s| s.keep_simple_methods_in_one_line = true)
+    // The collapse is exercised with the Java padding toggle on so the
+    // goldens keep the padded `{ s }` one-line bodies; the faithful
+    // absent/false default is flush `{s}`.
+    style(|s| {
+        s.keep_simple_methods_in_one_line = true;
+        s.spaces_inside_block_braces_when_body_is_present = true;
+    })
 }
 
 fn keep_simple_next_line() -> JavaStyle {

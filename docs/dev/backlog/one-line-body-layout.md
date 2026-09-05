@@ -3,10 +3,13 @@ type: ChangeRequest
 kind: feature
 title: Keep simple classes and multi-expression statements on one line; lay out one-line block bodies
 description: Implement the remaining keep-in-one-line options plus the block-body spacing/new-line options.
-state: planned
+state: done
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
+verified:
+  by: maintainer
+  at: 2026-09-05T20:15:00Z
 ---
 
 # Problem
@@ -126,63 +129,63 @@ extend `one_line_body` accordingly in a follow-up.
 
 ## Steps
 
-- [ ] crates/core/src/config.rs: add the four bool fields to `JavaStyle` and
+- [x] crates/core/src/config.rs: add the four bool fields to `JavaStyle` and
       their `false` defaults, then the four `OptionDef` entries (two
       `Section::CodeStyleJava` in the "One-liners" group after
       `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`; two `Section::JavaCodeStyle`); confirm
       `cargo build` and that the GUI/registry pick them up with no other change
       (AC: schemes now parse and serialize the four options).
-- [ ] formatter.rs: extract the one-line `{ … }` presentation into a shared
+- [x] formatter.rs: extract the one-line `{ … }` presentation into a shared
       helper honouring `spaces_inside_block_braces_when_body_is_present`
       (absent/false → flush `{s}`, true → `{ s }`) and
       `new_line_when_body_is_presented` (block placed on the next line at the
       head's indent); route `one_line_body`'s consumers, the keep-simple lambda
       collapse in `lambda` and the new class collapse through it; leave
       `flat_block` / switch one-line untouched (AC2, AC3).
-- [ ] formatter.rs: `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` collapse in
+- [x] formatter.rs: `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` collapse in
       `class_decl` / `iface_decl` / `record_decl` via a shared helper
       (inline class brace style, every member newline-free, whole declaration
       fits the margin; enums and anonymous classes out of scope) (AC2).
-- [ ] formatter.rs: read `keep_multiple_expressions_in_one_line` at the
+- [x] formatter.rs: read `keep_multiple_expressions_in_one_line` at the
       multi-clause `for` header and multi-declarator `local_var` / `field_decl`
       render sites so their single-line joins are explicit and never split
       (AC2).
-- [ ] Keep the existing one-line goldens byte-identical: enable
+- [x] Keep the existing one-line goldens byte-identical: enable
       `spaces_inside_block_braces_when_body_is_present` in the style helpers of
       `tests/options/keep_simple_blocks_in_one_line.rs`, `brace_style.rs`
       (the end-of-line test), `keep_simple_methods_in_one_line.rs` and
       `keep_simple_lambdas_in_one_line.rs`; add the padding option to the
       `<JavaCodeStyleSettings>` block of the root `codestyle.xml` sample; run
       `cargo test` to confirm no golden changed (AC3).
-- [ ] New option test files `crates/core/tests/options/keep_simple_classes_in_one_line.rs`,
+- [x] New option test files `crates/core/tests/options/keep_simple_classes_in_one_line.rs`,
       `keep_multiple_expressions_in_one_line.rs`,
       `spaces_inside_block_braces_when_body_is_present.rs` and
       `new_line_when_body_is_presented.rs` (doc header + `use super::common::*;`
       per AGENTS.md), wired into `tests/options.rs`; fixtures under
       `tests/java/<option>/` as golden pairs (AC1).
-- [ ] Fixtures: `keep_simple_classes_in_one_line/` — simple class/interface/
+- [x] Fixtures: `keep_simple_classes_in_one_line/` — simple class/interface/
       record collapse with the option on, off/absent unchanged multi-line,
       too-wide and non-simple-member bodies staying multi-line, and the
       NextLine class brace style not collapsing (AC1, AC2).
-- [ ] Fixtures: `keep_multiple_expressions_in_one_line/` — a classic `for`
+- [x] Fixtures: `keep_multiple_expressions_in_one_line/` — a classic `for`
       with multi-clause init/update and a multi-declarator field/local
       declaration stay on one line with the option on, off and absent, plus a
       keep-simple-blocks composition whose collapsed body keeps the
       multi-expression header inline (AC1, AC2).
-- [ ] Fixtures: `spaces_inside_block_braces_when_body_is_present/` — the same
+- [x] Fixtures: `spaces_inside_block_braces_when_body_is_present/` — the same
       keep-simple input (if/else, loop, method, try/catch) formatted with the
       toggle absent (flush `{s}` golden, the new default) and on (padded
       `{ s }` golden), and
       `new_line_when_body_is_presented/` — the toggle on places the one-line
       body on its own line, absent keeps it after the head (AC1, AC2).
-- [ ] Verify each new `*.out.java` is idempotent (formatting the golden with
+- [x] Verify each new `*.out.java` is idempotent (formatting the golden with
       its own style is a no-op) by running the formatter over each golden
       during development (AC5 — the suite itself stays pure golden pairs per
       AGENTS.md).
-- [ ] Run the whole workspace `cargo test`; confirm every existing golden —
+- [x] Run the whole workspace `cargo test`; confirm every existing golden —
       default-scheme and the keep-simple/brace-style files touched above —
       stays green (AC3).
-- [ ] Docs: flip `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` and
+- [x] Docs: flip `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` and
       `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` ❌ → ✅ in
       docs/settings/common.md "Keep in one line" and the two rows ❌ → ✅ in
       docs/settings/java.md "Miscellaneous spacing & blank lines"; add the four

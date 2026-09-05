@@ -275,8 +275,8 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 | `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`        | bool | `false` | Keep single-statement blocks of `if` / `else` / `for` / `while` / `do` on one line. | ✅      |
 | `KEEP_SIMPLE_METHODS_IN_ONE_LINE`       | bool | `false` | Keep single-statement method / constructor bodies on one line.                      | ✅      |
 | `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`       | bool | `false` | Keep single-statement lambda bodies on one line.                                    | ✅      |
-| `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`       | bool | `false` | Keep simple class bodies on one line.                                               | ❌      |
-| `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` | bool | `false` | Keep multiple expressions (e.g. in a `for` header) on one line.                     | ❌      |
+| `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`       | bool | `false` | Keep simple class bodies on one line.                                               | ✅      |
+| `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` | bool | `false` | Keep multiple expressions (e.g. in a `for` header) on one line.                     | ✅      |
 
 ## Force braces
 

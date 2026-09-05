@@ -1256,10 +1256,18 @@ impl<'s> Fmt<'s> {
             self.append_type_clause(&mut header, "implements", ifaces, indent, c);
         }
 
-        let body = self
-            .fld(node, "body")
-            .map(|n| self.class_body(n, indent, BodyKind::Class))
-            .unwrap_or_default();
+        // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: a body whose members are all
+        // simple collapses to one line (see `simple_class_one_line`);
+        // otherwise the multi-line `class_body` layout is used.
+        let body = match self.fld(node, "body") {
+            Some(body_node) => {
+                if let Some(one) = self.simple_class_one_line(&header, body_node, indent, c) {
+                    return one;
+                }
+                self.class_body(body_node, indent, BodyKind::Class)
+            }
+            None => String::new(),
+        };
 
         self.with_brace(header, body, indent, self.style.class_brace_style)
     }
@@ -1290,10 +1298,16 @@ impl<'s> Fmt<'s> {
             self.append_type_clause(&mut header, "extends", ext, indent, c);
         }
 
-        let body = self
-            .fld(node, "body")
-            .map(|n| self.class_body(n, indent, BodyKind::Interface))
-            .unwrap_or_default();
+        // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`.
+        let body = match self.fld(node, "body") {
+            Some(body_node) => {
+                if let Some(one) = self.simple_class_one_line(&header, body_node, indent, c) {
+                    return one;
+                }
+                self.class_body(body_node, indent, BodyKind::Interface)
+            }
+            None => String::new(),
+        };
 
         self.with_brace(header, body, indent, self.style.class_brace_style)
     }
@@ -1421,10 +1435,17 @@ impl<'s> Fmt<'s> {
             self.append_type_clause(&mut header, "implements", ifaces, indent, c);
         }
 
-        let body = self
-            .fld(node, "body")
-            .map(|n| self.class_body(n, indent, BodyKind::Class))
-            .unwrap_or_default();
+        // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`
+        // (the record body is formatted as a class body).
+        let body = match self.fld(node, "body") {
+            Some(body_node) => {
+                if let Some(one) = self.simple_class_one_line(&header, body_node, indent, c) {
+                    return one;
+                }
+                self.class_body(body_node, indent, BodyKind::Class)
+            }
+            None => String::new(),
+        };
 
         self.with_brace(header, body, indent, self.style.class_brace_style)
     }
@@ -1652,6 +1673,65 @@ impl<'s> Fmt<'s> {
         }
     }
 
+    /// `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` collapse for class / interface /
+    /// record bodies: when the option is on, the class brace style keeps the
+    /// `{` on the header line (`EndOfLine` / `NextLineIfWrapped`), the
+    /// rendered `header` is single-line, and every member renders without a
+    /// newline (comments / extras reject — R4 — as do members whose own
+    /// layout is multi-line: a block body, a wrapped field…), the whole
+    /// one-line declaration `class A { … }` is returned when it fits the
+    /// margin. Members are rendered at the declaration's own `indent` and
+    /// collapse recursively (a simple method member needs
+    /// `KEEP_SIMPLE_METHODS_IN_ONE_LINE` to render one line itself, a nested
+    /// simple class `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`). Enums and anonymous
+    /// classes are out of scope (separate change requests). `None` leaves
+    /// the caller's multi-line layout in place.
+    fn simple_class_one_line(
+        &self,
+        header: &str,
+        body: Node<'s>,
+        indent: usize,
+        c: usize,
+    ) -> Option<String> {
+        if !self.style.keep_simple_classes_in_one_line
+            || !matches!(
+                self.style.class_brace_style,
+                BraceStyle::EndOfLine | BraceStyle::NextLineIfWrapped
+            )
+            || header.contains('\n')
+        {
+            return None;
+        }
+        let members = self.named(body);
+        if members.is_empty() {
+            return None;
+        }
+        let mut rendered: Vec<String> = Vec::with_capacity(members.len());
+        for m in members {
+            if self.is_comment_node(m) {
+                return None;
+            }
+            let text = self.class_member(m, indent);
+            if text.contains('\n') {
+                return None;
+            }
+            rendered.push(text);
+        }
+        let inner = rendered.join(" ");
+        let block = self.present_block(&inner, indent);
+        let candidate = format!(
+            "{}{}{}",
+            header,
+            self.body_gap(&block, self.style.space_before_class_lbrace),
+            block
+        );
+        if self.fits_lines(c, &candidate) {
+            Some(candidate)
+        } else {
+            None
+        }
+    }
+
     // ── method / constructor / field ──────────────────────────────────────────
 
     fn method_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -1786,7 +1866,8 @@ impl<'s> Fmt<'s> {
     ///
     /// When `KEEP_SIMPLE_METHODS_IN_ONE_LINE` is enabled (and the brace style
     /// keeps the brace on the same line), a body that is a single simple
-    /// statement is rendered as `{ stmt }` if the resulting line fits within
+    /// statement is rendered as a one-line `{s}` / `{ s }` block (per the two
+    /// Java one-line-body toggles) when the resulting declaration fits within
     /// the right margin.
     fn method_body(&self, body: Node<'s>, indent: usize, out: &mut String, c: usize) {
         if self.style.keep_simple_methods_in_one_line
@@ -1795,13 +1876,12 @@ impl<'s> Fmt<'s> {
                 BraceStyle::EndOfLine | BraceStyle::NextLineIfWrapped
             )
         {
-            if let Some(one) = self.one_line_body(body) {
-                // Column at which the current (last) line of `out` starts.
-                let gap = self.sp(self.style.space_before_method_lbrace);
-                let width = self.col_after(c, out);
-                if width + gap.len() + one.len() <= self.style.right_margin as usize {
-                    out.push_str(gap);
-                    out.push_str(&one);
+            if let Some(one) = self.one_line_body(body, indent) {
+                let gap = self.body_gap(&one, self.style.space_before_method_lbrace);
+                let candidate = format!("{}{}{}", out, gap, one);
+                // Column at which the declaration's (first) line starts.
+                if self.fits_lines(c, &candidate) {
+                    *out = candidate;
                     return;
                 }
             }
@@ -1864,6 +1944,14 @@ impl<'s> Fmt<'s> {
                 }
             })
             .collect();
+
+        // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a multi-declarator
+        // field declaration is one statement — its declarator list is joined
+        // on the line and never split per declarator. (The engine has no
+        // per-declarator break layout, so the option is honoured by
+        // construction; the read keeps the inline-join guarantee explicit
+        // and load-bearing for a future declarator-level wrap.)
+        let _guard = self.style.keep_multiple_expressions_in_one_line;
 
         out.push(' ');
         out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
@@ -2511,10 +2599,69 @@ impl<'s> Fmt<'s> {
         )
     }
 
-    /// Renders `node` (a `block`) as a single line `{ stmt }` when it contains
-    /// exactly one simple statement; returns `None` otherwise. Empty blocks are
-    /// already rendered inline by [`Self::block`] and return `None` here.
-    fn one_line_body(&self, node: Node<'s>) -> Option<String> {
+    /// True when every physical line of `s` fits within the right margin:
+    /// the first line is measured from column `c` (the statement column),
+    /// every later line from column 0 — its indentation is part of `s`, so
+    /// [`Self::col_after`] from 0 reproduces the physical line width.
+    /// Single-line text behaves exactly like [`Self::fits`].
+    fn fits_lines(&self, c: usize, s: &str) -> bool {
+        let mut col = c;
+        for ch in s.chars() {
+            match ch {
+                '\n' => {
+                    if col > self.style.right_margin as usize {
+                        return false;
+                    }
+                    col = 0;
+                }
+                '\t' => col += self.style.tab_size as usize - (col % self.style.tab_size as usize),
+                _ => col += 1,
+            }
+        }
+        col <= self.style.right_margin as usize
+    }
+
+    /// Presents a one-line `{ … }` block from its rendered inner text,
+    /// honouring the two Java one-line-body toggles: with
+    /// `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT` on the block is
+    /// padded (`{ s }`), with it off (absent/false — the built-in default)
+    /// flush (`{s}`); and with `NEW_LINE_WHEN_BODY_IS_PRESENTED` on the
+    /// block starts on a fresh line at `indent` — the statement head's own
+    /// indent — instead of following the head on its line. Callers append
+    /// the result straight after their head text, using [`Self::body_gap`]
+    /// for the gap between the head and the block.
+    fn present_block(&self, inner: &str, indent: usize) -> String {
+        let block = if self.style.spaces_inside_block_braces_when_body_is_present {
+            format!("{{ {} }}", inner)
+        } else {
+            format!("{{{}}}", inner)
+        };
+        if self.style.new_line_when_body_is_presented {
+            format!("\n{}{}", self.ind(indent), block)
+        } else {
+            block
+        }
+    }
+
+    /// The gap between a statement head and a collapsed one-line block: the
+    /// `SPACE_BEFORE_*_LBRACE` space for an end-of-line block, nothing when
+    /// `NEW_LINE_WHEN_BODY_IS_PRESENTED` moved the block onto its own line
+    /// (its presentation already carries the newline and indent, so a space
+    /// would dangle at the line end — R5).
+    fn body_gap(&self, block: &str, lbrace: bool) -> &'static str {
+        if block.starts_with('\n') {
+            ""
+        } else {
+            self.sp(lbrace)
+        }
+    }
+
+    /// Renders `node` (a `block`) as a one-line `{s}` / `{ s }` body when it
+    /// contains exactly one simple statement; returns `None` otherwise. The
+    /// block presentation follows the two one-line-body toggles
+    /// ([`Self::present_block`]); empty blocks are already rendered inline
+    /// by [`Self::block`] and return `None` here.
+    fn one_line_body(&self, node: Node<'s>, indent: usize) -> Option<String> {
         if node.kind() != "block" {
             return None;
         }
@@ -2542,41 +2689,47 @@ impl<'s> Fmt<'s> {
         if txt.contains('\n') {
             return None;
         }
-        Some(format!("{{ {} }}", txt))
+        Some(self.present_block(&txt, indent))
     }
 
     /// Single-line rendering of an `if`/`else if`/`else` chain whose blocks are
     /// all simple; `None` if any body is not a simple block. The `if`→`(` gap
     /// follows `SPACE_BEFORE_IF_PARENTHESES`, the body gaps the corresponding
-    /// `SPACE_BEFORE_*_LBRACE` toggles, and the `}`→`else` gap
+    /// `SPACE_BEFORE_*_LBRACE` toggles (unless the body presentation already
+    /// starts its own line), and the `}`→`else` gap
     /// `SPACE_BEFORE_ELSE_KEYWORD`.
-    fn if_one_line(&self, node: Node<'s>) -> Option<String> {
+    fn if_one_line(&self, node: Node<'s>, indent: usize) -> Option<String> {
         let cond = self.fld(node, "condition")?;
         let cond_txt = self.flat_keyword_cond(cond, self.style.space_within_if_parentheses);
         if cond_txt.contains('\n') {
             return None;
         }
         let cons = self.fld(node, "consequence")?;
-        let cons_txt = self.one_line_body(cons)?;
+        let cons_txt = self.one_line_body(cons, indent)?;
         // `cond_txt` already includes the parentheses (parenthesized_expression).
         let mut out = format!(
             "if{}{}{}{}",
             self.sp(self.style.space_before_if_parentheses),
             cond_txt,
-            self.sp(self.style.space_before_if_lbrace),
+            self.body_gap(&cons_txt, self.style.space_before_if_lbrace),
             cons_txt
         );
         if let Some(alt) = self.fld(node, "alternative") {
             let else_gap = self.sp(self.style.space_before_else_keyword);
             if alt.kind() == "if_statement" {
-                out.push_str(&format!("{}else {}", else_gap, self.if_one_line(alt)?));
+                out.push_str(&format!(
+                    "{}else {}",
+                    else_gap,
+                    self.if_one_line(alt, indent)?
+                ));
             } else {
+                let alt_txt = self.one_line_body(alt, indent)?;
                 out.push_str(&format!(
                     "{}else{}",
                     else_gap,
-                    self.sp(self.style.space_before_else_lbrace)
+                    self.body_gap(&alt_txt, self.style.space_before_else_lbrace)
                 ));
-                out.push_str(&self.one_line_body(alt)?);
+                out.push_str(&alt_txt);
             }
         }
         Some(out)
@@ -2716,6 +2869,12 @@ impl<'s> Fmt<'s> {
             })
             .collect();
 
+        // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a multi-declarator
+        // local declaration is one statement — its declarator list is joined
+        // on the line and never split per declarator (see the `field_decl`
+        // read for the rationale).
+        let _guard = self.style.keep_multiple_expressions_in_one_line;
+
         out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
         out.push(';');
         out
@@ -2742,8 +2901,8 @@ impl<'s> Fmt<'s> {
             && self.style.keep_simple_blocks_in_one_line
             && !self.if_alt_breaks_one_line(node)
         {
-            if let Some(one) = self.if_one_line(node) {
-                if self.fits(c, &one) {
+            if let Some(one) = self.if_one_line(node, indent) {
+                if self.fits_lines(c, &one) {
                     return one;
                 }
             }
@@ -2947,14 +3106,14 @@ impl<'s> Fmt<'s> {
             && self.style.keep_simple_blocks_in_one_line
             && !header.contains('\n')
         {
-            if let Some(one) = body_node.and_then(|b| self.one_line_body(b)) {
+            if let Some(one) = body_node.and_then(|b| self.one_line_body(b, indent)) {
                 let candidate = format!(
                     "{}{}{}",
                     header,
-                    self.sp(self.style.space_before_for_lbrace),
+                    self.body_gap(&one, self.style.space_before_for_lbrace),
                     one
                 );
-                if self.fits(c, &candidate) {
+                if self.fits_lines(c, &candidate) {
                     return candidate;
                 }
             }
@@ -3149,6 +3308,14 @@ impl<'s> Fmt<'s> {
     /// `;`, or a comma-separated expression list; an update is a
     /// comma-separated expression list) joined with `, `.
     fn for_part_text(&self, node: Node<'s>, field: &str) -> String {
+        // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a classic `for`
+        // header's init / update slot list stays joined on its line — the
+        // per-slot wrap breaks at the `;` (`FOR_STATEMENT_WRAP`), never
+        // inside the comma-separated list. The engine has no per-expression
+        // break layout, so the option is honoured by construction; the read
+        // keeps that explicit and load-bearing for a future expression-level
+        // break.
+        let _guard = self.style.keep_multiple_expressions_in_one_line;
         let mut cursor = node.walk();
         let parts: Vec<String> = node
             .children_by_field_name(field, &mut cursor)
@@ -3169,13 +3336,12 @@ impl<'s> Fmt<'s> {
         let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
         let colon = self.foreach_colon_sep();
         let p_gap = self.sp(self.style.space_before_for_parentheses);
-        let l_gap = self.sp(self.style.space_before_for_lbrace);
         let wrap = self.style.for_statement_wrap;
 
         // Keep a simple body on one line when enabled and it fits.
         if self.braces_style_inline() && self.style.keep_simple_blocks_in_one_line {
             if let (Some(v), Some(b)) = (self.fld(node, "value"), self.fld(node, "body")) {
-                if let Some(one) = self.one_line_body(b) {
+                if let Some(one) = self.one_line_body(b, indent) {
                     let vtxt = self.flat(v);
                     if !vtxt.contains('\n') {
                         let inner = format!("{} {}{}{}", ty, name, colon, vtxt);
@@ -3183,10 +3349,10 @@ impl<'s> Fmt<'s> {
                             "for{}{}{}{}",
                             p_gap,
                             Self::within('(', ')', self.style.space_within_for_parentheses, &inner,),
-                            l_gap,
+                            self.body_gap(&one, self.style.space_before_for_lbrace),
                             one
                         );
-                        if self.fits(c, &candidate) {
+                        if self.fits_lines(c, &candidate) {
                             return candidate;
                         }
                     }
@@ -3309,17 +3475,17 @@ impl<'s> Fmt<'s> {
         // Keep a simple body on one line when enabled and it fits.
         if self.braces_style_inline() && self.style.keep_simple_blocks_in_one_line {
             if let (Some(cn), Some(b)) = (self.fld(node, "condition"), self.fld(node, "body")) {
-                if let Some(one) = self.one_line_body(b) {
+                if let Some(one) = self.one_line_body(b, indent) {
                     let ct = self.flat_keyword_cond(cn, self.style.space_within_while_parentheses);
                     if !ct.contains('\n') {
                         let candidate = format!(
                             "while{}{}{}{}",
                             self.sp(self.style.space_before_while_parentheses),
                             ct,
-                            self.sp(self.style.space_before_while_lbrace),
+                            self.body_gap(&one, self.style.space_before_while_lbrace),
                             one
                         );
-                        if self.fits(c, &candidate) {
+                        if self.fits_lines(c, &candidate) {
                             return candidate;
                         }
                     }
@@ -3364,18 +3530,18 @@ impl<'s> Fmt<'s> {
             && !self.style.while_on_new_line
         {
             if let (Some(b), Some(cn)) = (self.fld(node, "body"), self.fld(node, "condition")) {
-                if let Some(one) = self.one_line_body(b) {
+                if let Some(one) = self.one_line_body(b, indent) {
                     let ct = self.flat_keyword_cond(cn, self.style.space_within_while_parentheses);
                     if !ct.contains('\n') {
                         let candidate = format!(
                             "do{}{}{}while{}{};",
-                            self.sp(self.style.space_before_do_lbrace),
+                            self.body_gap(&one, self.style.space_before_do_lbrace),
                             one,
                             self.sp(self.style.space_before_while_keyword),
                             self.sp(self.style.space_before_while_parentheses),
                             ct
                         );
-                        if self.fits(c, &candidate) {
+                        if self.fits_lines(c, &candidate) {
                             return candidate;
                         }
                     }
@@ -3454,7 +3620,7 @@ impl<'s> Fmt<'s> {
     /// Single-line rendering of a `try` statement when the try body and every
     /// catch/finally body is a simple one-statement block; `None` otherwise
     /// (the caller falls through to the multi-line layout).
-    fn try_one_line(&self, node: Node<'s>) -> Option<String> {
+    fn try_one_line(&self, node: Node<'s>, indent: usize) -> Option<String> {
         let resources = if node.kind() == "try_with_resources_statement" {
             // The resource_specification node already includes its parens.
             self.fld(node, "resources")
@@ -3472,11 +3638,11 @@ impl<'s> Fmt<'s> {
         };
 
         let body = self.fld(node, "body")?;
-        let body_txt = self.one_line_body(body)?;
+        let body_txt = self.one_line_body(body, indent)?;
         let mut out = format!(
             "try{}{}{}",
             resources,
-            self.sp(self.style.space_before_try_lbrace),
+            self.body_gap(&body_txt, self.style.space_before_try_lbrace),
             body_txt
         );
 
@@ -3490,23 +3656,23 @@ impl<'s> Fmt<'s> {
                         .map(|n| normalise_ws(self.txt(n)))
                         .unwrap_or_default();
                     let cbody = self.fld(ch, "body")?;
-                    let cbody_txt = self.one_line_body(cbody)?;
+                    let cbody_txt = self.one_line_body(cbody, indent)?;
                     let catch_head =
                         Self::within('(', ')', self.style.space_within_catch_parentheses, &param);
                     out.push_str(self.sp(self.style.space_before_catch_keyword));
                     out.push_str("catch");
                     out.push_str(self.sp(self.style.space_before_catch_parentheses));
                     out.push_str(&catch_head);
-                    out.push_str(self.sp(self.style.space_before_catch_lbrace));
+                    out.push_str(self.body_gap(&cbody_txt, self.style.space_before_catch_lbrace));
                     out.push_str(&cbody_txt);
                 }
                 "finally_clause" => {
                     // The block is a plain child of finally_clause (no field name).
                     let fbody = self.named(ch).into_iter().find(|n| n.kind() == "block")?;
-                    let fbody_txt = self.one_line_body(fbody)?;
+                    let fbody_txt = self.one_line_body(fbody, indent)?;
                     out.push_str(self.sp(self.style.space_before_finally_keyword));
                     out.push_str("finally");
-                    out.push_str(self.sp(self.style.space_before_finally_lbrace));
+                    out.push_str(self.body_gap(&fbody_txt, self.style.space_before_finally_lbrace));
                     out.push_str(&fbody_txt);
                 }
                 _ => {}
@@ -3525,8 +3691,8 @@ impl<'s> Fmt<'s> {
             && !self.style.catch_on_new_line
             && !self.style.finally_on_new_line
         {
-            if let Some(one) = self.try_one_line(node) {
-                if self.fits(c, &one) {
+            if let Some(one) = self.try_one_line(node, indent) {
+                if self.fits_lines(c, &one) {
                     return one;
                 }
             }
@@ -3768,7 +3934,7 @@ impl<'s> Fmt<'s> {
                     .find(|n| n.kind() == "parenthesized_expression"),
                 children.iter().find(|n| n.kind() == "block"),
             ) {
-                if let Some(one) = self.one_line_body(*body) {
+                if let Some(one) = self.one_line_body(*body, indent) {
                     let lt = self
                         .flat_keyword_cond(*lock, self.style.space_within_synchronized_parentheses);
                     if !lt.contains('\n') {
@@ -3776,10 +3942,10 @@ impl<'s> Fmt<'s> {
                             "synchronized{}{}{}{}",
                             self.sp(self.style.space_before_synchronized_parentheses),
                             lt,
-                            self.sp(self.style.space_before_synchronized_lbrace),
+                            self.body_gap(&one, self.style.space_before_synchronized_lbrace),
                             one
                         );
-                        if self.fits(c, &candidate) {
+                        if self.fits_lines(c, &candidate) {
                             return candidate;
                         }
                     }
@@ -5128,25 +5294,54 @@ impl<'s> Fmt<'s> {
         );
         let body = if body_node.kind() == "block" {
             // check keep_simple
-            let flat = self.flat_block(body_node);
-            if inline_lbrace
-                && self.style.keep_simple_lambdas_in_one_line
-                && self.fits(c + params.len() + arrow_col, &flat)
-            {
-                flat
-            } else {
-                let block_str = self.block(body_node, indent, c, 0);
-                // `LAMBDA_BRACE_STYLE`: the NextLine family puts the `{` on
-                // its own line at the statement indent (same arms as
-                // `brace_before_body` / `with_brace`); the arrow's trailing
-                // `sep` then has nothing to join and is dropped.
-                match self.style.lambda_brace_style {
-                    BraceStyle::NextLine
-                    | BraceStyle::NextLineShifted
-                    | BraceStyle::NextLineShifted2 => {
-                        format!("\n{}{}", self.ind(indent), block_str)
+            let stmts = self.named(body_node);
+            let inline_ok = inline_lbrace && self.style.keep_simple_lambdas_in_one_line;
+            let collapsed = if inline_ok {
+                if stmts.is_empty() {
+                    // An empty block keeps `flat_block`'s pinned `{}` / `{ }`.
+                    let flat = self.flat_block(body_node);
+                    if self.fits_lines(c + params.len() + arrow_col, &flat) {
+                        Some(flat)
+                    } else {
+                        None
                     }
-                    _ => block_str,
+                } else {
+                    // One-line body presentation: `SPACES_INSIDE_BLOCK_BRACES_`
+                    // `WHEN_BODY_IS_PRESENT` (padded / flush) and
+                    // `NEW_LINE_WHEN_BODY_IS_PRESENTED` (block on its own
+                    // line) apply; the statements are joined like
+                    // `flat_block`'s inner text.
+                    let inner = stmts
+                        .iter()
+                        .map(|&s| self.flat(s))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    let presented = self.present_block(&inner, indent);
+                    if self.fits_lines(c + params.len() + arrow_col, &presented) {
+                        Some(presented)
+                    } else {
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            match collapsed {
+                Some(p) => p,
+                None => {
+                    let block_str = self.block(body_node, indent, c, 0);
+                    // `LAMBDA_BRACE_STYLE`: the NextLine family puts the `{` on
+                    // its own line at the statement indent (same arms as
+                    // `brace_before_body` / `with_brace`); the arrow's trailing
+                    // `sep` then has nothing to join and is dropped.
+                    match self.style.lambda_brace_style {
+                        BraceStyle::NextLine
+                        | BraceStyle::NextLineShifted
+                        | BraceStyle::NextLineShifted2 => {
+                            format!("\n{}{}", self.ind(indent), block_str)
+                        }
+                        _ => block_str,
+                    }
                 }
             }
         } else {

@@ -311,7 +311,13 @@ pub struct JavaStyle {
     pub keep_simple_blocks_in_one_line: bool,
     pub keep_simple_methods_in_one_line: bool,
     pub keep_simple_lambdas_in_one_line: bool,
+    pub keep_simple_classes_in_one_line: bool,
+    pub keep_multiple_expressions_in_one_line: bool,
     pub keep_control_statement_in_one_line: bool,
+
+    // --- one-line block body presentation (JavaCodeStyleSettings) ---
+    pub spaces_inside_block_braces_when_body_is_present: bool,
+    pub new_line_when_body_is_presented: bool,
 
     // --- switch / case layout ---
     pub indent_case_from_switch: bool,
@@ -515,7 +521,11 @@ impl Default for JavaStyle {
             keep_simple_blocks_in_one_line: false,
             keep_simple_methods_in_one_line: false,
             keep_simple_lambdas_in_one_line: false,
+            keep_simple_classes_in_one_line: false,
+            keep_multiple_expressions_in_one_line: false,
             keep_control_statement_in_one_line: true,
+            spaces_inside_block_braces_when_body_is_present: false,
+            new_line_when_body_is_presented: false,
             indent_case_from_switch: true,
             case_statement_on_new_line: true,
             indent_break_from_case: true,
@@ -1797,6 +1807,32 @@ pub static OPTIONS: &[OptionDef] = &[
         },
     },
     OptionDef {
+        xml_name: "KEEP_SIMPLE_CLASSES_IN_ONE_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "One-liners",
+        description: "Keep simple class / interface / record bodies on one line.",
+        get: |s| OptionValue::Bool(s.keep_simple_classes_in_one_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_simple_classes_in_one_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "One-liners",
+        description: "Keep multiple expressions (e.g. in a `for` header) on one line.",
+        get: |s| OptionValue::Bool(s.keep_multiple_expressions_in_one_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_multiple_expressions_in_one_line = b;
+            }
+        },
+    },
+    OptionDef {
         xml_name: "KEEP_CONTROL_STATEMENT_IN_ONE_LINE",
         section: Section::CodeStyleJava,
         default: OptionValue::Bool(true),
@@ -1806,6 +1842,33 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.keep_control_statement_in_one_line = b;
+            }
+        },
+    },
+    // --- One-line block body presentation (JavaCodeStyleSettings) ---
+    OptionDef {
+        xml_name: "SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "One-liners",
+        description: "Spaces inside { } of a non-empty one-line block when SPACE_WITHIN_BRACES is off (flush {s} when off).",
+        get: |s| OptionValue::Bool(s.spaces_inside_block_braces_when_body_is_present),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.spaces_inside_block_braces_when_body_is_present = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "NEW_LINE_WHEN_BODY_IS_PRESENTED",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "One-liners",
+        description: "Put the body of a one-line block on a new line below its statement head.",
+        get: |s| OptionValue::Bool(s.new_line_when_body_is_presented),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.new_line_when_body_is_presented = b;
             }
         },
     },

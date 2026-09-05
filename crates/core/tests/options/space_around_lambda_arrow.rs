@@ -14,6 +14,9 @@ fn off_tightens_lambda_arrow() {
     let style = style(|s| {
         s.space_around_lambda_arrow = false;
         s.keep_simple_lambdas_in_one_line = true;
+        // Keep the goldens' padded `{ s }` one-line lambda blocks (the
+        // absent padding default is flush `{s}`).
+        s.spaces_inside_block_braces_when_body_is_present = true;
     });
     assert_eq!(format_with(MIXED, &style), MIXED_OUT);
 }

@@ -27,6 +27,9 @@ const SELF_ALIGNED_OUT: &str =
 fn style_with(align: bool) -> JavaStyle {
     style(|s| {
         s.keep_simple_methods_in_one_line = true;
+        // Keep the goldens' padded `{ s }` one-line method bodies (the
+        // absent padding default is flush `{s}`).
+        s.spaces_inside_block_braces_when_body_is_present = true;
         s.align_subsequent_simple_methods = align;
     })
 }

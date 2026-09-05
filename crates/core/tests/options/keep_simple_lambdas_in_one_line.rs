@@ -20,6 +20,9 @@ fn on_style() -> JavaStyle {
     style(|s| {
         s.right_margin = 60;
         s.keep_simple_lambdas_in_one_line = true;
+        // Keep the goldens' padded `{ s }` one-line bodies (the absent
+        // padding default is flush `{s}`).
+        s.spaces_inside_block_braces_when_body_is_present = true;
     })
 }
 

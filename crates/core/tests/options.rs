@@ -151,8 +151,12 @@ mod keep_control_statement_in_one_line;
 mod keep_first_column_comment;
 #[path = "options/keep_line_breaks.rs"]
 mod keep_line_breaks;
+#[path = "options/keep_multiple_expressions_in_one_line.rs"]
+mod keep_multiple_expressions_in_one_line;
 #[path = "options/keep_simple_blocks_in_one_line.rs"]
 mod keep_simple_blocks_in_one_line;
+#[path = "options/keep_simple_classes_in_one_line.rs"]
+mod keep_simple_classes_in_one_line;
 #[path = "options/keep_simple_lambdas_in_one_line.rs"]
 mod keep_simple_lambdas_in_one_line;
 #[path = "options/keep_simple_methods_in_one_line.rs"]
@@ -181,6 +185,8 @@ mod method_parameters_wrap;
 mod modifier_list_wrap;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
+#[path = "options/new_line_when_body_is_presented.rs"]
+mod new_line_when_body_is_presented;
 #[path = "options/parentheses_expression_lparen_wrap.rs"]
 mod parentheses_expression_lparen_wrap;
 #[path = "options/parentheses_expression_rparen_wrap.rs"]
@@ -339,6 +345,8 @@ mod space_within_synchronized_parentheses;
 mod space_within_try_parentheses;
 #[path = "options/space_within_while_parentheses.rs"]
 mod space_within_while_parentheses;
+#[path = "options/spaces_inside_block_braces_when_body_is_present.rs"]
+mod spaces_inside_block_braces_when_body_is_present;
 #[path = "options/special_else_if_treatment.rs"]
 mod special_else_if_treatment;
 #[path = "options/switch_expressions_wrap.rs"]

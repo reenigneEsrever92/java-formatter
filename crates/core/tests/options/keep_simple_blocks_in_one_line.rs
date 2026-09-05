@@ -22,7 +22,14 @@ const TRY_SYNC_DEFAULT_OUT: &str = include_str!("../java/keep_simple_blocks_in_o
 const TRY_SYNC_NEXT_LINE_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/try_sync_next_line.out.java");
 
 fn keep_simple() -> JavaStyle {
-    style(|s| s.keep_simple_blocks_in_one_line = true)
+    // The collapse is exercised with the Java padding toggle on so the
+    // goldens keep the padded `{ s }` one-line blocks; the faithful
+    // absent/false default is flush `{s}` (see the spaces-inside-block-braces
+    // option's own test file).
+    style(|s| {
+        s.keep_simple_blocks_in_one_line = true;
+        s.spaces_inside_block_braces_when_body_is_present = true;
+    })
 }
 
 fn keep_simple_next_line() -> JavaStyle {

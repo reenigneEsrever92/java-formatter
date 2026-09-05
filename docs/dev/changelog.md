@@ -9,6 +9,52 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **Simple classes and multi-expression statements stay on one line; the
+  one-line block-body presentation toggles are honoured (R30,
+  one-line-body-layout)**: the four remaining keep-in-one-line / one-line-body
+  options — `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` and
+  `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` (JAVA `codeStyleSettings` block,
+  GUI group "One-liners") and `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT`
+  and `NEW_LINE_WHEN_BODY_IS_PRESENTED` (`<JavaCodeStyleSettings>` block) —
+  previously ignored (R7) and marked ❌ in the docs/settings tables, are now
+  parsed into `JavaStyle` (four `bool` fields with the IntelliJ built-in
+  defaults `false`, plus four `OptionDef` entries in the `OPTIONS` registry,
+  `Section::CodeStyleJava` for the two common options and
+  `Section::JavaCodeStyle` for the two Java presentation toggles) and applied
+  in the engine. A shared `Fmt::present_block` helper centralises the one-line
+  `{…}` presentation at the keep-simple decision sites (`one_line_body` and
+  its consumers — if/else chains, classic and enhanced `for`, `while`,
+  `do … while`, `try`/`catch`/`finally`, `synchronized`, method/constructor
+  bodies — the keep-simple lambda collapse in `Fmt::lambda` and the new class
+  collapse): faithful to the IntelliJ built-in default, a non-empty one-line
+  block is now **flush** (`if (c) {use();}`) unless
+  `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT` is on (`{ use(); }`), and
+  `NEW_LINE_WHEN_BODY_IS_PRESENTED` places the one-line block on its own line
+  below the statement head at the head's indent (`if (c)` NL `{ use(); }`);
+  the existing one-line goldens keep their spaced `{ … }` layout because their
+  style helpers (and the root `codestyle.xml` sample) now also set the padding
+  toggle. `KEEP_SIMPLE_CLASSES_IN_ONE_LINE` collapses a class / interface /
+  record body to one line via a shared `Fmt::simple_class_one_line` helper
+  (end-of-line class brace style, every member rendered newline-free —
+  comments/extras and multi-line members reject, R4 — and the whole
+  declaration fits the margin; members collapse recursively; enums and
+  anonymous classes stay as today). `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE`
+  is read as the guard at the multi-clause `for` header (`for_part_text`) and
+  the multi-declarator `field_decl` / `local_var` join sites: the engine has
+  no per-expression break layout, so the lists are never split and the
+  option's on / off / absent output is identical — the guard keeps the
+  inline-join guarantee explicit and becomes load-bearing should a
+  per-expression wrap ever be added. `flat_block` and the one-line switch
+  rendering are untouched, so flat contexts (call-argument lambdas, one-line
+  switch values) keep their pinned `{ … }` layout and no default-scheme golden
+  changed. Covered by four new per-option golden test files under
+  `tests/options/` (fixtures under `tests/java/<option>/`; on / off / absent
+  plus a self-golden idempotency fixture per option); the suite grew from 527
+  to 544 tests, all green (`cargo test --workspace`). No IntelliJ installation
+  was available to cross-check the goldens; the flush default and the new-line
+  placement follow the JavaCodeStyleSettings semantics pinned by the option
+  files, and the exact layouts are called out there.
+
 - **The align-when-multiline options are honoured (R29, align-multiline-options)**:
   the eighteen alignment options — `ALIGN_MULTILINE_PARAMETERS` (default true),
   `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`, `ALIGN_MULTILINE_RESOURCES` (default

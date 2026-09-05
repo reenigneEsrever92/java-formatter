@@ -137,6 +137,10 @@ The options currently honoured are:
 | `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`         | Keep one-statement blocks of `if` / `else` / `for` / `while` / `do`, `try` / `catch` / `finally` and `synchronized` on one line |
 | `KEEP_SIMPLE_METHODS_IN_ONE_LINE`        | Keep single-statement method / constructor bodies on one line                                                                   |
 | `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`        | Keep single-statement lambda bodies on one line                                                                                 |
+| `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`        | Keep simple class / interface / record bodies on one line                                                                     |
+| `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE`  | Keep multiple expressions (e.g. a classic `for` header's init / update lists) on one line                                      |
+| `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT` | Spaces inside `{ … }` of a non-empty one-line block when `SPACE_WITHIN_BRACES` is off (absent/false renders flush `{s}`) |
+| `NEW_LINE_WHEN_BODY_IS_PRESENTED`        | Put the body of a one-line block on a new line below its statement head                                                          |
 | `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`     | Keep a brace-less control-statement body on the header's line when the source has it there                                      |
 | `ANNOTATION_PARAMETER_WRAP`              | Wrapping of annotation argument lists                                                                                           |
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
@@ -299,6 +303,26 @@ braces when the body spans multiple lines, `3` = always force braces.
   `do tick(); while (go);`) that the source already has on the header's line
   stays there, and a body on its own line keeps its own line. Off, every
   brace-less body is moved to its own line.
+- The keep-simple one-liners (`KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`,
+  `KEEP_SIMPLE_METHODS_IN_ONE_LINE`, `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE` and
+  `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`) collapse a body only when it is simple
+  and the whole construct fits the right margin; a simple class / interface /
+  record body collapses when every member renders on one line (methods need
+  `KEEP_SIMPLE_METHODS_IN_ONE_LINE`, comments / extras reject) — enums and
+  anonymous classes are unaffected. A one-line non-empty block is rendered
+  *flush* (`if (c) {use();}`) by default, matching IntelliJ's built-in
+  `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT = false`; the Java toggle
+  adds the inner spaces (`if (c) { use(); }`). The other Java presentation
+  toggle, `NEW_LINE_WHEN_BODY_IS_PRESENTED`, puts the collapsed block on its
+  own line below the statement head at the head's indent
+  (`if (c)` then `{ use(); }`). `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` keeps
+  the multiple expressions of a statement — a classic `for` header's
+  init/update clause lists, a multi-declarator field / local declaration —
+  joined on one line; these lists are never split per expression, so the
+  option's on / off / absent output is identical (it becomes load-bearing
+  only if a per-expression wrap is ever added). The flat one-line bodies of
+  call-argument lambdas and one-line switch values keep their pinned spaced
+  `{ … }` layout regardless of these toggles.
 - Resource lists and declaration clause lists wrap per the scheme's options:
   `RESOURCE_LIST_WRAP` (with `RESOURCE_LIST_LPAREN_ON_NEXT_LINE` /
   `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`) breaks an over-margin
@@ -439,8 +463,9 @@ braces when the body spans multiple lines, `3` = always force braces.
   `SPACE_WITHIN_EMPTY_ARRAY_INITIALIZER_BRACES` renders `{ }`; a bare `@A()`
   stays tight. Wrapped (multi-line) parameter and argument lists keep their
   line breaks — no space is inserted next to a newline, so no trailing
-  whitespace is produced — and single-line `{ … }` bodies already carry one
-  inner space and are unchanged. The change is whitespace-only (R5) and
+  whitespace is produced — and the empty-block and flat-context one-line
+  braces (argument lambdas, one-line switches) keep their pinned layout. The
+  change is whitespace-only (R5) and
   re-formatting padded output reproduces it (R6).
 - The gap *before* a parenthesis, brace or clause keyword follows the
   `SPACE_BEFORE_*` toggles, one space when on, none when off. The
