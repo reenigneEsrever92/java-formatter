@@ -201,7 +201,7 @@ the common block — see [Annotations](common.md#annotations).
 | `BLANK_LINES_AROUND_INITIALIZER`                  | int  | `1`     | Blank lines around instance / static initializer blocks.                               | ✅      |
 | `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS`       | int  | `0`     | Blank lines around annotated fields.                                                   | ✅      |
 | `BLANK_LINES_BETWEEN_RECORD_COMPONENTS`           | int  | `0`     | Blank lines between record components.                                                 | ❌      |
-| `WRAP_SEMICOLON_AFTER_CALL_CHAIN`                 | bool | `false` | Put `;` of a wrapped chained call on its own line.                                     | ❌      |
+| `WRAP_SEMICOLON_AFTER_CALL_CHAIN`                 | bool | `false` | Put `;` of a wrapped chained call on its own line.                                     | ✅      |
 
 ## Javadoc
 

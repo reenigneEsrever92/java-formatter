@@ -1,6 +1,6 @@
 class A {
     void m() {
-        int x = a
-                + b;
+        int x = a +
+                b;
     }
 }

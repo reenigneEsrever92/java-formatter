@@ -252,11 +252,30 @@ pub struct JavaStyle {
 
     // --- chain / annotation / assignment wrapping ---
     pub method_call_chain_wrap: WrapStyle,
+    pub wrap_first_method_in_call_chain: bool,
     pub annotation_parameter_wrap: WrapStyle,
     pub assignment_wrap: WrapStyle,
+    pub place_assignment_sign_on_next_line: bool,
+    pub parentheses_expression_lparen_wrap: bool,
+    pub parentheses_expression_rparen_wrap: bool,
+    pub modifier_list_wrap: bool,
+    pub wrap_semicolon_after_call_chain: bool,
 
     // --- binary expression wrapping ---
     pub binary_operation_wrap: WrapStyle,
+    pub binary_operation_sign_on_next_line: bool,
+
+    // --- ternary / assert / for / array-initialiser wrapping ---
+    pub ternary_operation_wrap: WrapStyle,
+    pub ternary_operation_signs_on_next_line: bool,
+    pub assert_statement_wrap: WrapStyle,
+    pub assert_statement_colon_on_next_line: bool,
+    pub for_statement_wrap: WrapStyle,
+    pub for_statement_lparen_on_next_line: bool,
+    pub for_statement_rparen_on_next_line: bool,
+    pub array_initializer_wrap: WrapStyle,
+    pub array_initializer_lbrace_on_next_line: bool,
+    pub array_initializer_rbrace_on_next_line: bool,
 
     // --- declaration clause wrapping (resources / extends-implements / throws) ---
     pub resource_list_wrap: WrapStyle,
@@ -427,9 +446,26 @@ impl Default for JavaStyle {
             method_parameters_lparen_on_next_line: false,
             method_parameters_rparen_on_next_line: false,
             method_call_chain_wrap: WrapStyle::DoNotWrap,
+            wrap_first_method_in_call_chain: false,
             annotation_parameter_wrap: WrapStyle::DoNotWrap,
             assignment_wrap: WrapStyle::DoNotWrap,
+            place_assignment_sign_on_next_line: false,
+            parentheses_expression_lparen_wrap: false,
+            parentheses_expression_rparen_wrap: false,
+            modifier_list_wrap: false,
+            wrap_semicolon_after_call_chain: false,
             binary_operation_wrap: WrapStyle::DoNotWrap,
+            binary_operation_sign_on_next_line: false,
+            ternary_operation_wrap: WrapStyle::DoNotWrap,
+            ternary_operation_signs_on_next_line: false,
+            assert_statement_wrap: WrapStyle::DoNotWrap,
+            assert_statement_colon_on_next_line: false,
+            for_statement_wrap: WrapStyle::DoNotWrap,
+            for_statement_lparen_on_next_line: false,
+            for_statement_rparen_on_next_line: false,
+            array_initializer_wrap: WrapStyle::DoNotWrap,
+            array_initializer_lbrace_on_next_line: false,
+            array_initializer_rbrace_on_next_line: false,
             resource_list_wrap: WrapStyle::DoNotWrap,
             resource_list_lparen_on_next_line: false,
             resource_list_rparen_on_next_line: false,
@@ -1012,6 +1048,215 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.binary_operation_wrap = w;
+            }
+        },
+    },
+    // --- Expression / statement / declaration wrapping ---
+    OptionDef {
+        xml_name: "WRAP_FIRST_METHOD_IN_CALL_CHAIN",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Wrap after the first call in a chain as well.",
+        get: |s| OptionValue::Bool(s.wrap_first_method_in_call_chain),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.wrap_first_method_in_call_chain = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PARENTHESES_EXPRESSION_LPAREN_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '(' of a wrapped parenthesized expression on its own line.",
+        get: |s| OptionValue::Bool(s.parentheses_expression_lparen_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.parentheses_expression_lparen_wrap = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PARENTHESES_EXPRESSION_RPAREN_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the ')' of a wrapped parenthesized expression on its own line.",
+        get: |s| OptionValue::Bool(s.parentheses_expression_rparen_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.parentheses_expression_rparen_wrap = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BINARY_OPERATION_SIGN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the operator at the start of the continuation line.",
+        get: |s| OptionValue::Bool(s.binary_operation_sign_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.binary_operation_sign_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "TERNARY_OPERATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of ternary (?:) expressions.",
+        get: |s| OptionValue::Wrap(s.ternary_operation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.ternary_operation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "TERNARY_OPERATION_SIGNS_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '?' and ':' of a wrapped ternary at the start of continuation lines.",
+        get: |s| OptionValue::Bool(s.ternary_operation_signs_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.ternary_operation_signs_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the assignment operator at the start of the continuation line.",
+        get: |s| OptionValue::Bool(s.place_assignment_sign_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.place_assignment_sign_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ASSERT_STATEMENT_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of assert statements.",
+        get: |s| OptionValue::Wrap(s.assert_statement_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.assert_statement_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ASSERT_STATEMENT_COLON_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the ':' of an assert statement on the next line when wrapped.",
+        get: |s| OptionValue::Bool(s.assert_statement_colon_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.assert_statement_colon_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FOR_STATEMENT_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of for headers.",
+        get: |s| OptionValue::Wrap(s.for_statement_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.for_statement_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FOR_STATEMENT_LPAREN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '(' of a wrapped for on its own line.",
+        get: |s| OptionValue::Bool(s.for_statement_lparen_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.for_statement_lparen_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FOR_STATEMENT_RPAREN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the ')' of a wrapped for on its own line.",
+        get: |s| OptionValue::Bool(s.for_statement_rparen_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.for_statement_rparen_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ARRAY_INITIALIZER_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of array initializer lists.",
+        get: |s| OptionValue::Wrap(s.array_initializer_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.array_initializer_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '{' of a wrapped array initializer on its own line.",
+        get: |s| OptionValue::Bool(s.array_initializer_lbrace_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.array_initializer_lbrace_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '}' of a wrapped array initializer on its own line.",
+        get: |s| OptionValue::Bool(s.array_initializer_rbrace_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.array_initializer_rbrace_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "MODIFIER_LIST_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Wrap after the modifier / annotation list of a declaration.",
+        get: |s| OptionValue::Bool(s.modifier_list_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.modifier_list_wrap = b;
             }
         },
     },
@@ -1605,6 +1850,19 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::UInt(n) = v {
                 s.blank_lines_around_field_with_annotations = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "WRAP_SEMICOLON_AFTER_CALL_CHAIN",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the ';' of a wrapped chained call on its own line.",
+        get: |s| OptionValue::Bool(s.wrap_semicolon_after_call_chain),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.wrap_semicolon_after_call_chain = b;
             }
         },
     },

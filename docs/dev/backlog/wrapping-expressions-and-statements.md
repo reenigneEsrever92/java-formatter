@@ -3,10 +3,11 @@ type: ChangeRequest
 kind: feature
 title: Wrap the remaining expressions, statements and initialisers per their *_WRAP options
 description: Implement ternary/assert/for-header/array-initialiser wrapping and the sign-placement sub-options not yet shipped.
-state: planned
+state: done
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
+verified: { by: java-formatter-agent, at: 2026-09-05T12:00:00Z }
 ---
 
 # Problem
@@ -148,44 +149,46 @@ codes are already documented there).
 
 ## Steps
 
-- [ ] config.rs: add the 17 `JavaStyle` fields (4 `WrapStyle` + 13 `bool`) with
+- [x] config.rs: add the 17 `JavaStyle` fields (4 `WrapStyle` + 13 `bool`) with
       `DoNotWrap` / `false` defaults, and the 17 `OPTIONS` entries (16 in
       `Section::CodeStyleJava`, `WRAP_SEMICOLON_AFTER_CALL_CHAIN` in
       `Section::JavaCodeStyle`) with the table defaults (AC: config mapping).
-- [ ] `binary`: implement `BINARY_OPERATION_SIGN_ON_NEXT_LINE` (false = operator
+- [x] `binary`: implement `BINARY_OPERATION_SIGN_ON_NEXT_LINE` (false = operator
       ends the line, true = operator starts the continuation line); update the
       existing wrapped `binary_operation_wrap` goldens (`long_sum`,
       `always_wrap`, `chop_down` `.out.java`) to the false-state layout; run
       `cargo test` and confirm only those goldens changed (AC3).
-- [ ] `ternary`: option-driven wrap per `TERNARY_OPERATION_WRAP` (0 flat,
+- [x] `ternary`: option-driven wrap per `TERNARY_OPERATION_WRAP` (0 flat,
       1/2/5 as documented, chop-down recursing into nested ternary operands)
       plus `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE` placement (AC2).
-- [ ] `assert_stmt`: wrap per `ASSERT_STATEMENT_WRAP` (at the expression and
+- [x] `assert_stmt`: wrap per `ASSERT_STATEMENT_WRAP` (at the expression and
       after the `:`) plus `ASSERT_STATEMENT_COLON_ON_NEXT_LINE` placement (AC2).
-- [ ] `for_stmt` / `enhanced_for`: header wrap per `FOR_STATEMENT_WRAP` (classic
+- [x] `for_stmt` / `enhanced_for`: header wrap per `FOR_STATEMENT_WRAP` (classic
       header re-rendered from init/condition/update and broken at semicolons;
       enhanced header broken at `:`) plus
       `FOR_STATEMENT_LPAREN/RPAREN_ON_NEXT_LINE` placement; keep the verbatim
       header path for `DoNotWrap` (AC2).
-- [ ] `array_init`: option-driven wrap per `ARRAY_INITIALIZER_WRAP` plus
+- [x] `array_init`: option-driven wrap per `ARRAY_INITIALIZER_WRAP` plus
       `ARRAY_INITIALIZER_LBRACE/RBRACE_ON_NEXT_LINE` placement (AC2).
-- [ ] Apply the remaining placement options: `MODIFIER_LIST_WRAP` at the
+- [x] Apply the remaining placement options: `MODIFIER_LIST_WRAP` at the
       `modifiers()` call sites, `WRAP_FIRST_METHOD_IN_CALL_CHAIN` in `fmt_chain`,
       `WRAP_SEMICOLON_AFTER_CALL_CHAIN` in the `expression_statement` arm,
       `PARENTHESES_EXPRESSION_LPAREN/RPAREN_WRAP` in the parenthesized-expression
       arm, `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE` in `assign_expr` (AC2).
-- [ ] Add the 17 option test files `crates/core/tests/options/<XML_OPTION>.rs`
+- [x] Add the 17 option test files `crates/core/tests/options/<XML_OPTION>.rs`
       with fixtures under `tests/java/<option>/` (wrap codes 0/1/2/5 and both
       bool states, plus an absent-option default case per file), wired
       alphabetically in `tests/options.rs` (AC1, AC2).
-- [ ] Assert idempotency of each new wrapped golden: formatting the `*.out.java`
+- [x] Assert idempotency of each new wrapped golden: formatting the `*.out.java`
       again with the same style is a no-op (AC5).
-- [ ] If an IntelliJ installation is available, format representative
+- [x] If an IntelliJ installation is available, format representative
       ternary/assert/for/array/binary snippets there and align the placement
-      goldens; record the outcome in the changelog.
-- [ ] Docs + full suite: flip the ❌ rows to ✅ in `docs/settings/common.md` and
+      goldens; record the outcome in the changelog. (No IntelliJ installation
+      available; the goldens follow the request's decisions and the existing
+      call-parameter / binary wrap conventions — recorded in the changelog.)
+- [x] Docs + full suite: flip the ❌ rows to ✅ in `docs/settings/common.md` and
       `docs/settings/java.md`; add the 17 rows to the README honoured-options
-      table and extend the formatting-behaviour notes; add the R16 row to
+      table and extend the formatting-behaviour notes; add the R27 row to
       `docs/requirements.md`; append the changelog entry; run `cargo test` and
       confirm the whole suite is green with default-scheme output unchanged
       (AC3, AC4).

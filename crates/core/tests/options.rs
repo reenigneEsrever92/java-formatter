@@ -9,8 +9,20 @@ mod common;
 mod align_multiline_records;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
+#[path = "options/array_initializer_lbrace_on_next_line.rs"]
+mod array_initializer_lbrace_on_next_line;
+#[path = "options/array_initializer_rbrace_on_next_line.rs"]
+mod array_initializer_rbrace_on_next_line;
+#[path = "options/array_initializer_wrap.rs"]
+mod array_initializer_wrap;
+#[path = "options/assert_statement_colon_on_next_line.rs"]
+mod assert_statement_colon_on_next_line;
+#[path = "options/assert_statement_wrap.rs"]
+mod assert_statement_wrap;
 #[path = "options/assignment_wrap.rs"]
 mod assignment_wrap;
+#[path = "options/binary_operation_sign_on_next_line.rs"]
+mod binary_operation_sign_on_next_line;
 #[path = "options/binary_operation_wrap.rs"]
 mod binary_operation_wrap;
 #[path = "options/blank_lines_after_anonymous_class_header.rs"]
@@ -75,6 +87,12 @@ mod extends_list_wrap;
 mod finally_on_new_line;
 #[path = "options/for_brace_force.rs"]
 mod for_brace_force;
+#[path = "options/for_statement_lparen_on_next_line.rs"]
+mod for_statement_lparen_on_next_line;
+#[path = "options/for_statement_rparen_on_next_line.rs"]
+mod for_statement_rparen_on_next_line;
+#[path = "options/for_statement_wrap.rs"]
+mod for_statement_wrap;
 #[path = "options/if_brace_force.rs"]
 mod if_brace_force;
 #[path = "options/indent_break_from_case.rs"]
@@ -123,8 +141,16 @@ mod method_parameters_lparen_on_next_line;
 mod method_parameters_rparen_on_next_line;
 #[path = "options/method_parameters_wrap.rs"]
 mod method_parameters_wrap;
+#[path = "options/modifier_list_wrap.rs"]
+mod modifier_list_wrap;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
+#[path = "options/parentheses_expression_lparen_wrap.rs"]
+mod parentheses_expression_lparen_wrap;
+#[path = "options/parentheses_expression_rparen_wrap.rs"]
+mod parentheses_expression_rparen_wrap;
+#[path = "options/place_assignment_sign_on_next_line.rs"]
+mod place_assignment_sign_on_next_line;
 #[path = "options/prefer_parameters_wrap.rs"]
 mod prefer_parameters_wrap;
 #[path = "options/record_components_wrap.rs"]
@@ -283,6 +309,10 @@ mod special_else_if_treatment;
 mod switch_expressions_wrap;
 #[path = "options/tab_size.rs"]
 mod tab_size;
+#[path = "options/ternary_operation_signs_on_next_line.rs"]
+mod ternary_operation_signs_on_next_line;
+#[path = "options/ternary_operation_wrap.rs"]
+mod ternary_operation_wrap;
 #[path = "options/throws_keyword_wrap.rs"]
 mod throws_keyword_wrap;
 #[path = "options/throws_list_wrap.rs"]
@@ -295,5 +325,9 @@ mod while_brace_force;
 mod while_on_new_line;
 #[path = "options/wrap_comments.rs"]
 mod wrap_comments;
+#[path = "options/wrap_first_method_in_call_chain.rs"]
+mod wrap_first_method_in_call_chain;
 #[path = "options/wrap_long_lines.rs"]
 mod wrap_long_lines;
+#[path = "options/wrap_semicolon_after_call_chain.rs"]
+mod wrap_semicolon_after_call_chain;

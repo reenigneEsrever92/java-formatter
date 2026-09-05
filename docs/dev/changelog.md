@@ -9,6 +9,61 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **Ternary, assert, for-header, array-initialiser and chain wrapping are
+  honoured (R27, wrapping-expressions-and-statements)**: the seventeen
+  expression / statement wrapping options — `WRAP_FIRST_METHOD_IN_CALL_CHAIN`,
+  `PARENTHESES_EXPRESSION_LPAREN_WRAP` / `PARENTHESES_EXPRESSION_RPAREN_WRAP`,
+  `BINARY_OPERATION_SIGN_ON_NEXT_LINE`, `TERNARY_OPERATION_WRAP` (default do
+  not wrap) / `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`,
+  `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`, `ASSERT_STATEMENT_WRAP` (default do not
+  wrap) / `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`, `FOR_STATEMENT_WRAP` (default
+  do not wrap) / `FOR_STATEMENT_LPAREN_ON_NEXT_LINE` /
+  `FOR_STATEMENT_RPAREN_ON_NEXT_LINE`, `ARRAY_INITIALIZER_WRAP` (default do
+  not wrap) / `ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE` /
+  `ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE`, `MODIFIER_LIST_WRAP` and
+  `WRAP_SEMICOLON_AFTER_CALL_CHAIN` (in the `JavaCodeStyleSettings` block) —
+  previously ignored (R7) and marked ❌ in the docs/settings tables, are now
+  parsed into `JavaStyle` (four `WrapStyle` fields and thirteen `bool` fields
+  with the IntelliJ built-in defaults, plus seventeen `OptionDef` entries in
+  the `OPTIONS` registry) and applied in the engine: `Fmt::ternary` wraps per
+  `TERNARY_OPERATION_WRAP` at `?` / `:` with `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`
+  steering the signs between the operator-end default and the
+  signs-on-continuation layout (code `5` chop-down recursing into nested
+  ternary sides via `Fmt::ternary_operand`, mirroring `binary_operand`);
+  `Fmt::assert_stmt` wraps at the expression and after the `:` per
+  `ASSERT_STATEMENT_WRAP` with `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`;
+  `Fmt::for_stmt` / `Fmt::enhanced_for` re-render the header from its
+  init/condition/update fields and break it at the semicolons / `:` per
+  `FOR_STATEMENT_WRAP` (the verbatim raw-header path stays for do-not-wrap),
+  honouring the two paren-on-next-line bools; `Fmt::array_init` wraps one
+  element per line per `ARRAY_INITIALIZER_WRAP` with the brace bools placing
+  `{` / `}` on their own lines (the default keeps both braces at the end of
+  their lines, and the `=` / `[` joins drop their separator when the brace
+  moves to its own line so no trailing whitespace appears); `Fmt::mods_tail`
+  breaks after the modifier list at the eight `modifiers()` call sites under
+  `MODIFIER_LIST_WRAP`; `Fmt::fmt_chain` puts the first link on a
+  continuation line under `WRAP_FIRST_METHOD_IN_CALL_CHAIN` (with an empty
+  receiver there is nothing to wrap after, so the first link stays); the
+  `expression_statement` arm puts the `;` of a wrapped chained statement on
+  its own line under `WRAP_SEMICOLON_AFTER_CALL_CHAIN`; `Fmt::assign_expr`
+  moves the operator to the start of the continuation line under
+  `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`; and the `parenthesized_expression`
+  arm puts the parens on their own lines under `PARENTHESES_EXPRESSION_LPAREN/RPAREN_WRAP`
+  when the inner expression wraps. Layout / whitespace only (R5); absent
+  options keep the defaults and default output stays byte-identical except
+  the re-baselined wrapped `binary_operation_wrap` goldens (whose operator
+  is now at the end of the line, the faithful false state of
+  `BINARY_OPERATION_SIGN_ON_NEXT_LINE`), and every new golden was
+  re-formatted under its own style and confirmed byte-identical (R6) —
+  including explicit self-goldens for the wrapped families. Covered by
+  seventeen new per-option golden test files under `tests/options/`
+  (alphabetically wired in `tests/options.rs`), each asserting its
+  interesting values plus the absent-option default, with fixtures under
+  `tests/java/<option>/`; the suite grew from 391 to 455 tests, all green
+  (`cargo test --workspace`). No IntelliJ installation was available to
+  cross-check the goldens; the layouts follow the request's decisions and
+  the existing call-parameter / binary wrap conventions.
+
 - **Resource, extends / implements and throws lists wrap per their `*_WRAP`
   options (R26, wrapping-declaration-clauses)**: the eight clause-layout
   options — `RESOURCE_LIST_WRAP` (default do not wrap),

@@ -248,25 +248,25 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 | Option                                  | Type | Default | Effect                                                             | Support |
 | --------------------------------------- | ---- | ------- | ------------------------------------------------------------------ | ------- |
 | `METHOD_CALL_CHAIN_WRAP`                | int  | `0`     | Wrapping of chained method calls.                                  | ✅      |
-| `WRAP_FIRST_METHOD_IN_CALL_CHAIN`       | bool | `false` | Wrap after the first call in a chain as well.                      | ❌      |
-| `PARENTHESES_EXPRESSION_LPAREN_WRAP`    | bool | `false` | `(` of a wrapped parenthesized expression on its own line.         | ❌      |
-| `PARENTHESES_EXPRESSION_RPAREN_WRAP`    | bool | `false` | `)` of a wrapped parenthesized expression on its own line.         | ❌      |
+| `WRAP_FIRST_METHOD_IN_CALL_CHAIN`       | bool | `false` | Wrap after the first call in a chain as well.                      | ✅      |
+| `PARENTHESES_EXPRESSION_LPAREN_WRAP`    | bool | `false` | `(` of a wrapped parenthesized expression on its own line.         | ✅      |
+| `PARENTHESES_EXPRESSION_RPAREN_WRAP`    | bool | `false` | `)` of a wrapped parenthesized expression on its own line.         | ✅      |
 | `BINARY_OPERATION_WRAP`                 | int  | `0`     | Wrapping of binary expressions at their operators.                 | ✅      |
-| `BINARY_OPERATION_SIGN_ON_NEXT_LINE`    | bool | `false` | Put the operator at the start of the continuation line.            | ❌      |
-| `TERNARY_OPERATION_WRAP`                | int  | `0`     | Wrapping of ternary (`?:`) expressions.                            | ❌      |
-| `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`  | bool | `false` | Put `?` / `:` at the start of continuation lines.                  | ❌      |
+| `BINARY_OPERATION_SIGN_ON_NEXT_LINE`    | bool | `false` | Put the operator at the start of the continuation line.            | ✅      |
+| `TERNARY_OPERATION_WRAP`                | int  | `0`     | Wrapping of ternary (`?:`) expressions.                            | ✅      |
+| `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`  | bool | `false` | Put `?` / `:` at the start of continuation lines.                  | ✅      |
 | `ASSIGNMENT_WRAP`                       | int  | `0`     | Wrapping of assignments and variable / field initialisers.         | ✅      |
-| `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`    | bool | `false` | Put the assignment operator at the start of the continuation line. | ❌      |
-| `ASSERT_STATEMENT_WRAP`                 | int  | `0`     | Wrapping of `assert` statements.                                   | ❌      |
-| `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`   | bool | `false` | Put the `:` of an `assert` on the next line.                       | ❌      |
+| `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`    | bool | `false` | Put the assignment operator at the start of the continuation line. | ✅      |
+| `ASSERT_STATEMENT_WRAP`                 | int  | `0`     | Wrapping of `assert` statements.                                   | ✅      |
+| `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`   | bool | `false` | Put the `:` of an `assert` on the next line.                       | ✅      |
 | `SWITCH_EXPRESSIONS_WRAP`               | int  | `1`     | Wrapping of `switch` expressions used as values.                   | ✅      |
-| `FOR_STATEMENT_WRAP`                    | int  | `0`     | Wrapping of `for` headers.                                         | ❌      |
-| `FOR_STATEMENT_LPAREN_ON_NEXT_LINE`     | bool | `false` | `(` of a wrapped `for` on its own line.                            | ❌      |
-| `FOR_STATEMENT_RPAREN_ON_NEXT_LINE`     | bool | `false` | `)` of a wrapped `for` on its own line.                            | ❌      |
-| `ARRAY_INITIALIZER_WRAP`                | int  | `0`     | Wrapping of array initializer lists.                               | ❌      |
-| `ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE` | bool | `false` | `{` of a wrapped array initializer on its own line.                | ❌      |
-| `ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE` | bool | `false` | `}` of a wrapped array initializer on its own line.                | ❌      |
-| `MODIFIER_LIST_WRAP`                    | bool | `false` | Wrap after the modifier / annotation list of a declaration.        | ❌      |
+| `FOR_STATEMENT_WRAP`                    | int  | `0`     | Wrapping of `for` headers.                                         | ✅      |
+| `FOR_STATEMENT_LPAREN_ON_NEXT_LINE`     | bool | `false` | `(` of a wrapped `for` on its own line.                            | ✅      |
+| `FOR_STATEMENT_RPAREN_ON_NEXT_LINE`     | bool | `false` | `)` of a wrapped `for` on its own line.                            | ✅      |
+| `ARRAY_INITIALIZER_WRAP`                | int  | `0`     | Wrapping of array initializer lists.                               | ✅      |
+| `ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE` | bool | `false` | `{` of a wrapped array initializer on its own line.                | ✅      |
+| `ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE` | bool | `false` | `}` of a wrapped array initializer on its own line.                | ✅      |
+| `MODIFIER_LIST_WRAP`                    | bool | `false` | Wrap after the modifier / annotation list of a declaration.        | ✅      |
 
 ### Keep in one line
 

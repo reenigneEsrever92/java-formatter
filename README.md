@@ -100,8 +100,25 @@ The options currently honoured are:
 | `RESOURCE_LIST_LPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `(` goes on its own line                                                                      |
 | `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `)` goes on its own line                                                                      |
 | `METHOD_CALL_CHAIN_WRAP`                 | Wrapping of chained method calls                                                                                                |
+| `WRAP_FIRST_METHOD_IN_CALL_CHAIN`        | Whether the first link of a wrapped chain also goes on a continuation line                                                    |
+| `WRAP_SEMICOLON_AFTER_CALL_CHAIN`        | Put the `;` of a wrapped chained call on its own line                                                                          |
 | `ASSIGNMENT_WRAP`                        | Wrapping of assignment statements and variable / field initialisers                                                             |
+| `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`     | Put the assignment operator at the start of the continuation line                                                               |
 | `BINARY_OPERATION_WRAP`                  | Wrapping of binary expressions at their operators                                                                               |
+| `BINARY_OPERATION_SIGN_ON_NEXT_LINE`     | Put a binary operator at the start of the continuation line                                                                     |
+| `TERNARY_OPERATION_WRAP`                 | Wrapping of ternary (`?:`) expressions                                                                                          |
+| `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`   | Put `?` / `:` of a wrapped ternary at the start of continuation lines                                                           |
+| `ASSERT_STATEMENT_WRAP`                  | Wrapping of `assert` statements                                                                                                 |
+| `ASSERT_STATEMENT_COLON_ON_NEXT_LINE`    | Put the `:` of a wrapped `assert` at the start of the next line                                                                 |
+| `FOR_STATEMENT_WRAP`                     | Wrapping of `for` headers                                                                                                       |
+| `FOR_STATEMENT_LPAREN_ON_NEXT_LINE`      | Whether a wrapped `for` header's `(` goes on its own line                                                                       |
+| `FOR_STATEMENT_RPAREN_ON_NEXT_LINE`      | Whether a wrapped `for` header's `)` goes on its own line                                                                       |
+| `ARRAY_INITIALIZER_WRAP`                 | Wrapping of array initializer lists                                                                                             |
+| `ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE`  | Whether a wrapped array initializer's `{` goes on its own line                                                                  |
+| `ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE`  | Whether a wrapped array initializer's `}` goes on its own line                                                                  |
+| `MODIFIER_LIST_WRAP`                     | Wrap after the modifier / annotation list of a declaration                                                                      |
+| `PARENTHESES_EXPRESSION_LPAREN_WRAP`     | Whether a wrapped parenthesized expression's `(` goes on its own line                                                           |
+| `PARENTHESES_EXPRESSION_RPAREN_WRAP`     | Whether a wrapped parenthesized expression's `)` goes on its own line                                                           |
 | `EXTENDS_LIST_WRAP`                      | Wrapping of `extends` / `implements` lists of type declarations                                                                 |
 | `EXTENDS_KEYWORD_WRAP`                   | Whether a wrapped list's `extends` / `implements` keyword goes on its own line                                                   |
 | `THROWS_LIST_WRAP`                       | Wrapping of method / constructor `throws` lists                                                                                 |
@@ -285,10 +302,35 @@ braces when the body spans multiple lines, `3` = always force braces.
   The same canonical spacing is applied to declaration type-parameter lists
   (`<T extends Number & Serializable, U>`), wildcards (`? extends T` /
   `? super T`), and array dimensions; already canonical input is unchanged.
-- Wrapped binary expressions break at their top-level operators: the operator
-  goes at the start of the continuation line, at the continuation indent
-  (`BINARY_OPERATION_WRAP`). `5` (chop down) also breaks a nested binary
-  operand whose own line overflows.
+- Wrapped binary expressions break at their top-level operators at the
+  continuation indent (`BINARY_OPERATION_WRAP`): by default the operator ends
+  the preceding line (`alpha() +`), and `BINARY_OPERATION_SIGN_ON_NEXT_LINE`
+  moves it to the start of the continuation line (`+ beta()`). `5` (chop
+  down) also breaks a nested binary operand whose own line overflows.
+- Ternary expressions wrap per `TERNARY_OPERATION_WRAP` (codes `0` / `1` /
+  `2` / `5`): the flat form stays until the expression overflows (or always
+  under code `2`), then it breaks at `?` / `:` with the signs at the end of
+  the preceding line by default or at the start of the continuation lines
+  with `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE`; code `5` also recurses into a
+  nested ternary side whose own line overflows. `assert` statements wrap per
+  `ASSERT_STATEMENT_WRAP` at the expression and after the `:`, with
+  `ASSERT_STATEMENT_COLON_ON_NEXT_LINE` moving the `:` to the next line. `for`
+  headers wrap per `FOR_STATEMENT_WRAP` — the classic header breaks at its
+  semicolons, the enhanced header at its `:` — with
+  `FOR_STATEMENT_LPAREN/RPAREN_ON_NEXT_LINE` putting the parens on their own
+  lines. Array initializers wrap per `ARRAY_INITIALIZER_WRAP` one element per
+  line, with `ARRAY_INITIALIZER_LBRACE/RBRACE_ON_NEXT_LINE` placing the braces
+  on their own lines (by default `{` ends the preceding line and `}` ends the
+  last element's line). All of these wrap codes share the binary semantics:
+  `0` do not wrap, `1` wrap if long, `2` wrap always, `5` chop down if long.
+  A wrapped parenthesized expression's `(` / `)` move to their own lines with
+  `PARENTHESES_EXPRESSION_LPAREN/RPAREN_WRAP`, a wrapped assignment's operator
+  moves to the next line with `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`, a wrapped
+  chain's first link breaks after the receiver with
+  `WRAP_FIRST_METHOD_IN_CALL_CHAIN`, its `;` moves to its own line with
+  `WRAP_SEMICOLON_AFTER_CALL_CHAIN`, and `MODIFIER_LIST_WRAP` breaks a
+  declaration after its modifier / annotation list. Layout / whitespace only;
+  with none of these set, output matches today's one-line layouts.
 - With `USE_TAB_CHARACTER`, indentation is emitted as tab characters using a
   tab-stop model: each full `TAB_SIZE` of indentation width becomes one tab,
   and any remainder becomes spaces — so with `INDENT_SIZE == TAB_SIZE` each

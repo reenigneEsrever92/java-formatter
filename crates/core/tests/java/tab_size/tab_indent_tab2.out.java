@@ -2,12 +2,12 @@ class TabIndent {
 
 		void method(boolean flag) {
 				if (flag) {
-						int total = alpha()
-										+ beta()
-										+ gamma()
-										+ delta()
-										+ epsilon()
-										+ zeta();
+						int total = alpha() +
+										beta() +
+										gamma() +
+										delta() +
+										epsilon() +
+										zeta();
 						call(
 								alpha(),
 								beta(),
@@ -20,15 +20,15 @@ class TabIndent {
 		}
 
 		String join(String left, String right) {
-				return left
-								+ right
-								+ left
-								+ right
-								+ left
-								+ right
-								+ left
-								+ right
-								+ left
-								+ right;
+				return left +
+								right +
+								left +
+								right +
+								left +
+								right +
+								left +
+								right +
+								left +
+								right;
 		}
 }

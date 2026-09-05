@@ -1166,9 +1166,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
-            if !header.ends_with('\n') && !header.is_empty() {
-                header.push(' ');
-            }
+            self.mods_tail(&mut header, indent);
         }
 
         header.push_str("class ");
@@ -1206,9 +1204,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
-            if !header.ends_with('\n') && !header.is_empty() {
-                header.push(' ');
-            }
+            self.mods_tail(&mut header, indent);
         }
 
         header.push_str("interface ");
@@ -1242,9 +1238,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
-            if !header.ends_with('\n') && !header.is_empty() {
-                header.push(' ');
-            }
+            self.mods_tail(&mut header, indent);
         }
 
         header.push_str("enum ");
@@ -1339,9 +1333,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
-            if !header.ends_with('\n') && !header.is_empty() {
-                header.push(' ');
-            }
+            self.mods_tail(&mut header, indent);
         }
 
         header.push_str("record ");
@@ -1549,9 +1541,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             out.push_str(&self.modifiers(mods, indent));
-            if !out.ends_with(' ') && !out.ends_with('\n') {
-                out.push(' ');
-            }
+            self.mods_tail(&mut out, indent);
         }
 
         // type_parameters (generic method)
@@ -1609,9 +1599,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             out.push_str(&self.modifiers(mods, indent));
-            if !out.ends_with(' ') && !out.ends_with('\n') {
-                out.push(' ');
-            }
+            self.mods_tail(&mut out, indent);
         }
 
         // type_parameters (generic constructor)
@@ -1660,9 +1648,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             out.push_str(&self.modifiers(mods, indent));
-            if !out.ends_with(' ') && !out.ends_with('\n') {
-                out.push(' ');
-            }
+            self.mods_tail(&mut out, indent);
         }
 
         out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
@@ -1707,9 +1693,7 @@ impl<'s> Fmt<'s> {
 
         if let Some(mods) = self.get_mods(node) {
             out.push_str(&self.modifiers(mods, indent));
-            if !out.ends_with(' ') && !out.ends_with('\n') {
-                out.push(' ');
-            }
+            self.mods_tail(&mut out, indent);
         }
 
         let ty = self
@@ -1752,7 +1736,7 @@ impl<'s> Fmt<'s> {
                     let val_col =
                         c + self.col_after(0, &out) + 1 + name.len() + sep.len() + 1 + sep.len();
                     let val_str = self.expr(val, indent, val_col);
-                    format!("{}{}={}{}", name, sep, sep, val_str)
+                    Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
                 } else {
                     name.to_string()
                 }
@@ -1812,6 +1796,36 @@ impl<'s> Fmt<'s> {
         }
         out.push_str(&keywords.join(" "));
         out
+    }
+
+    /// Append the gap between a declaration's modifier list and the next
+    /// token: a single space normally, or — under `MODIFIER_LIST_WRAP` — a
+    /// line break so the rest of the declaration starts at `ind(indent)`.
+    /// When the modifiers already end with a newline or the annotation-list
+    /// indent (an annotations-only list), the break is already in place and
+    /// nothing is appended.
+    fn mods_tail(&self, s: &mut String, indent: usize) {
+        if s.ends_with('\n') || s.ends_with(' ') {
+            return;
+        }
+        if self.style.modifier_list_wrap {
+            s.push('\n');
+            s.push_str(&self.ind(indent));
+        } else {
+            s.push(' ');
+        }
+    }
+
+    /// Join `prefix` + `sep` + `value`, dropping `sep` when `value` starts
+    /// with a newline (a construct that begins on its own line, e.g. an
+    /// array initializer with `ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE`) so
+    /// the join never leaves a trailing space behind (R5).
+    fn join_sep(prefix: &str, sep: &str, value: &str) -> String {
+        if value.starts_with('\n') {
+            format!("{}{}", prefix, value)
+        } else {
+            format!("{}{}{}", prefix, sep, value)
+        }
     }
 
     // ── annotations ──────────────────────────────────────────────────────────
@@ -2265,7 +2279,16 @@ impl<'s> Fmt<'s> {
                     .named_child(0)
                     .map(|n| self.expr(n, indent, c))
                     .unwrap_or_default();
-                format!("{};", e)
+                // `WRAP_SEMICOLON_AFTER_CALL_CHAIN`: the `;` of a wrapped
+                // chained call moves to its own line at the statement indent.
+                if self.style.wrap_semicolon_after_call_chain
+                    && node.named_child(0).map(|n| n.kind()) == Some("method_invocation")
+                    && e.contains('\n')
+                {
+                    format!("{}\n{};", e, self.ind(indent))
+                } else {
+                    format!("{};", e)
+                }
             }
             "local_variable_declaration" => self.local_var(node, indent, c),
             "return_statement" => {
@@ -2374,7 +2397,7 @@ impl<'s> Fmt<'s> {
                     let sep = self.op_sep("=");
                     let val_col = self.col_after(c, &out) + name.len() + sep.len() + 1 + sep.len();
                     let val_str = self.expr(val, indent, val_col);
-                    format!("{}{}={}{}", name, sep, sep, val_str)
+                    Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
                 } else {
                     name.to_string()
                 }
@@ -2580,9 +2603,15 @@ impl<'s> Fmt<'s> {
 
     fn for_stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         let body_node = self.fld(node, "body");
+        let wrap = self.style.for_statement_wrap;
 
-        // Re-create header from source bytes (handles all edge cases of for-init/cond/update)
-        let header = if let Some(b) = body_node {
+        let header = if wrap != WrapStyle::DoNotWrap {
+            // `FOR_STATEMENT_WRAP`: re-render the header from its
+            // init / condition / update fields and break it at the
+            // semicolons when it wraps (see `wrapped_for_header`).
+            self.wrapped_for_header(node, indent, c)
+        } else if let Some(b) = body_node {
+            // Re-create header from source bytes (handles all edge cases of for-init/cond/update)
             let raw = std::str::from_utf8(&self.src[node.start_byte()..b.start_byte()])
                 .unwrap_or("for (...)");
             let norm = normalise_ws(raw);
@@ -2600,8 +2629,12 @@ impl<'s> Fmt<'s> {
             self.txt(node).to_string()
         };
 
-        // Keep a simple body on one line when enabled and it fits.
-        if self.braces_style_inline() && self.style.keep_simple_blocks_in_one_line {
+        // Keep a simple body on one line when enabled and it fits; a header
+        // that already wrapped keeps the body on its own line.
+        if self.braces_style_inline()
+            && self.style.keep_simple_blocks_in_one_line
+            && !header.contains('\n')
+        {
             if let Some(one) = body_node.and_then(|b| self.one_line_body(b)) {
                 let candidate = format!(
                     "{}{}{}",
@@ -2629,6 +2662,100 @@ impl<'s> Fmt<'s> {
             .unwrap_or_default();
 
         format!("{}{}", header, body)
+    }
+
+    /// Re-render a classic `for` header from its init / condition / update
+    /// children per `FOR_STATEMENT_WRAP`: the flat form (spaced like
+    /// [`Self::rebuild_for_header`]) is returned when it fits (or under
+    /// do-not-wrap, which is handled by the caller's verbatim path); when it
+    /// must wrap, each non-empty slot moves to its own continuation line,
+    /// broken after its `;`, and `FOR_STATEMENT_LPAREN/RPAREN_ON_NEXT_LINE`
+    /// put the parens on their own lines. Only whitespace changes, never
+    /// token order (R5).
+    fn wrapped_for_header(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let before = Self::sep(self.style.space_before_semicolon);
+        let after = Self::sep(self.style.space_after_semicolon);
+        let pad = self.style.space_within_for_parentheses;
+        let gap = self.sp(self.style.space_before_for_parentheses);
+
+        let init = self.for_part_text(node, "init");
+        let cond = self
+            .fld(node, "condition")
+            .map(|n| normalise_ws(self.txt(n)))
+            .unwrap_or_default();
+        let upd = self.for_part_text(node, "update");
+
+        // Flat form: the same field-based construction as `rebuild_for_header`.
+        let mut flat = String::from("for");
+        flat.push_str(gap);
+        flat.push('(');
+        if pad {
+            flat.push(' ');
+        }
+        if !init.is_empty() {
+            flat.push_str(&init);
+            flat.push_str(before);
+        }
+        flat.push(';');
+        if !cond.is_empty() {
+            flat.push_str(after);
+            flat.push_str(&cond);
+            flat.push_str(before);
+        }
+        flat.push(';');
+        if !upd.is_empty() {
+            flat.push_str(after);
+            flat.push_str(&upd);
+        }
+        if pad {
+            flat.push(' ');
+        }
+        flat.push(')');
+
+        let should_wrap = match self.style.for_statement_wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => true,
+            _ => !self.fits(c, &flat),
+        };
+        if !should_wrap {
+            return flat;
+        }
+
+        let cont = self.cont(indent);
+        let mut out = String::from("for");
+        if self.style.for_statement_lparen_on_next_line {
+            out.push('\n');
+            out.push_str(&cont);
+        } else {
+            out.push_str(gap);
+        }
+        out.push('(');
+        if pad {
+            out.push(' ');
+        }
+        if !init.is_empty() {
+            out.push_str(&init);
+            out.push_str(before);
+        }
+        out.push(';');
+        if !cond.is_empty() {
+            out.push('\n');
+            out.push_str(&cont);
+            out.push_str(&cond);
+            out.push_str(before);
+            out.push(';');
+        }
+        if !upd.is_empty() {
+            out.push('\n');
+            out.push_str(&cont);
+            out.push_str(&upd);
+        }
+        if self.style.for_statement_rparen_on_next_line {
+            out.push('\n');
+            out.push_str(&self.ind(indent));
+        }
+        out.push(')');
+        out
     }
 
     /// Pin the gap between a clause keyword and its opening paren inside a
@@ -2714,6 +2841,7 @@ impl<'s> Fmt<'s> {
         let colon = self.foreach_colon_sep();
         let p_gap = self.sp(self.style.space_before_for_parentheses);
         let l_gap = self.sp(self.style.space_before_for_lbrace);
+        let wrap = self.style.for_statement_wrap;
 
         // Keep a simple body on one line when enabled and it fits.
         if self.braces_style_inline() && self.style.keep_simple_blocks_in_one_line {
@@ -2755,12 +2883,75 @@ impl<'s> Fmt<'s> {
             })
             .unwrap_or_default();
         let inner = format!("{} {}{}{}", ty, name, colon, val);
-        format!(
-            "for{}{}{}",
+
+        if wrap == WrapStyle::DoNotWrap {
+            return format!(
+                "for{}{}{}",
+                p_gap,
+                Self::within('(', ')', self.style.space_within_for_parentheses, &inner),
+                body
+            );
+        }
+
+        // The one-line header for the margin decision: the value renders
+        // flat so the header's width is measured honestly.
+        let flat_val = self
+            .fld(node, "value")
+            .map(|n| self.flat(n))
+            .unwrap_or_default();
+        let flat = format!(
+            "for{}{}",
             p_gap,
-            Self::within('(', ')', self.style.space_within_for_parentheses, &inner),
-            body
-        )
+            Self::within(
+                '(',
+                ')',
+                self.style.space_within_for_parentheses,
+                &format!("{} {}{}{}", ty, name, colon, flat_val),
+            ),
+        );
+        if wrap != WrapStyle::WrapAlways && self.fits(c, &flat) {
+            return format!(
+                "for{}{}{}",
+                p_gap,
+                Self::within('(', ')', self.style.space_within_for_parentheses, &inner),
+                body
+            );
+        }
+
+        // Wrapped: the header breaks at its `:` and the value moves to a
+        // continuation line; `FOR_STATEMENT_LPAREN/RPAREN_ON_NEXT_LINE` put
+        // the parens on their own lines.
+        let cont = self.cont(indent);
+        let mut w = String::from("for");
+        if self.style.for_statement_lparen_on_next_line {
+            w.push('\n');
+            w.push_str(&cont);
+        } else {
+            w.push_str(p_gap);
+        }
+        w.push('(');
+        if self.style.space_within_for_parentheses {
+            w.push(' ');
+        }
+        w.push_str(&ty);
+        w.push(' ');
+        w.push_str(name);
+        // The `:` ends the first header line; the before half of the
+        // separator stays, the after half is replaced by the newline (R5).
+        w.push_str(&Self::sep(self.style.space_before_colon_in_foreach));
+        w.push(':');
+        w.push('\n');
+        w.push_str(&cont);
+        w.push_str(&val);
+        if self.style.space_within_for_parentheses && !val.ends_with('\n') {
+            w.push(' ');
+        }
+        if self.style.for_statement_rparen_on_next_line {
+            w.push('\n');
+            w.push_str(&self.ind(indent));
+        }
+        w.push(')');
+        format!("{}{}", w, body)
     }
 
     fn while_stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -3265,14 +3456,78 @@ impl<'s> Fmt<'s> {
 
     fn assert_stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         let children = self.named(node);
+        let wrap = self.style.assert_statement_wrap;
         match children.len() {
             0 => "assert;".to_string(),
-            1 => format!("assert {};", self.expr(children[0], indent, c + 7)),
-            _ => format!(
-                "assert {} : {};",
-                self.expr(children[0], indent, c + 7),
-                self.expr(children[1], indent, c)
-            ),
+            1 => {
+                let e = children[0];
+                let flat = format!("assert {};", self.flat(e));
+                // DoNotWrap (and the default style) keep today's one-line
+                // output; the statement only wraps per `ASSERT_STATEMENT_WRAP`.
+                if wrap == WrapStyle::DoNotWrap
+                    || (wrap != WrapStyle::WrapAlways && self.fits(c, &flat))
+                {
+                    return format!("assert {};", self.expr(e, indent, c + 7));
+                }
+                let cont = self.cont(indent);
+                let cont_col = self.col_after(0, &cont);
+                format!(
+                    "assert\n{}{};",
+                    cont,
+                    self.assert_side(e, indent, cont_col, wrap)
+                )
+            }
+            _ => {
+                let e0 = children[0];
+                let e1 = children[1];
+                let flat = format!("assert {} : {};", self.flat(e0), self.flat(e1));
+                if wrap == WrapStyle::DoNotWrap
+                    || (wrap != WrapStyle::WrapAlways && self.fits(c, &flat))
+                {
+                    return format!(
+                        "assert {} : {};",
+                        self.expr(e0, indent, c + 7),
+                        self.expr(e1, indent, c)
+                    );
+                }
+                let cont = self.cont(indent);
+                let cont_col = self.col_after(0, &cont);
+                let s0 = self.assert_side(e0, indent, c + 7, wrap);
+                let s1 = self.assert_side(e1, indent, cont_col, wrap);
+                if self.style.assert_statement_colon_on_next_line {
+                    // The `:` starts the continuation line; the before half of
+                    // the separator is dropped (R5).
+                    format!(
+                        "assert {}\n{}{}{}{};",
+                        s0,
+                        cont,
+                        ":",
+                        Self::sep(self.style.space_after_colon),
+                        s1
+                    )
+                } else {
+                    // Default: the `:` ends the expression's line.
+                    format!(
+                        "assert {}{}{}\n{}{};",
+                        s0,
+                        Self::sep(self.style.space_before_colon),
+                        ":",
+                        cont,
+                        s1
+                    )
+                }
+            }
+        }
+    }
+
+    /// Render one side of a broken assert statement. `ChopDownIfLong`
+    /// recurses through `expr` so an overflowing expression side can wrap
+    /// internally; the other styles keep the side flat.
+    fn assert_side(&self, n: Node<'s>, indent: usize, c: usize, wrap: WrapStyle) -> String {
+        if wrap == WrapStyle::ChopDownIfLong {
+            self.expr(n, indent, c)
+        } else {
+            self.flat(n).to_string()
         }
     }
 
@@ -3665,7 +3920,33 @@ impl<'s> Fmt<'s> {
                     .named_child(0)
                     .map(|n| self.expr(n, indent, c + 1))
                     .unwrap_or_default();
-                Self::within('(', ')', self.style.space_within_parentheses, &inner)
+                let pad = self.style.space_within_parentheses;
+                if inner.contains('\n') {
+                    // `PARENTHESES_EXPRESSION_LPAREN/RPAREN_WRAP`: when the
+                    // inner expression wraps, the parens move to their own
+                    // lines (the inner sits at the continuation indent, the
+                    // `)` at the statement indent); the padding toggle stays
+                    // away from the newlines, matching `within`.
+                    let lparen = self.style.parentheses_expression_lparen_wrap;
+                    let rparen = self.style.parentheses_expression_rparen_wrap;
+                    let head = if lparen {
+                        format!("(\n{}", self.cont(indent))
+                    } else if pad && !inner.starts_with('\n') {
+                        "( ".to_string()
+                    } else {
+                        "(".to_string()
+                    };
+                    let tail = if rparen {
+                        format!("\n{})", self.ind(indent))
+                    } else if pad && !inner.ends_with('\n') {
+                        " )".to_string()
+                    } else {
+                        ")".to_string()
+                    };
+                    format!("{}{}{}", head, inner, tail)
+                } else {
+                    Self::within('(', ')', pad, &inner)
+                }
             }
             "array_creation_expression" => self.array_creation(node, indent, c),
             "array_initializer" => self.array_init(node, indent, c),
@@ -3920,6 +4201,11 @@ impl<'s> Fmt<'s> {
         let cont = self.cont(indent);
         let mut out = String::new();
         let gap = self.sp(self.style.space_before_method_call_parentheses);
+        // `WRAP_FIRST_METHOD_IN_CALL_CHAIN`: the first link also starts a
+        // continuation line. With an empty base (a chain without an explicit
+        // receiver) there is nothing on the header line to wrap after, so the
+        // first link stays where it is.
+        let first_next = self.style.wrap_first_method_in_call_chain && !base.is_empty();
 
         for (i, link) in links.iter().enumerate() {
             let ta = link
@@ -3932,6 +4218,8 @@ impl<'s> Fmt<'s> {
             if i == 0 {
                 if base.is_empty() {
                     out = format!("{}{}{}{}", ta, nm, gap, flat_a);
+                } else if first_next {
+                    out = format!("{}\n{}.{}{}{}{}", base, cont, ta, nm, gap, flat_a);
                 } else {
                     out = format!("{}.{}{}{}{}", base, ta, nm, gap, flat_a);
                 }
@@ -4087,7 +4375,7 @@ impl<'s> Fmt<'s> {
 
         // The RHS wrapped internally; leave the operator on the header line.
         if same.contains('\n') {
-            return format!("{}{}{}{}{}", prefix, sep, op, sep, same);
+            return Self::join_sep(&format!("{}{}{}", prefix, sep, op), sep, &same);
         }
 
         if keep {
@@ -4097,6 +4385,11 @@ impl<'s> Fmt<'s> {
             let cont = self.cont(indent);
             let cont_col = self.col_after(0, &cont);
             let nl = self.expr(rhs, indent, cont_col);
+            if self.style.place_assignment_sign_on_next_line {
+                // `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`: the operator starts
+                // the continuation line.
+                return format!("{}\n{}{}{}{}", prefix, cont, op, sep, nl);
+            }
             return format!("{}{}{}\n{}{}", prefix, sep, op, cont, nl);
         }
 
@@ -4108,7 +4401,13 @@ impl<'s> Fmt<'s> {
         let cont = self.cont(indent);
         let cont_col = self.col_after(0, &cont);
         let nl = self.expr(rhs, indent, cont_col);
-        format!("{}{}{}\n{}{}", prefix, sep, op, cont, nl)
+        if self.style.place_assignment_sign_on_next_line {
+            // `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`: the operator starts
+            // the continuation line.
+            format!("{}\n{}{}{}{}", prefix, cont, op, sep, nl)
+        } else {
+            format!("{}{}{}\n{}{}", prefix, sep, op, cont, nl)
+        }
     }
 
     fn binary(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -4151,13 +4450,28 @@ impl<'s> Fmt<'s> {
         }
 
         let cont = self.cont(indent);
+        let sign_next = self.style.binary_operation_sign_on_next_line;
         let mut out = self.binary_operand(operands[0], indent, c, wrap);
         for i in 1..operands.len() {
-            out.push('\n');
-            out.push_str(&cont);
-            out.push_str(&ops[i - 1]);
-            out.push_str(self.op_sep(&ops[i - 1]));
-            out.push_str(&self.binary_operand(operands[i], indent, self.col_after(0, &cont), wrap));
+            let op = &ops[i - 1];
+            let sep = self.op_sep(op);
+            let operand = self.binary_operand(operands[i], indent, self.col_after(0, &cont), wrap);
+            if sign_next {
+                // `BINARY_OPERATION_SIGN_ON_NEXT_LINE`: the operator starts
+                // the continuation line.
+                out.push('\n');
+                out.push_str(&cont);
+                out.push_str(op);
+                out.push_str(sep);
+                out.push_str(&operand);
+            } else {
+                // Default: the operator ends the preceding line.
+                out.push_str(sep);
+                out.push_str(op);
+                out.push('\n');
+                out.push_str(&cont);
+                out.push_str(&operand);
+            }
         }
         out
     }
@@ -4195,6 +4509,7 @@ impl<'s> Fmt<'s> {
     }
 
     fn ternary(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let wrap = self.style.ternary_operation_wrap;
         let q = self.quest_sep();
         let cl = self.colon_sep();
         let flat = format!(
@@ -4211,35 +4526,78 @@ impl<'s> Fmt<'s> {
                 .map(|n| self.flat(n))
                 .unwrap_or_default()
         );
-        if !self.keep_wrapped(node) && self.fits(c, &flat) {
+
+        // DoNotWrap (and the default style) keep today's single-line output;
+        // `KEEP_LINE_BREAKS` overrides that when the expression's source
+        // spans rows (the same rule as `binary`).
+        if !self.keep_wrapped(node)
+            && (wrap == WrapStyle::DoNotWrap
+                || (wrap != WrapStyle::WrapAlways && self.fits(c, &flat)))
+        {
             return flat;
         }
+
         let cont = self.cont(indent);
         let cont_col = self.col_after(0, &cont);
-        let cond = self
-            .fld(node, "condition")
-            .map(|n| self.expr(n, indent, c))
-            .unwrap_or_default();
-        let cons = self
-            .fld(node, "consequence")
-            .map(|n| self.expr(n, indent, cont_col))
-            .unwrap_or_default();
-        let alt = self
-            .fld(node, "alternative")
-            .map(|n| self.expr(n, indent, cont_col))
-            .unwrap_or_default();
-        format!(
-            "{}\n{}{}{}{}\n{}{}{}{}",
-            cond,
-            cont,
-            "?",
-            Self::sep(self.style.space_after_quest),
-            cons,
-            cont,
-            ":",
-            Self::sep(self.style.space_after_colon),
-            alt
-        )
+        // `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE` steers the `?` / `:` between
+        // the two wrapped layouts; the sign halves of the separators that face
+        // the newline are dropped so no trailing / leading whitespace appears
+        // (R5).
+        let signs_next = self.style.ternary_operation_signs_on_next_line;
+        let cond = self.ternary_operand(self.fld(node, "condition"), indent, c, wrap);
+        let cons = self.ternary_operand(self.fld(node, "consequence"), indent, cont_col, wrap);
+        let alt = self.ternary_operand(self.fld(node, "alternative"), indent, cont_col, wrap);
+        if signs_next {
+            // The `?` / `:` start the continuation lines (the layout shipped
+            // before the wrap option existed).
+            format!(
+                "{}\n{}{}{}{}\n{}{}{}{}",
+                cond,
+                cont,
+                "?",
+                Self::sep(self.style.space_after_quest),
+                cons,
+                cont,
+                ":",
+                Self::sep(self.style.space_after_colon),
+                alt
+            )
+        } else {
+            // Default: the `?` / `:` end the preceding line, consistent with
+            // the binary operator-end layout.
+            format!(
+                "{}{}{}\n{}{}{}{}\n{}{}",
+                cond,
+                Self::sep(self.style.space_before_quest),
+                "?",
+                cont,
+                cons,
+                Self::sep(self.style.space_before_colon),
+                ":",
+                cont,
+                alt
+            )
+        }
+    }
+
+    /// Render one side of a broken ternary. `ChopDownIfLong` recurses into a
+    /// side that is itself a ternary expression so a long nested ternary can
+    /// wrap further; the other styles keep the sides flat (mirrors
+    /// [`Self::binary_operand`]).
+    fn ternary_operand(
+        &self,
+        n: Option<Node<'s>>,
+        indent: usize,
+        c: usize,
+        wrap: WrapStyle,
+    ) -> String {
+        match n {
+            Some(n) if wrap == WrapStyle::ChopDownIfLong && n.kind() == "ternary_expression" => {
+                self.ternary(n, indent, c)
+            }
+            Some(n) => self.flat(n).to_string(),
+            None => String::new(),
+        }
     }
 
     fn lambda(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -4351,8 +4709,16 @@ impl<'s> Fmt<'s> {
     }
 
     fn array_init(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let wrap = self.style.array_initializer_wrap;
         let flat = self.flat_arr_init(node);
-        if !self.keep_wrapped(node) && self.fits(c, &flat) {
+
+        // DoNotWrap (and the default style) keep today's single-line output;
+        // `KEEP_LINE_BREAKS` overrides that when the initialiser's source
+        // spans rows (the same rule as `binary`).
+        if !self.keep_wrapped(node)
+            && (wrap == WrapStyle::DoNotWrap
+                || (wrap != WrapStyle::WrapAlways && self.fits(c, &flat)))
+        {
             return flat;
         }
         let inner = indent + 1;
@@ -4367,13 +4733,32 @@ impl<'s> Fmt<'s> {
                 )
             })
             .collect();
-        let inner_str = format!("\n{}\n{}", elem_strs.join(",\n"), self.ind(indent));
-        Self::within(
-            '{',
-            '}',
-            self.style.space_within_array_initializer_braces,
-            &inner_str,
-        )
+        let pad = self.style.space_within_array_initializer_braces;
+
+        // `ARRAY_INITIALIZER_LBRACE/RBRACE_ON_NEXT_LINE` (default false): the
+        // brace sits on its own line only when its bool is on — by default
+        // `{` ends the preceding line and `}` ends the last element's line.
+        // Elements always start on their own line at `ind(indent + 1)`, and
+        // the padding toggle never lands next to a newline (R5).
+        let l_next = self.style.array_initializer_lbrace_on_next_line;
+        let r_next = self.style.array_initializer_rbrace_on_next_line;
+
+        let mut out = String::new();
+        if l_next {
+            out.push('\n');
+            out.push_str(&self.ind(indent));
+        }
+        out.push('{');
+        out.push('\n');
+        out.push_str(&elem_strs.join(",\n"));
+        if r_next {
+            out.push('\n');
+            out.push_str(&self.ind(indent));
+        } else if pad {
+            out.push(' ');
+        }
+        out.push('}');
+        out
     }
 
     // ── type renderers ────────────────────────────────────────────────────────
