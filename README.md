@@ -143,6 +143,18 @@ The options currently honoured are:
 | `NEW_LINE_WHEN_BODY_IS_PRESENTED`        | Put the body of a one-line block on a new line below its statement head                                                          |
 | `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`     | Keep a brace-less control-statement body on the header's line when the source has it there                                      |
 | `ANNOTATION_PARAMETER_WRAP`              | Wrapping of annotation argument lists                                                                                           |
+| `METHOD_ANNOTATION_WRAP`                 | Placement of a method's annotations (own line vs inline with the declaration)                                                 |
+| `CLASS_ANNOTATION_WRAP`                  | Placement of a class / interface / enum / record's annotations                                                                 |
+| `FIELD_ANNOTATION_WRAP`                  | Placement of a field's annotations                                                                                             |
+| `PARAMETER_ANNOTATION_WRAP`              | Placement of a parameter's annotations in the wrapped (per-line) parameter list                                               |
+| `VARIABLE_ANNOTATION_WRAP`               | Placement of a local variable's annotations                                                                                    |
+| `ENUM_FIELD_ANNOTATION_WRAP`             | Placement of enum constant annotations                                                                                         |
+| `ALIGN_MULTILINE_ANNOTATION_PARAMETERS`  | Align wrapped annotation arguments under the first argument                                                                     |
+| `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION`    | Put `(` of a wrapped annotation argument list on its own line                                                                   |
+| `RPAREN_ON_NEW_LINE_IN_ANNOTATION`       | Put `)` of a wrapped annotation argument list on its own line                                                                   |
+| `SPACE_AROUND_ANNOTATION_EQ`             | Spaces around `=` in annotation arguments (default: spaced)                                                                     |
+| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION`    | Keep a lone field / method / class / local-variable annotation inline regardless of the wrap code                              |
+| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` | Keep a lone parameter annotation inline in the wrapped parameter list                                              |
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` | Layout of a wrapped record header                                                                                               |
 | `ALIGN_MULTILINE_RECORDS`                | Whether wrapped record components align under the first component                                                               |
@@ -346,6 +358,29 @@ braces when the body spans multiple lines, `3` = always force braces.
   The same canonical spacing is applied to declaration type-parameter lists
   (`<T extends Number & Serializable, U>`), wildcards (`? extends T` /
   `? super T`), and array dimensions; already canonical input is unchanged.
+- Annotation placement on declarations follows the `*_ANNOTATION_WRAP` codes
+  (`METHOD_ANNOTATION_WRAP`, `CLASS_ANNOTATION_WRAP`, `FIELD_ANNOTATION_WRAP`
+  default to wrap always — one annotation per line; `PARAMETER_ANNOTATION_WRAP`
+  and `VARIABLE_ANNOTATION_WRAP` default to do not wrap — inline `@A @B type`):
+  code `0` joins all modifiers inline, code `2` places each annotation on its
+  own line, and codes `1` / `5` keep the inline form unless the composed first
+  line overflows the margin (then one annotation per line). A lone annotation
+  can be kept inline under a wrap-always placement with
+  `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION` (declarations, locals) and
+  `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` (parameters). Parameter
+  annotations render inline unless the parameter list wraps, and a wrapped
+  list breaks an annotated parameter so its annotations sit on their own lines
+  above the type / name. Enum constant annotations follow
+  `ENUM_FIELD_ANNOTATION_WRAP` (default do not wrap; the constant's remainder
+  is preserved verbatim). Wrapped annotation argument lists honour
+  `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION` (first argument stays on the `(` line
+  when off), `RPAREN_ON_NEW_LINE_IN_ANNOTATION` (`)` attaches to the last
+  argument when off), `ALIGN_MULTILINE_ANNOTATION_PARAMETERS` (align under the
+  first argument when on) and `SPACE_AROUND_ANNOTATION_EQ` (`key = value` when
+  on, `key=value` off). Layout / whitespace only; the default style emits
+  today's one-per-line shape for methods / classes / fields and the IntelliJ
+  default reshaped expanded annotation argument lists (first argument on the
+  `(` line, `)` attached).
 - Wrapped binary expressions break at their top-level operators at the
   continuation indent (`BINARY_OPERATION_WRAP`): by default the operator ends
   the preceding line (`alpha() +`), and `BINARY_OPERATION_SIGN_ON_NEXT_LINE`

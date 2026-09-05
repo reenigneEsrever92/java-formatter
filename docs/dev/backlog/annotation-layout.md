@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the annotation placement and annotation-body layout options
 description: Implement annotation-on-separate-line placement and annotation parameter wrapping/alignment options.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-05T15:30Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -197,14 +198,14 @@ one annotation under a wrap-always placement option.
 
 ## Steps
 
-- [ ] `crates/core/src/config.rs`: add the twelve fields to `JavaStyle` with
+- [x] `crates/core/src/config.rs`: add the twelve fields to `JavaStyle` with
       the `Default` values above (five placement `WrapStyle`s plus
       `enum_field_annotation_wrap` under an annotation banner, the six bools
       under a Java-specific banner), then the twelve `OptionDef`s (sections
       and groups per the approach; `OptionValue::Wrap` for the wrap defs,
       `OptionValue::Bool` for the bools). `cargo build` and the suite stay
       green (AC1 config mapping; R7 absent → default).
-- [ ] Placement engine for member/type declarations: parameterise
+- [x] Placement engine for member/type declarations: parameterise
       `modifiers()` by the governing wrap option + single-annotation
       exemption and return either the inline or the one-per-line form; wire
       each caller (`class_decl`/`iface_decl`/`enum_decl`/`record_decl` →
@@ -213,23 +214,23 @@ one annotation under a wrap-always placement option.
       `field_annotation_wrap`), measuring codes `1`/`5` against the composed
       inline header. Confirm the default style still emits today's own-line
       layout (AC2).
-- [ ] Parameters and local variables: give `formal_params`/`flat_param` the
+- [x] Parameters and local variables: give `formal_params`/`flat_param` the
       `parameter_annotation_wrap` +
       `do_not_wrap_after_single_annotation_in_parameter` behaviour (own-line
       annotation placement in the per-line parameter layout) and `local_var`
       the `variable_annotation_wrap` +
       `do_not_wrap_after_single_annotation` behaviour; keep record components
       and receiver parameters inline (AC2).
-- [ ] Enum fields: when an `enum_constant` has annotations, render them per
+- [x] Enum fields: when an `enum_constant` has annotations, render them per
       `enum_field_annotation_wrap` and echo the rest of the constant verbatim;
       otherwise keep today's verbatim echo (AC2; R4/R5).
-- [ ] Argument-body layout: extend `annotation_expanded()` (multi-argument
+- [x] Argument-body layout: extend `annotation_expanded()` (multi-argument
       branch) with `align_multiline_annotation_parameters`,
       `new_line_after_lparen_in_annotation` and
       `rparen_on_new_line_in_annotation` per the approach, and route
       `space_around_annotation_eq` through `flat_ann_arg` and the expanded
       single-pair branch so every `element_value_pair` honours it (AC2).
-- [ ] Add fixtures + golden-pair tests for the six placement-related options
+- [x] Add fixtures + golden-pair tests for the six placement-related options
       (`tests/options/method_annotation_wrap.rs`, `class_annotation_wrap.rs`,
       `field_annotation_wrap.rs`, `parameter_annotation_wrap.rs`,
       `variable_annotation_wrap.rs`, `enum_field_annotation_wrap.rs`): inputs
@@ -238,7 +239,7 @@ one annotation under a wrap-always placement option.
       `0`/`1`/`2`/`5` (narrow `right_margin` for `1`/`5`) plus an
       absent-option default golden; wire the modules in `tests/options.rs`
       (AC1, AC2).
-- [ ] Add fixtures + golden-pair tests for the six Java-block bool options
+- [x] Add fixtures + golden-pair tests for the six Java-block bool options
       (`tests/options/align_multiline_annotation_parameters.rs`,
       `new_line_after_lparen_in_annotation.rs`,
       `rparen_on_new_line_in_annotation.rs`, `space_around_annotation_eq.rs`,
@@ -248,12 +249,12 @@ one annotation under a wrap-always placement option.
       each bool both ways; the exemption fixtures carry exactly one annotation
       under a wrap-always placement option; each file ends with an
       absent-option default golden (AC1, AC2).
-- [ ] Run `cargo test`; regenerate the goldens that encode the pre-option
+- [x] Run `cargo test`; regenerate the goldens that encode the pre-option
       engine — the `annotation_parameter_wrap` goldens whose expanded layout
       moves to the option-default shape (first argument on the `(` line, `)`
       attached) — and confirm every other golden is byte-identical and every
       changed/new golden formats to itself on a second pass (AC3, AC5; R6).
-- [ ] Update docs: flip ❌ → ✅ for the five rows in the "Annotations" table of
+- [x] Update docs: flip ❌ → ✅ for the five rows in the "Annotations" table of
       docs/settings/common.md and the seven rows in the "Annotations" table of
       docs/settings/java.md; add the twelve options to the README
       honoured-options table plus a formatting-behaviour note on annotation

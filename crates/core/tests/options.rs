@@ -11,6 +11,8 @@ mod align_consecutive_assignments;
 mod align_consecutive_variable_declarations;
 #[path = "options/align_group_field_declarations.rs"]
 mod align_group_field_declarations;
+#[path = "options/align_multiline_annotation_parameters.rs"]
+mod align_multiline_annotation_parameters;
 #[path = "options/align_multiline_array_initializer_expression.rs"]
 mod align_multiline_array_initializer_expression;
 #[path = "options/align_multiline_assignment.rs"]
@@ -105,20 +107,30 @@ mod call_parameters_wrap;
 mod case_statement_on_new_line;
 #[path = "options/catch_on_new_line.rs"]
 mod catch_on_new_line;
+#[path = "options/class_annotation_wrap.rs"]
+mod class_annotation_wrap;
 #[path = "options/class_brace_style.rs"]
 mod class_brace_style;
 #[path = "options/class_count_to_use_import_on_demand.rs"]
 mod class_count_to_use_import_on_demand;
 #[path = "options/continuation_indent_size.rs"]
 mod continuation_indent_size;
+#[path = "options/do_not_wrap_after_single_annotation.rs"]
+mod do_not_wrap_after_single_annotation;
+#[path = "options/do_not_wrap_after_single_annotation_in_parameter.rs"]
+mod do_not_wrap_after_single_annotation_in_parameter;
 #[path = "options/dowhile_brace_force.rs"]
 mod dowhile_brace_force;
 #[path = "options/else_on_new_line.rs"]
 mod else_on_new_line;
+#[path = "options/enum_field_annotation_wrap.rs"]
+mod enum_field_annotation_wrap;
 #[path = "options/extends_keyword_wrap.rs"]
 mod extends_keyword_wrap;
 #[path = "options/extends_list_wrap.rs"]
 mod extends_list_wrap;
+#[path = "options/field_annotation_wrap.rs"]
+mod field_annotation_wrap;
 #[path = "options/finally_on_new_line.rs"]
 mod finally_on_new_line;
 #[path = "options/for_brace_force.rs"]
@@ -171,6 +183,8 @@ mod line_comment_add_space_on_reformat;
 mod line_comment_at_first_column;
 #[path = "options/line_separator.rs"]
 mod line_separator;
+#[path = "options/method_annotation_wrap.rs"]
+mod method_annotation_wrap;
 #[path = "options/method_brace_style.rs"]
 mod method_brace_style;
 #[path = "options/method_call_chain_wrap.rs"]
@@ -183,10 +197,14 @@ mod method_parameters_rparen_on_next_line;
 mod method_parameters_wrap;
 #[path = "options/modifier_list_wrap.rs"]
 mod modifier_list_wrap;
+#[path = "options/new_line_after_lparen_in_annotation.rs"]
+mod new_line_after_lparen_in_annotation;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
 #[path = "options/new_line_when_body_is_presented.rs"]
 mod new_line_when_body_is_presented;
+#[path = "options/parameter_annotation_wrap.rs"]
+mod parameter_annotation_wrap;
 #[path = "options/parentheses_expression_lparen_wrap.rs"]
 mod parentheses_expression_lparen_wrap;
 #[path = "options/parentheses_expression_rparen_wrap.rs"]
@@ -205,6 +223,8 @@ mod resource_list_rparen_on_next_line;
 mod resource_list_wrap;
 #[path = "options/right_margin.rs"]
 mod right_margin;
+#[path = "options/rparen_on_new_line_in_annotation.rs"]
+mod rparen_on_new_line_in_annotation;
 #[path = "options/soft_margins.rs"]
 mod soft_margins;
 #[path = "options/space_after_colon.rs"]
@@ -221,6 +241,8 @@ mod space_after_semicolon;
 mod space_after_type_cast;
 #[path = "options/space_around_additive_operators.rs"]
 mod space_around_additive_operators;
+#[path = "options/space_around_annotation_eq.rs"]
+mod space_around_annotation_eq;
 #[path = "options/space_around_assignment_operators.rs"]
 mod space_around_assignment_operators;
 #[path = "options/space_around_bitwise_operators.rs"]
@@ -363,6 +385,8 @@ mod throws_keyword_wrap;
 mod throws_list_wrap;
 #[path = "options/use_tab_character.rs"]
 mod use_tab_character;
+#[path = "options/variable_annotation_wrap.rs"]
+mod variable_annotation_wrap;
 #[path = "options/while_brace_force.rs"]
 mod while_brace_force;
 #[path = "options/while_on_new_line.rs"]

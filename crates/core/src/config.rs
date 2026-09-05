@@ -261,6 +261,13 @@ pub struct JavaStyle {
     pub modifier_list_wrap: bool,
     pub wrap_semicolon_after_call_chain: bool,
 
+    // --- annotation placement (CodeStyleJava) ---
+    pub method_annotation_wrap: WrapStyle,
+    pub class_annotation_wrap: WrapStyle,
+    pub field_annotation_wrap: WrapStyle,
+    pub parameter_annotation_wrap: WrapStyle,
+    pub variable_annotation_wrap: WrapStyle,
+
     // --- binary expression wrapping ---
     pub binary_operation_wrap: WrapStyle,
     pub binary_operation_sign_on_next_line: bool,
@@ -329,6 +336,15 @@ pub struct JavaStyle {
     pub record_components_wrap: WrapStyle,
     pub align_multiline_records: bool,
     pub new_line_after_lparen_in_record_header: bool,
+
+    // --- annotation body layout (JavaCodeStyleSettings) ---
+    pub enum_field_annotation_wrap: WrapStyle,
+    pub align_multiline_annotation_parameters: bool,
+    pub new_line_after_lparen_in_annotation: bool,
+    pub rparen_on_new_line_in_annotation: bool,
+    pub space_around_annotation_eq: bool,
+    pub do_not_wrap_after_single_annotation: bool,
+    pub do_not_wrap_after_single_annotation_in_parameter: bool,
 
     // --- imports ---
     pub class_count_to_use_import_on_demand: u32,
@@ -480,6 +496,11 @@ impl Default for JavaStyle {
             parentheses_expression_rparen_wrap: false,
             modifier_list_wrap: false,
             wrap_semicolon_after_call_chain: false,
+            method_annotation_wrap: WrapStyle::WrapAlways,
+            class_annotation_wrap: WrapStyle::WrapAlways,
+            field_annotation_wrap: WrapStyle::WrapAlways,
+            parameter_annotation_wrap: WrapStyle::DoNotWrap,
+            variable_annotation_wrap: WrapStyle::DoNotWrap,
             binary_operation_wrap: WrapStyle::DoNotWrap,
             binary_operation_sign_on_next_line: false,
             ternary_operation_wrap: WrapStyle::DoNotWrap,
@@ -533,6 +554,13 @@ impl Default for JavaStyle {
             record_components_wrap: WrapStyle::DoNotWrap,
             align_multiline_records: true,
             new_line_after_lparen_in_record_header: false,
+            enum_field_annotation_wrap: WrapStyle::DoNotWrap,
+            align_multiline_annotation_parameters: false,
+            new_line_after_lparen_in_annotation: false,
+            rparen_on_new_line_in_annotation: false,
+            space_around_annotation_eq: true,
+            do_not_wrap_after_single_annotation: false,
+            do_not_wrap_after_single_annotation_in_parameter: false,
             class_count_to_use_import_on_demand: 5,
             keep_blank_lines_in_code: 2,
             keep_blank_lines_in_declarations: 2,
@@ -1308,6 +1336,71 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "METHOD_ANNOTATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::WrapAlways),
+        group: "Wrapping",
+        description: "Put a method's annotations on separate lines.",
+        get: |s| OptionValue::Wrap(s.method_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.method_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CLASS_ANNOTATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::WrapAlways),
+        group: "Wrapping",
+        description: "Put a class's annotations on separate lines.",
+        get: |s| OptionValue::Wrap(s.class_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.class_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FIELD_ANNOTATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::WrapAlways),
+        group: "Wrapping",
+        description: "Put a field's annotations on separate lines.",
+        get: |s| OptionValue::Wrap(s.field_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.field_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PARAMETER_ANNOTATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Put a parameter's annotations on separate lines.",
+        get: |s| OptionValue::Wrap(s.parameter_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.parameter_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "VARIABLE_ANNOTATION_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Put a local variable's annotations on separate lines.",
+        get: |s| OptionValue::Wrap(s.variable_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.variable_annotation_wrap = w;
+            }
+        },
+    },
     // --- Declaration clause wrapping (resource / extends-implements / throws lists) ---
     OptionDef {
         xml_name: "RESOURCE_LIST_WRAP",
@@ -1883,6 +1976,97 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.annotation_parameter_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ENUM_FIELD_ANNOTATION_WRAP",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Records & annotations",
+        description: "Put annotations on enum constants on their own lines.",
+        get: |s| OptionValue::Wrap(s.enum_field_annotation_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.enum_field_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_ANNOTATION_PARAMETERS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Align wrapped annotation parameters under the first parameter.",
+        get: |s| OptionValue::Bool(s.align_multiline_annotation_parameters),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_annotation_parameters = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "NEW_LINE_AFTER_LPAREN_IN_ANNOTATION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Put the '(' of a wrapped annotation on its own line.",
+        get: |s| OptionValue::Bool(s.new_line_after_lparen_in_annotation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.new_line_after_lparen_in_annotation = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "RPAREN_ON_NEW_LINE_IN_ANNOTATION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Put the ')' of a wrapped annotation on its own line.",
+        get: |s| OptionValue::Bool(s.rparen_on_new_line_in_annotation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.rparen_on_new_line_in_annotation = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_ANNOTATION_EQ",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Records & annotations",
+        description: "Spaces around '=' in annotation arguments.",
+        get: |s| OptionValue::Bool(s.space_around_annotation_eq),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_annotation_eq = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Do not wrap after a single annotation on a field.",
+        get: |s| OptionValue::Bool(s.do_not_wrap_after_single_annotation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.do_not_wrap_after_single_annotation = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Do not wrap after a single annotation on a parameter.",
+        get: |s| OptionValue::Bool(s.do_not_wrap_after_single_annotation_in_parameter),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.do_not_wrap_after_single_annotation_in_parameter = b;
             }
         },
     },

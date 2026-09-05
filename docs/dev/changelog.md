@@ -9,6 +9,57 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **Annotation placement and annotation-body layout options are honoured
+  (R31, annotation-layout)**: the twelve annotation options —
+  `METHOD_ANNOTATION_WRAP`, `CLASS_ANNOTATION_WRAP`, `FIELD_ANNOTATION_WRAP`
+  (all default wrap always, `2`), `PARAMETER_ANNOTATION_WRAP` and
+  `VARIABLE_ANNOTATION_WRAP` (default do not wrap, `0`) in the JAVA
+  `codeStyleSettings` block, plus `ENUM_FIELD_ANNOTATION_WRAP` (default do not
+  wrap), `ALIGN_MULTILINE_ANNOTATION_PARAMETERS`, `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION`,
+  `RPAREN_ON_NEW_LINE_IN_ANNOTATION` (all default false),
+  `SPACE_AROUND_ANNOTATION_EQ` (default true) and the two single-annotation
+  exemptions `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION` /
+  `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` (both default false) in
+  `<JavaCodeStyleSettings>` — previously ignored (R7) and marked ❌ in the
+  docs/settings tables, are now parsed into `JavaStyle` (five `WrapStyle` and
+  seven `bool` fields with the IntelliJ built-in defaults, plus twelve
+  `OptionDef` entries in the `OPTIONS` registry) and applied in the engine.
+  Member / type declarations render their `modifiers` per the governing
+  `*_ANNOTATION_WRAP` code: `DoNotWrap` joins annotations inline (`@A @B
+  public`), `WrapAlways` keeps the historical one-annotation-per-line shape,
+  and `WrapIfLong` / `ChopDownIfLong` keep the inline form unless the composed
+  first line (measured via the caller's header tail) overflows the margin,
+  then fall back to one per line (the two codes behave identically at this
+  granularity); an annotation whose own argument list renders multi-line can
+  never be joined inline (R5). Local variables get the same decision from
+  `VARIABLE_ANNOTATION_WRAP`, parameters from `PARAMETER_ANNOTATION_WRAP` in
+  the wrapped one-parameter-per-line list layout (annotation break so the
+  type / name continues on the next line), and enum constants from
+  `ENUM_FIELD_ANNOTATION_WRAP` (the constant's name / arguments / body echoed
+  verbatim, R4/R5). The two single-annotation exemptions keep a lone
+  annotation inline regardless of the wrap code. Expanded annotation argument
+  lists honour the four body-layout toggles: `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION`
+  (first argument on the `(` line when off), `RPAREN_ON_NEW_LINE_IN_ANNOTATION`
+  (`)` attached to the last argument when off),
+  `ALIGN_MULTILINE_ANNOTATION_PARAMETERS` (padding under the first argument
+  when on) and `SPACE_AROUND_ANNOTATION_EQ` (`key = value` when on,
+  `key=value` off) routed through `flat_ann_arg` and the expanded single-pair
+  branch. The IntelliJ defaults reshape the previously hard-coded stacked
+  expanded annotation layout (first argument on the `(` line, `)` attached):
+  three of the four `annotation_parameter_wrap` goldens (`annotation.out.java`,
+  `annotation_chop_down.out.java`, `annotation_wrap_always.out.java`) were
+  re-baselined to that shape and re-formatting them is a no-op (R6); every
+  other existing golden is byte-identical. The default style keeps today's
+  one-per-line placement for methods / classes / fields. Covered by twelve new
+  per-option golden test files under `tests/options/` (fixtures under
+  `tests/java/<option>/`; wrap codes `0`/`1`/`2`/`5` at a narrow margin for
+  `1`/`5`, both bool states, absent-option defaults and a self-golden
+  idempotency fixture per option); the suite grew from 544 to 604 tests, all
+  green (`cargo test --workspace`). No IntelliJ installation was available to
+  cross-check the goldens; the reshaped expanded layout follows the
+  `annotation_parameter_wrap` record-header analogue and is called out in the
+  option files.
+
 - **Simple classes and multi-expression statements stay on one line; the
   one-line block-body presentation toggles are honoured (R30,
   one-line-body-layout)**: the four remaining keep-in-one-line / one-line-body

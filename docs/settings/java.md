@@ -145,13 +145,13 @@ java.*                       (withSubpackages)
 | Option                                             | Type | Default | Effect                                                | Support |
 | -------------------------------------------------- | ---- | ------- | ----------------------------------------------------- | ------- |
 | `ANNOTATION_PARAMETER_WRAP`                        | int  | `0`     | Wrapping of annotation argument lists.                | ✅      |
-| `ENUM_FIELD_ANNOTATION_WRAP`                       | int  | `0`     | Put annotations on enum constants on their own lines. | ❌      |
-| `ALIGN_MULTILINE_ANNOTATION_PARAMETERS`            | bool | `false` | Align wrapped annotation parameters.                  | ❌      |
-| `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION`              | bool | `false` | Put `(` of a wrapped annotation on its own line.      | ❌      |
-| `RPAREN_ON_NEW_LINE_IN_ANNOTATION`                 | bool | `false` | Put `)` of a wrapped annotation on its own line.      | ❌      |
-| `SPACE_AROUND_ANNOTATION_EQ`                       | bool | `true`  | Spaces around `=` in annotation arguments.            | ❌      |
-| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION`              | bool | `false` | Do not wrap after a single annotation on a field.     | ❌      |
-| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` | bool | `false` | Do not wrap after a single annotation on a parameter. | ❌      |
+| `ENUM_FIELD_ANNOTATION_WRAP`                       | int  | `0`     | Put annotations on enum constants on their own lines. | ✅      |
+| `ALIGN_MULTILINE_ANNOTATION_PARAMETERS`            | bool | `false` | Align wrapped annotation parameters.                  | ✅      |
+| `NEW_LINE_AFTER_LPAREN_IN_ANNOTATION`              | bool | `false` | Put `(` of a wrapped annotation on its own line.      | ✅      |
+| `RPAREN_ON_NEW_LINE_IN_ANNOTATION`                 | bool | `false` | Put `)` of a wrapped annotation on its own line.      | ✅      |
+| `SPACE_AROUND_ANNOTATION_EQ`                       | bool | `true`  | Spaces around `=` in annotation arguments.            | ✅      |
+| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION`              | bool | `false` | Do not wrap after a single annotation on a field.     | ✅      |
+| `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` | bool | `false` | Do not wrap after a single annotation on a parameter. | ✅      |
 
 Annotation _placement_ on declarations (`METHOD_ANNOTATION_WRAP` etc.) lives in
 the common block — see [Annotations](common.md#annotations).

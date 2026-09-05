@@ -294,11 +294,11 @@ control whether an annotation is placed on its own line before a declaration.
 
 | Option                      | Type | Default           | Effect                                                | Support |
 | --------------------------- | ---- | ----------------- | ----------------------------------------------------- | ------- |
-| `METHOD_ANNOTATION_WRAP`    | int  | `2` (wrap always) | Put a method's annotations on separate lines.         | ❌      |
-| `CLASS_ANNOTATION_WRAP`     | int  | `2` (wrap always) | Put a class's annotations on separate lines.          | ❌      |
-| `FIELD_ANNOTATION_WRAP`     | int  | `2` (wrap always) | Put a field's annotations on separate lines.          | ❌      |
-| `PARAMETER_ANNOTATION_WRAP` | int  | `0`               | Put a parameter's annotations on separate lines.      | ❌      |
-| `VARIABLE_ANNOTATION_WRAP`  | int  | `0`               | Put a local variable's annotations on separate lines. | ❌      |
+| `METHOD_ANNOTATION_WRAP`    | int  | `2` (wrap always) | Put a method's annotations on separate lines.         | ✅      |
+| `CLASS_ANNOTATION_WRAP`     | int  | `2` (wrap always) | Put a class's annotations on separate lines.          | ✅      |
+| `FIELD_ANNOTATION_WRAP`     | int  | `2` (wrap always) | Put a field's annotations on separate lines.          | ✅      |
+| `PARAMETER_ANNOTATION_WRAP` | int  | `0`               | Put a parameter's annotations on separate lines.      | ✅      |
+| `VARIABLE_ANNOTATION_WRAP`  | int  | `0`               | Put a local variable's annotations on separate lines. | ✅      |
 
 (Annotation _argument_ wrapping is `ANNOTATION_PARAMETER_WRAP`, which lives in
 [`JavaCodeStyleSettings`](java.md#annotations).)

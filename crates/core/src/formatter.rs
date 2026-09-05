@@ -1227,34 +1227,61 @@ impl<'s> Fmt<'s> {
     }
 
     fn class_decl(&self, node: Node<'s>, indent: usize) -> String {
-        let mut header = String::new();
         let c = self.col_after(0, &self.ind(indent));
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            header.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut header, indent);
-        }
-
-        header.push_str("class ");
-        header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
-
-        if let Some(tp) = self.fld(node, "type_parameters") {
-            if self.style.space_before_type_parameter_list {
-                header.push(' ');
+        // The post-modifier header tail (class keyword, name, type
+        // parameters, extends / implements) is built per modifier form; the
+        // inline form's first line is measured for codes 1/5.
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut header = String::new();
+            header.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut header, indent);
             }
-            header.push_str(&self.flat_type_params(tp));
-        }
-        if let Some(sc) = self.fld(node, "superclass") {
-            // The `superclass` node starts with the `extends` keyword; print a
-            // canonical keyword followed by just the supertype.
-            header.push_str(" extends ");
-            if let Some(ty) = self.named(sc).first() {
-                header.push_str(&self.flat_type(*ty));
+            header.push_str("class ");
+            header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+
+            if let Some(tp) = self.fld(node, "type_parameters") {
+                if self.style.space_before_type_parameter_list {
+                    header.push(' ');
+                }
+                header.push_str(&self.flat_type_params(tp));
             }
-        }
-        if let Some(ifaces) = self.fld(node, "interfaces") {
-            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
-        }
+            if let Some(sc) = self.fld(node, "superclass") {
+                // The `superclass` node starts with the `extends` keyword; print a
+                // canonical keyword followed by just the supertype.
+                header.push_str(" extends ");
+                if let Some(ty) = self.named(sc).first() {
+                    header.push_str(&self.flat_type(*ty));
+                }
+            }
+            if let Some(ifaces) = self.fld(node, "interfaces") {
+                self.append_type_clause(&mut header, "implements", ifaces, indent, c);
+            }
+            header
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.class_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        let header = if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: a body whose members are all
         // simple collapses to one line (see `simple_class_one_line`);
@@ -1273,30 +1300,54 @@ impl<'s> Fmt<'s> {
     }
 
     fn iface_decl(&self, node: Node<'s>, indent: usize) -> String {
-        let mut header = String::new();
         let c = self.col_after(0, &self.ind(indent));
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            header.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut header, indent);
-        }
-
-        header.push_str("interface ");
-        header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
-
-        if let Some(tp) = self.fld(node, "type_parameters") {
-            if self.style.space_before_type_parameter_list {
-                header.push(' ');
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut header = String::new();
+            header.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut header, indent);
             }
-            header.push_str(&self.flat_type_params(tp));
-        }
-        if let Some(ext) = self
-            .all_ch(node)
-            .into_iter()
-            .find(|c| c.kind() == "extends_interfaces")
-        {
-            self.append_type_clause(&mut header, "extends", ext, indent, c);
-        }
+            header.push_str("interface ");
+            header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+
+            if let Some(tp) = self.fld(node, "type_parameters") {
+                if self.style.space_before_type_parameter_list {
+                    header.push(' ');
+                }
+                header.push_str(&self.flat_type_params(tp));
+            }
+            if let Some(ext) = self
+                .all_ch(node)
+                .into_iter()
+                .find(|c| c.kind() == "extends_interfaces")
+            {
+                self.append_type_clause(&mut header, "extends", ext, indent, c);
+            }
+            header
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.class_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        let header = if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`.
         let body = match self.fld(node, "body") {
@@ -1313,20 +1364,44 @@ impl<'s> Fmt<'s> {
     }
 
     fn enum_decl(&self, node: Node<'s>, indent: usize) -> String {
-        let mut header = String::new();
         let c = self.col_after(0, &self.ind(indent));
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            header.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut header, indent);
-        }
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut header = String::new();
+            header.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut header, indent);
+            }
+            header.push_str("enum ");
+            header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
-        header.push_str("enum ");
-        header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+            if let Some(ifaces) = self.fld(node, "interfaces") {
+                self.append_type_clause(&mut header, "implements", ifaces, indent, c);
+            }
+            header
+        };
 
-        if let Some(ifaces) = self.fld(node, "interfaces") {
-            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
-        }
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.class_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        let header = if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        };
 
         // Enum body: keep original text for enum constants; format methods
         if let Some(body) = self.fld(node, "body") {
@@ -1355,7 +1430,7 @@ impl<'s> Fmt<'s> {
                         out.push_str(",\n");
                     }
                     out.push_str(&self.ind(inner));
-                    out.push_str(self.txt(child));
+                    out.push_str(&self.enum_constant(child, inner));
                     first = false;
                     last_const = Some(child);
                     last_content = Some(child);
@@ -1408,32 +1483,101 @@ impl<'s> Fmt<'s> {
         out
     }
 
-    fn record_decl(&self, node: Node<'s>, indent: usize) -> String {
-        let mut header = String::new();
-
-        if let Some(mods) = self.get_mods(node) {
-            header.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut header, indent);
+    /// Render one enum constant at `indent` (the enum body's inner level).
+    /// Constants without annotations keep their original source echo (R4/R5);
+    /// an annotated constant renders its annotation prefix per
+    /// `ENUM_FIELD_ANNOTATION_WRAP` (default `DoNotWrap` → inline `@A A`) and
+    /// echoes the rest of the constant — name, `(arguments)` and any constant
+    /// class `body` — verbatim from the source bytes.
+    fn enum_constant(&self, node: Node<'s>, indent: usize) -> String {
+        let mods = match self.get_mods(node) {
+            Some(m) => m,
+            None => return self.txt(node).to_string(),
+        };
+        let (anns, _) = self.mods_parts(mods);
+        if anns.is_empty() {
+            return self.txt(node).to_string();
         }
 
-        header.push_str("record ");
-        header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
-
-        if let Some(tp) = self.fld(node, "type_parameters") {
-            if self.style.space_before_type_parameter_list {
-                header.push(' ');
-            }
-            header.push_str(&self.flat_type_params(tp));
-        }
+        // The constant's remainder after the annotation prefix, verbatim.
+        let rest = {
+            let text = self.txt(node);
+            let off = mods.end_byte() - node.start_byte();
+            text.get(off..).unwrap_or("").trim_start()
+        };
 
         let c = self.col_after(0, &self.ind(indent));
-        if let Some(params) = self.fld(node, "parameters") {
-            header.push_str(&self.record_components(params, indent, c, &header));
+        let inline_str: Vec<String> = anns.iter().map(|&a| self.flat_annotation(a)).collect();
+        let inline = inline_str.join(" ");
+        let tail_first = rest.split('\n').next().unwrap_or("");
+        let expressible = anns
+            .iter()
+            .all(|&a| !self.annotation(a, indent).contains('\n'));
+        let use_inline = expressible
+            && match self.style.enum_field_annotation_wrap {
+                WrapStyle::DoNotWrap => true,
+                WrapStyle::WrapAlways => false,
+                _ => self.fits(c, &format!("{} {}", inline, tail_first)),
+            };
+        if use_inline {
+            format!("{} {}", inline, rest)
+        } else {
+            let lines: Vec<String> = anns.iter().map(|&a| self.annotation(a, indent)).collect();
+            let gap = format!("\n{}", self.ind(indent));
+            format!("{}{}{}", lines.join(&gap), gap, rest)
         }
+    }
 
-        if let Some(ifaces) = self.fld(node, "interfaces") {
-            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
-        }
+    fn record_decl(&self, node: Node<'s>, indent: usize) -> String {
+        let c = self.col_after(0, &self.ind(indent));
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut header = String::new();
+            header.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut header, indent);
+            }
+            header.push_str("record ");
+            header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+
+            if let Some(tp) = self.fld(node, "type_parameters") {
+                if self.style.space_before_type_parameter_list {
+                    header.push(' ');
+                }
+                header.push_str(&self.flat_type_params(tp));
+            }
+
+            if let Some(params) = self.fld(node, "parameters") {
+                header.push_str(&self.record_components(params, indent, c, &header));
+            }
+
+            if let Some(ifaces) = self.fld(node, "interfaces") {
+                self.append_type_clause(&mut header, "implements", ifaces, indent, c);
+            }
+            header
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.class_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        let header = if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`
         // (the record body is formatted as a class body).
@@ -1735,131 +1879,204 @@ impl<'s> Fmt<'s> {
     // ── method / constructor / field ──────────────────────────────────────────
 
     fn method_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        let mut out = String::new();
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            out.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut out, indent);
-        }
+        // The full declaration is built per modifier form (its column
+        // arithmetic — parameter paren column, throws clause column, one-line
+        // body candidate — depends on the modifier prefix); the inline form's
+        // first line is measured for codes 1/5.
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut out = String::new();
+            out.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut out, indent);
+            }
 
-        // type_parameters (generic method)
-        if let Some(tp) = self.fld(node, "type_parameters") {
-            out.push_str(&self.flat_type_params(tp));
-            out.push(' ');
-        }
+            // type_parameters (generic method)
+            if let Some(tp) = self.fld(node, "type_parameters") {
+                out.push_str(&self.flat_type_params(tp));
+                out.push(' ');
+            }
 
-        // return type
-        if let Some(ty) = self.fld(node, "type") {
-            out.push_str(&self.flat_type(ty));
-            out.push(' ');
-        }
+            // return type
+            if let Some(ty) = self.fld(node, "type") {
+                out.push_str(&self.flat_type(ty));
+                out.push(' ');
+            }
 
-        // name
-        out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+            // name
+            out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
-        // parameters — the name→`(` gap follows SPACE_BEFORE_METHOD_PARENTHESES
-        if let Some(params) = self.fld(node, "parameters") {
-            let gap = self.sp(self.style.space_before_method_parentheses);
-            let pcol = c + self.col_after(0, &out) + gap.len();
-            out.push_str(gap);
-            out.push_str(&self.formal_params(params, indent, pcol, false));
-        }
+            // parameters — the name→`(` gap follows SPACE_BEFORE_METHOD_PARENTHESES
+            if let Some(params) = self.fld(node, "parameters") {
+                let gap = self.sp(self.style.space_before_method_parentheses);
+                let pcol = c + self.col_after(0, &out) + gap.len();
+                out.push_str(gap);
+                out.push_str(&self.formal_params(params, indent, pcol, false));
+            }
 
-        // throws
-        if let Some(throws) = self.get_throws(node) {
-            let excs: Vec<String> = self
-                .named(throws)
-                .iter()
-                .map(|n| self.flat_type(*n))
-                .collect();
-            let cur = self.col_after(c, &out);
-            out.push_str(&self.clause_list(
-                "throws",
-                &excs,
-                self.style.throws_keyword_wrap,
-                self.style.throws_list_wrap,
+            // throws
+            if let Some(throws) = self.get_throws(node) {
+                let excs: Vec<String> = self
+                    .named(throws)
+                    .iter()
+                    .map(|n| self.flat_type(*n))
+                    .collect();
+                let cur = self.col_after(c, &out);
+                out.push_str(&self.clause_list(
+                    "throws",
+                    &excs,
+                    self.style.throws_keyword_wrap,
+                    self.style.throws_list_wrap,
+                    indent,
+                    cur,
+                    self.style.align_multiline_throws_list,
+                    self.style.align_throws_keyword,
+                ));
+            }
+
+            // body or semicolon
+            match self.fld(node, "body") {
+                Some(body) => self.method_body(body, indent, &mut out, c),
+                None => out.push(';'),
+            }
+
+            out
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
                 indent,
-                cur,
-                self.style.align_multiline_throws_list,
-                self.style.align_throws_keyword,
-            ));
-        }
+                self.style.method_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
 
-        // body or semicolon
-        match self.fld(node, "body") {
-            Some(body) => self.method_body(body, indent, &mut out, c),
-            None => out.push(';'),
+        if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
         }
-
-        out
     }
 
     fn constructor_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        let mut out = String::new();
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            out.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut out, indent);
-        }
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut out = String::new();
+            out.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut out, indent);
+            }
 
-        // type_parameters (generic constructor)
-        if let Some(tp) = self.fld(node, "type_parameters") {
-            out.push_str(&self.flat_type_params(tp));
-            out.push(' ');
-        }
+            // type_parameters (generic constructor)
+            if let Some(tp) = self.fld(node, "type_parameters") {
+                out.push_str(&self.flat_type_params(tp));
+                out.push(' ');
+            }
 
-        out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+            out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
-        // parameters — the name→`(` gap follows SPACE_BEFORE_METHOD_PARENTHESES
-        if let Some(params) = self.fld(node, "parameters") {
-            let gap = self.sp(self.style.space_before_method_parentheses);
-            let pcol = c + self.col_after(0, &out) + gap.len();
-            out.push_str(gap);
-            out.push_str(&self.formal_params(params, indent, pcol, false));
-        }
+            // parameters — the name→`(` gap follows SPACE_BEFORE_METHOD_PARENTHESES
+            if let Some(params) = self.fld(node, "parameters") {
+                let gap = self.sp(self.style.space_before_method_parentheses);
+                let pcol = c + self.col_after(0, &out) + gap.len();
+                out.push_str(gap);
+                out.push_str(&self.formal_params(params, indent, pcol, false));
+            }
 
-        if let Some(throws) = self.get_throws(node) {
-            let excs: Vec<String> = self
-                .named(throws)
-                .iter()
-                .map(|n| self.flat_type(*n))
-                .collect();
-            let cur = self.col_after(c, &out);
-            out.push_str(&self.clause_list(
-                "throws",
-                &excs,
-                self.style.throws_keyword_wrap,
-                self.style.throws_list_wrap,
+            if let Some(throws) = self.get_throws(node) {
+                let excs: Vec<String> = self
+                    .named(throws)
+                    .iter()
+                    .map(|n| self.flat_type(*n))
+                    .collect();
+                let cur = self.col_after(c, &out);
+                out.push_str(&self.clause_list(
+                    "throws",
+                    &excs,
+                    self.style.throws_keyword_wrap,
+                    self.style.throws_list_wrap,
+                    indent,
+                    cur,
+                    self.style.align_multiline_throws_list,
+                    self.style.align_throws_keyword,
+                ));
+            }
+
+            if let Some(body) = self.fld(node, "body") {
+                self.method_body(body, indent, &mut out, c);
+            }
+
+            out
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
                 indent,
-                cur,
-                self.style.align_multiline_throws_list,
-                self.style.align_throws_keyword,
-            ));
-        }
+                self.style.method_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
 
-        if let Some(body) = self.fld(node, "body") {
-            self.method_body(body, indent, &mut out, c);
+        if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
         }
-
-        out
     }
 
     /// Compact constructor of a record (`Foo { ... }`): no parameter list.
     fn compact_constructor_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        let mut out = String::new();
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            out.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut out, indent);
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut out = String::new();
+            out.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut out, indent);
+            }
+            out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
+            if let Some(body) = self.fld(node, "body") {
+                self.method_body(body, indent, &mut out, c);
+            }
+            out
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.method_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
         }
-
-        out.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
-
-        if let Some(body) = self.fld(node, "body") {
-            self.method_body(body, indent, &mut out, c);
-        }
-
-        out
     }
 
     /// Appends a method/constructor body block to `out`.
@@ -1891,72 +2108,109 @@ impl<'s> Fmt<'s> {
     }
 
     fn field_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        let mut out = String::new();
-
-        if let Some(mods) = self.get_mods(node) {
-            out.push_str(&self.modifiers(mods, indent));
-            self.mods_tail(&mut out, indent);
-        }
-
-        let ty = self
-            .fld(node, "type")
-            .map(|n| self.flat_type(n))
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
             .unwrap_or_default();
-        out.push_str(&ty);
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        let decls: Vec<Node<'s>> = self
-            .named(node)
-            .into_iter()
-            .filter(|n| n.kind() == "variable_declarator")
-            .collect();
-
-        // Single declarator whose initialiser can be wrapped at the operator
-        // (always under `KEEP_LINE_BREAKS` when the declaration spans rows).
-        if decls.len() == 1
-            && !out.contains('\n')
-            && (self.style.assignment_wrap != WrapStyle::DoNotWrap || self.keep_wrapped(node))
-        {
-            if let Some(val) = self.fld(decls[0], "value") {
-                let name = self
-                    .fld(decls[0], "name")
-                    .map(|n| self.txt(n))
-                    .unwrap_or("");
-                let prefix = format!("{} {}", out, name);
-                return format!(
-                    "{};",
-                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node), None)
-                );
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut out = String::new();
+            out.push_str(prefix);
+            if has_mods {
+                self.mods_tail(&mut out, indent);
             }
-        }
 
-        let decl_strs: Vec<String> = decls
-            .iter()
-            .map(|&d| {
-                let name = self.fld(d, "name").map(|n| self.txt(n)).unwrap_or("");
-                if let Some(val) = self.fld(d, "value") {
-                    let sep = self.op_sep("=");
-                    let val_col =
-                        c + self.col_after(0, &out) + 1 + name.len() + sep.len() + 1 + sep.len();
-                    let val_str = self.expr(val, indent, val_col);
-                    Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
-                } else {
-                    name.to_string()
+            let ty = self
+                .fld(node, "type")
+                .map(|n| self.flat_type(n))
+                .unwrap_or_default();
+            out.push_str(&ty);
+
+            let decls: Vec<Node<'s>> = self
+                .named(node)
+                .into_iter()
+                .filter(|n| n.kind() == "variable_declarator")
+                .collect();
+
+            // Single declarator whose initialiser can be wrapped at the operator
+            // (always under `KEEP_LINE_BREAKS` when the declaration spans rows).
+            if decls.len() == 1
+                && !out.contains('\n')
+                && (self.style.assignment_wrap != WrapStyle::DoNotWrap || self.keep_wrapped(node))
+            {
+                if let Some(val) = self.fld(decls[0], "value") {
+                    let name = self
+                        .fld(decls[0], "name")
+                        .map(|n| self.txt(n))
+                        .unwrap_or("");
+                    let prefix = format!("{} {}", out, name);
+                    return format!(
+                        "{};",
+                        self.assign_expr(
+                            val,
+                            indent,
+                            c,
+                            &prefix,
+                            "=",
+                            self.keep_wrapped(node),
+                            None
+                        )
+                    );
                 }
-            })
-            .collect();
+            }
 
-        // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a multi-declarator
-        // field declaration is one statement — its declarator list is joined
-        // on the line and never split per declarator. (The engine has no
-        // per-declarator break layout, so the option is honoured by
-        // construction; the read keeps the inline-join guarantee explicit
-        // and load-bearing for a future declarator-level wrap.)
-        let _guard = self.style.keep_multiple_expressions_in_one_line;
+            let decl_strs: Vec<String> = decls
+                .iter()
+                .map(|&d| {
+                    let name = self.fld(d, "name").map(|n| self.txt(n)).unwrap_or("");
+                    if let Some(val) = self.fld(d, "value") {
+                        let sep = self.op_sep("=");
+                        let val_col = c
+                            + self.col_after(0, &out)
+                            + 1
+                            + name.len()
+                            + sep.len()
+                            + 1
+                            + sep.len();
+                        let val_str = self.expr(val, indent, val_col);
+                        Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
+                    } else {
+                        name.to_string()
+                    }
+                })
+                .collect();
 
-        out.push(' ');
-        out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
-        out.push(';');
-        out
+            // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a multi-declarator
+            // field declaration is one statement — its declarator list is joined
+            // on the line and never split per declarator. (The engine has no
+            // per-declarator break layout, so the option is honoured by
+            // construction; the read keeps the inline-join guarantee explicit
+            // and load-bearing for a future declarator-level wrap.)
+            let _guard = self.style.keep_multiple_expressions_in_one_line;
+
+            out.push(' ');
+            out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
+            out.push(';');
+            out
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.field_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        }
     }
 
     /// Returns the text to place between the declaration header and the block
@@ -1974,21 +2228,15 @@ impl<'s> Fmt<'s> {
 
     // ── modifiers ─────────────────────────────────────────────────────────────
 
-    /// Format `modifiers` node. Returns annotations each on their own line
-    /// (already including the trailing newline+indent), followed by keyword
-    /// modifiers joined by spaces. The caller appends a space before the next
-    /// token when the result doesn't already end with a newline.
-    fn modifiers(&self, node: Node<'s>, indent: usize) -> String {
-        // Use all children: keyword modifiers (public, static, …) are UNNAMED nodes.
-        let children = self.all_ch(node);
-        let mut ann_lines: Vec<String> = Vec::new();
+    /// Split a `modifiers` node into its annotations (in source order) and its
+    /// keyword modifiers. All children participate: keyword modifiers
+    /// (public, static, …) are UNNAMED nodes.
+    fn mods_parts(&self, node: Node<'s>) -> (Vec<Node<'s>>, Vec<String>) {
+        let mut anns: Vec<Node<'s>> = Vec::new();
         let mut keywords: Vec<String> = Vec::new();
-
-        for ch in children {
+        for ch in self.all_ch(node) {
             match ch.kind() {
-                "annotation" | "marker_annotation" => {
-                    ann_lines.push(self.annotation(ch, indent));
-                }
+                "annotation" | "marker_annotation" => anns.push(ch),
                 _ => {
                     let t = self.txt(ch).trim().to_string();
                     if !t.is_empty() {
@@ -1997,15 +2245,118 @@ impl<'s> Fmt<'s> {
                 }
             }
         }
+        (anns, keywords)
+    }
 
+    /// True when a `modifiers` node carries exactly one annotation — the case
+    /// the `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION[*_IN_PARAMETER]` exemptions
+    /// keep inline regardless of the placement wrap code.
+    fn mods_single_annotation(&self, node: Node<'s>) -> bool {
+        self.mods_parts(node).0.len() == 1
+    }
+
+    /// The inline modifier list — annotations (in their canonical flat form)
+    /// and keyword modifiers joined with single spaces, `@A @B public`.
+    /// `None` when an annotation's own argument list renders multi-line, which
+    /// cannot be joined inline (R5): the declaration then falls back to the
+    /// one-annotation-per-line layout.
+    fn mods_inline(&self, node: Node<'s>, indent: usize) -> Option<String> {
+        let (anns, keywords) = self.mods_parts(node);
+        if anns.is_empty() && keywords.is_empty() {
+            return Some(String::new());
+        }
+        let mut parts: Vec<String> = Vec::new();
+        for a in &anns {
+            if self.annotation(*a, indent).contains('\n') {
+                return None;
+            }
+            parts.push(self.flat_annotation(*a));
+        }
+        parts.extend(keywords);
+        Some(parts.join(" "))
+    }
+
+    /// The one-annotation-per-line form of a `modifiers` node: each
+    /// annotation on its own line (already including the trailing
+    /// newline+indent), followed by the keyword modifiers joined by spaces —
+    /// exactly the historical `modifiers()` shape (the wrap-always layout).
+    fn mods_per_line(&self, node: Node<'s>, indent: usize) -> String {
+        let (anns, keywords) = self.mods_parts(node);
         let mut out = String::new();
-        for ann in &ann_lines {
-            out.push_str(ann);
+        for ann in &anns {
+            out.push_str(&self.annotation(*ann, indent));
             out.push('\n');
             out.push_str(&self.ind(indent));
         }
         out.push_str(&keywords.join(" "));
         out
+    }
+
+    /// The single-annotation exemption at the member / type / local-variable
+    /// placement sites (`DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION`): force the
+    /// inline form for a lone annotation regardless of the wrap code, but only
+    /// when the inline form is expressible (R5).
+    fn single_ann_exempts(&self, mods: Node<'s>, inline_expressible: bool) -> bool {
+        self.style.do_not_wrap_after_single_annotation
+            && inline_expressible
+            && self.mods_single_annotation(mods)
+    }
+
+    /// Decide whether a member / type declaration's `modifiers` node renders
+    /// inline (single-space-joined) or one annotation per line.
+    ///
+    /// `wrap` is the governing `*_ANNOTATION_WRAP` option; `tail_first` is the
+    /// first line of the caller's post-modifier header tail, used to measure
+    /// codes `1` / `5` (which keep the inline form only when the composed
+    /// first line fits the margin — the two codes behave identically at this
+    /// granularity); `c` is the column of the declaration's first line.
+    fn mods_inline_decision(
+        &self,
+        mods: Node<'s>,
+        indent: usize,
+        wrap: WrapStyle,
+        tail_first: &str,
+        c: usize,
+    ) -> bool {
+        let inline = self.mods_inline(mods, indent);
+        let expressible = inline.is_some();
+        let mut use_inline = match wrap {
+            WrapStyle::DoNotWrap => true,
+            WrapStyle::WrapAlways => false,
+            _ => match &inline {
+                Some(s) => self.fits(c, &format!("{} {}", s, tail_first)),
+                None => false,
+            },
+        };
+        use_inline &= expressible;
+        if self.single_ann_exempts(mods, expressible) {
+            use_inline = true;
+        }
+        use_inline
+    }
+
+    /// The first line of the post-modifier header tail, measured under the
+    /// inline hypothesis: the caller builds its header with the inline
+    /// modifier prefix via `build`, and the tail's first line is what follows
+    /// the `inline + " "` join. When no inline form is expressible this is
+    /// unused (codes 1/5 fall back to one-per-line).
+    fn inline_tail_first(
+        &self,
+        build: &dyn Fn(&str, bool) -> String,
+        inline: &Option<String>,
+        _c: usize,
+        _indent: usize,
+        _has_mods: bool,
+    ) -> String {
+        let Some(s) = inline else {
+            return String::new();
+        };
+        let header = build(s, true);
+        let first_line = header.split('\n').next().unwrap_or("");
+        first_line
+            .strip_prefix(&format!("{} ", s))
+            .unwrap_or("")
+            .to_string()
     }
 
     /// Append the gap between a declaration's modifier list and the next
@@ -2117,10 +2468,20 @@ impl<'s> Fmt<'s> {
                     .fld(node, "value")
                     .map(|n| self.flat(n))
                     .unwrap_or_default();
-                format!("{} = {}", k, v)
+                self.ann_eq(k, &v)
             }
             "element_value_array_initializer" => self.flat_arr_init(node),
             _ => self.flat(node),
+        }
+    }
+
+    /// Join an annotation `element_value_pair`'s key and value per
+    /// `SPACE_AROUND_ANNOTATION_EQ` (`key = value` when on, `key=value` off).
+    fn ann_eq(&self, k: &str, v: &str) -> String {
+        if self.style.space_around_annotation_eq {
+            format!("{} = {}", k, v)
+        } else {
+            format!("{}={}", k, v)
         }
     }
 
@@ -2171,8 +2532,8 @@ impl<'s> Fmt<'s> {
                             name,
                             self.sp(self.style.space_before_anotation_parameter_list),
                             self.ann_parens(&format!(
-                                "{} = {{\n{}\n{}}}",
-                                k,
+                                "{}{{\n{}\n{}}}",
+                                self.ann_eq(k, ""),
                                 elem_strs.join(",\n"),
                                 self.ind(indent)
                             )),
@@ -2200,16 +2561,58 @@ impl<'s> Fmt<'s> {
             }
         }
 
-        // Multiple args: one per line
-        let arg_strs: Vec<_> = children
-            .iter()
-            .map(|&c| format!("{}{}", self.ind(inner), self.flat_ann_arg(c)))
-            .collect();
+        // Multiple args: laid out per the four body-layout toggles —
+        // NEW_LINE_AFTER_LPAREN_IN_ANNOTATION (first argument stays on the
+        // `(` line when off), RPAREN_ON_NEW_LINE_IN_ANNOTATION (`)` attaches
+        // to the last argument line when off), and
+        // ALIGN_MULTILINE_ANNOTATION_PARAMETERS (continuation indent when
+        // off, padding under the first argument — one column after `(` —
+        // when on, the record-header model).
+        let arg_strs: Vec<String> = children.iter().map(|&c| self.flat_ann_arg(c)).collect();
+
+        // Column of the `(` within its physical line: the annotation's line
+        // starts at `ind(indent)` and the paren follows `@name` plus the
+        // optional pre-paren gap.
+        let open_col = self.col_after(0, &self.ind(indent))
+            + self.col_after(
+                0,
+                &format!(
+                    "@{}{}",
+                    name,
+                    self.sp(self.style.space_before_anotation_parameter_list)
+                ),
+            );
+        let pad_len = usize::from(self.style.space_within_annotation_parentheses);
+        let element_prefix = if self.style.align_multiline_annotation_parameters {
+            self.align_prefix(open_col + 1 + pad_len)
+        } else {
+            self.ind(indent + 1)
+        };
+        let body = if self.style.new_line_after_lparen_in_annotation {
+            let lines: Vec<String> = arg_strs
+                .iter()
+                .map(|p| format!("{}{}", element_prefix, p))
+                .collect();
+            format!("\n{}", lines.join(",\n"))
+        } else {
+            let mut s = arg_strs[0].clone();
+            for p in &arg_strs[1..] {
+                s.push_str(",\n");
+                s.push_str(&element_prefix);
+                s.push_str(p);
+            }
+            s
+        };
+        let tail = if self.style.rparen_on_new_line_in_annotation {
+            format!("\n{}", self.ind(indent))
+        } else {
+            String::new()
+        };
         format!(
             "@{}{}{}",
             name,
             self.sp(self.style.space_before_anotation_parameter_list),
-            self.ann_parens(&format!("\n{}\n{}", arg_strs.join(",\n"), self.ind(indent))),
+            self.ann_parens(&format!("{}{}", body, tail)),
         )
     }
 
@@ -2253,7 +2656,30 @@ impl<'s> Fmt<'s> {
             &flat_parts.join(self.comma_sep(self.style.space_after_comma)),
         );
 
+        // `PARAMETER_ANNOTATION_WRAP`: when a declared formal parameter carries
+        // annotations and the option demands the own-line placement, the list
+        // takes its wrapped one-parameter-per-line layout too (the own-line
+        // placement is not expressible in the flat form). Codes 1/5 wrap the
+        // list when the flat form overflows the margin.
+        let ann_demand = if is_call {
+            false
+        } else if params.iter().any(|p| {
+            p.kind() == "formal_parameter"
+                && self
+                    .get_mods(*p)
+                    .is_some_and(|m| !self.mods_parts(m).0.is_empty())
+        }) {
+            match self.style.parameter_annotation_wrap {
+                WrapStyle::DoNotWrap => false,
+                WrapStyle::WrapAlways => true,
+                _ => !self.fits(c, &flat),
+            }
+        } else {
+            false
+        };
+
         let should_wrap = self.keep_wrapped(node)
+            || ann_demand
             || match wrap {
                 WrapStyle::DoNotWrap => false,
                 WrapStyle::WrapAlways => true,
@@ -2282,21 +2708,25 @@ impl<'s> Fmt<'s> {
         let first_inline = !lparen_nl && rparen_nl;
         let wrapped = if first_inline && align_on {
             let pref = self.align_prefix(c + 1);
-            let mut parts = flat_parts.iter();
+            let parts: Vec<String> = params
+                .iter()
+                .map(|&p| self.wrapped_param(p, &pref, inner))
+                .collect();
             let mut s = String::new();
-            if let Some(first) = parts.next() {
+            let mut it = parts.iter();
+            if let Some(first) = it.next() {
                 s.push_str(first);
             }
-            for p in parts {
+            for p in it {
                 s.push_str(",\n");
                 s.push_str(&pref);
                 s.push_str(p);
             }
             s
         } else {
-            flat_parts
+            params
                 .iter()
-                .map(|p| format!("{}{}", ind, p))
+                .map(|&p| format!("{}{}", ind, self.wrapped_param(p, &ind, inner)))
                 .collect::<Vec<_>>()
                 .join(",\n")
         };
@@ -2361,6 +2791,55 @@ impl<'s> Fmt<'s> {
             "receiver_parameter" => self.txt(node).to_string(),
             _ => self.txt(node).to_string(),
         }
+    }
+
+    /// Render one formal parameter in the per-line (wrapped) parameter list,
+    /// honouring `PARAMETER_ANNOTATION_WRAP` + the
+    /// `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` exemption: an
+    /// annotated parameter breaks so the annotations sit on their own lines
+    /// (at the element prefix) and the type / name continues on the next line
+    /// at the same prefix; a lone annotation under the exemption (or a wrap
+    /// code that keeps the param inline) renders exactly like `flat_param`.
+    /// `prefix` is the line prefix of the element in the wrapped list (`ind`
+    /// for the own-line layout, the alignment prefix for the first-inline
+    /// arm); `level` is the indent level to feed the annotation renderer.
+    fn wrapped_param(&self, node: Node<'s>, prefix: &str, level: usize) -> String {
+        if node.kind() != "formal_parameter" {
+            return self.flat_param(node);
+        }
+        let mods = match self.get_mods(node) {
+            Some(m) => m,
+            None => return self.flat_param(node),
+        };
+        let (anns, _) = self.mods_parts(mods);
+        if anns.is_empty() {
+            return self.flat_param(node);
+        }
+        let inline = self.flat_param(node);
+        let single_exempt =
+            anns.len() == 1 && self.style.do_not_wrap_after_single_annotation_in_parameter;
+        let pcol = self.col_after(0, prefix);
+        let should_break = match self.style.parameter_annotation_wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => true,
+            _ => !self.fits(pcol, &inline),
+        };
+        if single_exempt || !should_break {
+            return inline;
+        }
+        let ann_lines: Vec<String> = anns.iter().map(|&a| self.annotation(a, level)).collect();
+        let ty = self
+            .fld(node, "type")
+            .map(|n| self.flat_type(n))
+            .unwrap_or_default();
+        let nm = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+        format!(
+            "{}\n{}{} {}",
+            ann_lines.join(&format!("\n{}", prefix)),
+            prefix,
+            ty,
+            nm
+        )
     }
 
     fn flat_mods(&self, node: Node<'s>) -> String {
@@ -2813,71 +3292,99 @@ impl<'s> Fmt<'s> {
     }
 
     fn local_var(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        let mut out = String::new();
+        let mods = self.get_mods(node);
+        let per_line = mods
+            .map(|m| self.mods_per_line(m, indent))
+            .unwrap_or_default();
+        let inline = mods.and_then(|m| self.mods_inline(m, indent));
 
-        if let Some(mods) = self.get_mods(node) {
-            let ms = self.flat_mods(mods);
-            if !ms.is_empty() {
-                out.push_str(&ms);
+        // The declaration is built per modifier form; the inline form's first
+        // line is measured for codes 1/5. Local variables join the modifiers
+        // to the type with a single space (the statement never breaks after
+        // the modifier list the way member declarations can).
+        let tail_with = |prefix: &str, has_mods: bool| -> String {
+            let mut out = String::new();
+            out.push_str(prefix);
+            if has_mods && !prefix.is_empty() && !prefix.ends_with(' ') && !prefix.ends_with('\n') {
                 out.push(' ');
             }
-        }
 
-        let ty = self
-            .fld(node, "type")
-            .map(|n| self.flat_type(n))
-            .unwrap_or_default();
-        out.push_str(&ty);
-        out.push(' ');
+            let ty = self
+                .fld(node, "type")
+                .map(|n| self.flat_type(n))
+                .unwrap_or_default();
+            out.push_str(&ty);
+            out.push(' ');
 
-        let decls: Vec<Node<'s>> = self
-            .named(node)
-            .into_iter()
-            .filter(|n| n.kind() == "variable_declarator")
-            .collect();
+            let decls: Vec<Node<'s>> = self
+                .named(node)
+                .into_iter()
+                .filter(|n| n.kind() == "variable_declarator")
+                .collect();
 
-        // Single declarator whose initialiser can be wrapped at the operator
-        // (always under `KEEP_LINE_BREAKS` when the declaration spans rows).
-        if decls.len() == 1
-            && (self.style.assignment_wrap != WrapStyle::DoNotWrap || self.keep_wrapped(node))
-        {
-            if let Some(val) = self.fld(decls[0], "value") {
-                let name = self
-                    .fld(decls[0], "name")
-                    .map(|n| self.txt(n))
-                    .unwrap_or("");
-                let prefix = format!("{}{}", out, name); // `out` ends with a space
-                return format!(
-                    "{};",
-                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node), None)
-                );
-            }
-        }
-
-        let decl_strs: Vec<String> = decls
-            .iter()
-            .map(|&d| {
-                let name = self.fld(d, "name").map(|n| self.txt(n)).unwrap_or("");
-                if let Some(val) = self.fld(d, "value") {
-                    let sep = self.op_sep("=");
-                    let val_col = self.col_after(c, &out) + name.len() + sep.len() + 1 + sep.len();
-                    let val_str = self.expr(val, indent, val_col);
-                    Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
-                } else {
-                    name.to_string()
+            // Single declarator whose initialiser can be wrapped at the operator
+            // (always under `KEEP_LINE_BREAKS` when the declaration spans rows).
+            if decls.len() == 1
+                && (self.style.assignment_wrap != WrapStyle::DoNotWrap || self.keep_wrapped(node))
+            {
+                if let Some(val) = self.fld(decls[0], "value") {
+                    let name = self
+                        .fld(decls[0], "name")
+                        .map(|n| self.txt(n))
+                        .unwrap_or("");
+                    let prefix = format!("{}{}", out, name); // `out` ends with a space
+                    return format!(
+                        "{};",
+                        self.assign_expr(
+                            val,
+                            indent,
+                            c,
+                            &prefix,
+                            "=",
+                            self.keep_wrapped(node),
+                            None
+                        )
+                    );
                 }
-            })
-            .collect();
+            }
 
-        // `KEEP_MULTIPLE_EXPRESSIONS_IN_ONE_LINE` guard: a multi-declarator
-        // local declaration is one statement — its declarator list is joined
-        // on the line and never split per declarator (see the `field_decl`
-        // read for the rationale).
-        let _guard = self.style.keep_multiple_expressions_in_one_line;
+            let decl_strs: Vec<String> = decls
+                .iter()
+                .map(|&d| {
+                    let name = self.fld(d, "name").map(|n| self.txt(n)).unwrap_or("");
+                    if let Some(val) = self.fld(d, "value") {
+                        let sep = self.op_sep("=");
+                        let val_col =
+                            self.col_after(c, &out) + name.len() + sep.len() + 1 + sep.len();
+                        let val_str = self.expr(val, indent, val_col);
+                        Self::join_sep(&format!("{}{}=", name, sep), sep, &val_str)
+                    } else {
+                        name.to_string()
+                    }
+                })
+                .collect();
 
-        out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
-        out.push(';');
-        out
+            out.push_str(&decl_strs.join(self.comma_sep(self.style.space_after_comma)));
+            out.push(';');
+            out
+        };
+
+        let use_inline = match mods {
+            Some(m) => self.mods_inline_decision(
+                m,
+                indent,
+                self.style.variable_annotation_wrap,
+                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                c,
+            ),
+            None => false,
+        };
+
+        if use_inline {
+            tail_with(inline.as_deref().unwrap_or(""), true)
+        } else {
+            tail_with(&per_line, mods.is_some())
+        }
     }
 
     /// Whether the `if_one_line` collapse in [`Self::if_stmt`] would
@@ -5953,7 +6460,7 @@ impl<'s> Fmt<'s> {
                     .fld(node, "value")
                     .map(|n| self.flat(n))
                     .unwrap_or_default();
-                format!("{} = {}", k, v)
+                self.ann_eq(k, &v)
             }
             "method_reference" => self.method_ref(node),
             _ => self.txt(node).to_string(),
