@@ -9,6 +9,76 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **Import ordering and grouping are honoured (R34, import-ordering-and-layout)**:
+  the six import-layout options previously ignored (R7) and marked ❌ in the
+  docs/settings/java.md Imports table are now parsed into `JavaStyle` and
+  applied by the engine. The new `ImportLayoutEntry` enum (a `<package>`
+  entry's name / `withSubpackages` / `static` / `module` attributes vs an
+  `<emptyLine/>`) backs `import_layout: Vec<ImportLayoutEntry>`, whose built-in
+  default is IntelliJ's layout (java.md "Default layout": the reserved module
+  slot, the empty-name non-static catch-all, a blank line, `javax.*` and
+  `java.*` each with subpackages, a blank line, then the empty-name static
+  catch-all) — shared as the single `JavaStyle::builtin_import_layout`
+  construction site — plus five bools (`layout_static_imports_separately` =
+  `true`, `layout_on_demand_import_from_same_package_first` = `true`,
+  `keep_blank_lines_between_imports` = `false`, `preserve_module_imports` =
+  `true`, `delete_unused_module_imports` = `false`). The `OPTIONS` registry
+  grows the six entries (`Section::JavaCodeStyle`, GUI group "Imports");
+  `OptionValue` grows `ImportLayout(Vec<ImportLayoutEntry>)`, which drops
+  `Copy` from the derive (`parse_codestyle` now matches `&def.default` and
+  derefs the scalar defaults, and `serialize_codestyle` compares every value
+  against `(def.get)(&JavaStyle::default())` computed once per call —
+  identical to the registry literals for scalars, and the real built-in table
+  for the list option whose registry default is a `Vec::new()` type tag).
+  `XmlOption`'s `@name`/`@value` attributes are now optional, so nested-valued
+  options no longer abort the whole parse (R7); the layout's `<value>`
+  `<package/>`/`<emptyLine/>` children are read with an order-preserving
+  quick-xml event scan under `<JavaCodeStyleSettings>`, and serialization
+  writes the nested fragment only when the table differs from the built-in
+  default, with the section writers indenting every line of a multi-line
+  fragment. The round trip parse(serialize(style)) == style was verified by
+  hand for a non-default layout (custom `java`-first table with added/removed
+  `<emptyLine/>` entries and a `module="true"` slot) — the nested entries
+  survive — and no IntelliJ installation was available to cross-check the
+  goldens; the pinned semantics follow the docs/settings table.
+  `formatter.rs` replaces the hard-coded third-party/`java`·`javax` split with
+  a table-driven layout pass over the merged import list
+  (`merge_on_demand_imports` now annotates each line with its source
+  import-node index): per-line classification (module / static / package /
+  on-demand `.*`) with longest-prefix matching to the table entries
+  (`withSubpackages` extends a match to subpackages; the empty-name entries
+  are the catch-alls), groups emitted in table order with one blank line per
+  `<emptyLine/>` strictly between their positions and no trailing blank, and
+  group-internal order preserved. `LAYOUT_STATIC_IMPORTS_SEPARATELY` off
+  ignores the entries' `static` attribute so static imports join the ordinary
+  sections; `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` moves the file's
+  own-package on-demand import to the front of its group (the package is
+  threaded from `program()`'s `package_declaration`);
+  `KEEP_BLANK_LINES_BETWEEN_IMPORTS` preserves source blank gaps within groups
+  (recovered from the byte ranges between the import nodes). `import module
+  …;` is not a tree-sitter-java production, so the import region (leading
+  blank/comment/package/import lines before the first type) is scanned for
+  such lines, they are blanked in place with equal-length spaces before
+  parsing (no ERROR node, positions and diagnostics unaffected), and the kept
+  lines are emitted at the layout table's module slot (a custom table without
+  the reserved module entry puts them at the head of the section);
+  `PRESERVE_MODULE_IMPORTS` false removes them (the one sanctioned removal),
+  and `DELETE_UNUSED_MODULE_IMPORTS` true removes only clearly-unused ones —
+  duplicates beyond the first (conservative, no symbol resolution). All
+  changes are whitespace/layout only (R5, R6); the default table reproduces
+  today's output on the existing import fixtures (no existing golden moved),
+  each new golden is asserted idempotent by re-formatting it, and the GUI
+  renders the table option as a read-only summary. Covered by six new
+  per-option golden test files under `tests/options/`
+  (`delete_unused_module_imports.rs`, `import_layout_table.rs`,
+  `keep_blank_lines_between_imports.rs`,
+  `layout_on_demand_import_from_same_package_first.rs`,
+  `layout_static_imports_separately.rs` and `preserve_module_imports.rs`,
+  wired alphabetically in `tests/options.rs`), fixtures under
+  `tests/java/<option>/` — each with the option-state goldens, an
+  absent-option default check and a self-golden idempotency fixture; the suite
+  grew from 655 to 675 tests, all green (`cargo test --workspace`).
+
 - **The remaining record-header layout options are honoured (R33,
   record-header-layout)**: the four record-component layout options
   previously ignored (R7) and marked ❌ in the docs/settings tables —

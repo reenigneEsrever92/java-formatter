@@ -180,6 +180,12 @@ The options currently honoured are:
 | `ALIGN_CONSECUTIVE_ASSIGNMENTS`          | Align the operators of consecutive assignment statements in a column                                                              |
 | `ALIGN_SUBSEQUENT_SIMPLE_METHODS`        | Align the names of output-adjacent one-line methods in columns                                                                    |
 | `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`    | Collapse single-type imports of one package into `pkg.*` above this count                                                       |
+| `IMPORT_LAYOUT_TABLE`                     | Ordering and grouping of the import section (see the java.md import-table format)                                              |
+| `LAYOUT_STATIC_IMPORTS_SEPARATELY`        | Keep static imports in their own section (off: inline with the ordinary sections)                                             |
+| `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` | Put the file's own-package on-demand (`pkg.*`) import before its group's other imports                                 |
+| `PRESERVE_MODULE_IMPORTS`                 | Keep `import module …;` lines on reformat, at the layout table's module slot                                                  |
+| `DELETE_UNUSED_MODULE_IMPORTS`            | Remove clearly-unused module imports (duplicates beyond the first)                                                            |
+| `KEEP_BLANK_LINES_BETWEEN_IMPORTS`        | Preserve source blank lines between the imports of one group                                                               |
 | `KEEP_BLANK_LINES_IN_CODE`               | Max blank lines kept inside code (between statements)                                                                          |
 | `KEEP_BLANK_LINES_IN_DECLARATIONS`       | Max blank lines kept between class members                                                                                     |
 | `KEEP_BLANK_LINES_BETWEEN_PACKAGE_DECLARATION_AND_HEADER` | Max blank lines kept between a file-header comment and the package declaration                    |
@@ -296,9 +302,13 @@ braces when the body spans multiple lines, `3` = always force braces.
   how many pre-existing blank lines between two constructs are preserved, and
   the `BLANK_LINES_*` minimums insert the configured number around package,
   imports, class header/end, fields, methods, initializer blocks and interface
-  members. Within the import section, one blank line separates the
-  `java.*` / `javax.*` group from the other imports (an import-layout
-  convention, independent of the blank-line options).
+  members. Within the import section, the grouping and its separator blank
+  lines come from the import layout (`IMPORT_LAYOUT_TABLE`): imports are
+  grouped per the table's `<package>` entries in table order — the default
+  layout groups the third-party imports, then a blank line, then the
+  `javax.*` / `java.*` groups, then a blank line before the static imports —
+  and `KEEP_BLANK_LINES_BETWEEN_IMPORTS` additionally preserves user blank
+  lines inside a group.
 - Import-on-demand merging is conservative: it is skipped when the file already
   uses a wildcard import, when a simple name would become ambiguous (imported
   from another package), when a top-level type of the same name is declared in
@@ -635,7 +645,8 @@ cargo run -p java-formatter-gui
 
 It renders every option the formatter supports, grouped logically, with the
 correct control per type (bool → checkbox, `u32` → drag value, wrap/brace/force
-→ labeled combo of the IntelliJ meaning):
+→ labeled combo of the IntelliJ meaning; the import-layout table is shown as a
+read-only entry count, as a full table editor is out of scope):
 
 - **New** resets the style to the IntelliJ built-in defaults.
 - **Open…** opens a native file chooser (or drop a `codestyle.xml` anywhere in

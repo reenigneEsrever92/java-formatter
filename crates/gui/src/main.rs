@@ -207,6 +207,12 @@ impl CodestyleApp {
                             }
                         });
                 }
+                OptionValue::ImportLayout(entries) => {
+                    // Read-only summary: a full table editor is out of scope.
+                    // The value is passed back to `set` unchanged below.
+                    let n = entries.len();
+                    ui.label(egui::RichText::new(format!("{n} entries (read-only)")).weak());
+                }
             }
             (def.set)(&mut self.style, value);
             let response = ui.label(egui::RichText::new(def.xml_name).monospace());

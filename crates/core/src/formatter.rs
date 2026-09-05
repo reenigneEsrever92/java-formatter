@@ -3,11 +3,12 @@
 //! Uses tree-sitter-java to parse source into a CST, then pretty-prints it
 //! following the rules encoded in [`crate::config::JavaStyle`].
 
-use std::collections::{HashMap, HashSet};
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use tree_sitter::{Language, Node, Parser};
 
-use crate::config::{BraceStyle, ForceStyle, JavaStyle, WrapStyle};
+use crate::config::{BraceStyle, ForceStyle, ImportLayoutEntry, JavaStyle, WrapStyle};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public entry point
@@ -54,14 +55,28 @@ pub fn format_java_diagnosed(source: &str, style: &JavaStyle) -> (String, Vec<Pa
         .set_language(&language)
         .expect("Failed to load Java grammar");
 
-    let src = source.as_bytes();
+    // `import module …;` is not a tree-sitter-java production (it would parse
+    // as an `ERROR` node), so the import-region module lines are collected and
+    // blanked out of the parsed source in place (equal-length spaces keep byte
+    // offsets and diagnostics unaffected); the kept lines are re-emitted at the
+    // layout table's module slot by `imports()`.
+    let (parse_src, module_imports) = prepare_module_imports(source, style);
+
+    let src = parse_src.as_bytes();
     let tree = parser
         .parse(src, None)
         .expect("Failed to parse Java source");
 
     let diagnostics = collect_parse_diagnostics(tree.root_node(), src);
 
-    let fmt = Fmt { src, style };
+    // The formatter reads the ORIGINAL source for node text and byte-gap
+    // spacing, so the blanked module lines neither leak into the output nor
+    // count as preserved blank lines; only tree-sitter parses the masked text.
+    let fmt = Fmt {
+        src: source.as_bytes(),
+        style,
+        module_imports,
+    };
     let mut out = fmt.program(tree.root_node());
 
     // `WRAP_LONG_LINES` post-pass: hard-wrap lines past the right margin at
@@ -158,12 +173,144 @@ fn line_col(src: &[u8], byte: usize) -> (usize, usize) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Module imports (`import module …;`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// An `import module …;` line collected from the file's import region (the
+/// leading blank / comment / package / import lines before the first type).
+/// tree-sitter-java has no production for it (it would parse as an `ERROR`
+/// node), so such lines are blanked out of the parsed source in place and
+/// re-emitted at the layout table's module slot.
+struct ModuleImport {
+    /// The trimmed full source line, e.g. `import module java.base;`.
+    line: String,
+    /// Byte range of the line in the original source (including its ending).
+    start: usize,
+    end: usize,
+}
+
+/// The module name of a trimmed `import module <name>;` line, or `None` when
+/// the line does not match that shape (a trailing `//` or `/*` comment after
+/// the `;` is tolerated).
+fn module_import_name(t: &str) -> Option<String> {
+    let rest = t.strip_prefix("import")?;
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix("module")?;
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let path = rest.trim_start();
+    let semi = path.find(';')?;
+    let name = path[..semi].trim();
+    let tail = path[semi + 1..].trim_start();
+    if !tail.is_empty() && !tail.starts_with("//") && !tail.starts_with("/*") {
+        return None;
+    }
+    let valid = !name.is_empty()
+        && name.split('.').all(|seg| {
+            let mut chars = seg.chars();
+            match chars.next() {
+                Some(c) if c.is_ascii_alphabetic() || c == '_' || c == '$' => {}
+                _ => return false,
+            }
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+        });
+    if !valid {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// Scan `source`'s import region for `import module …;` lines and return the
+/// source with each such line blanked in place (equal-length spaces, newline
+/// preserved, so byte offsets and diagnostics are unaffected) together with
+/// the lines to keep, per the module-import options:
+///
+/// * `PRESERVE_MODULE_IMPORTS` off → none are kept;
+/// * `DELETE_UNUSED_MODULE_IMPORTS` on → of the clearly-unused cases only a
+///   repeated identical `import module` line is provable without symbol
+///   resolution, so duplicates beyond the first are dropped and every other
+///   line is kept (conservative).
+fn prepare_module_imports<'a>(
+    source: &'a str,
+    style: &JavaStyle,
+) -> (Cow<'a, str>, Vec<ModuleImport>) {
+    // One pass over the import region: collect each `import module …;` line,
+    // the byte range of its content to blank, and the lines to keep. When no
+    // module line exists the source is returned borrowed, so the common
+    // module-free path parses the original text with no copy.
+    let mut kept: Vec<ModuleImport> = Vec::new();
+    let mut mask_ranges: Vec<(usize, usize)> = Vec::new(); // (start, content bytes)
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut in_block = false;
+    let mut region_open = true;
+    let mut offset = 0usize;
+    for line in source.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\n', '\r']).trim();
+        let mut is_module = false;
+        if region_open {
+            if in_block {
+                if trimmed.contains("*/") {
+                    in_block = false;
+                }
+            } else if trimmed.starts_with("/*") {
+                if !trimmed.contains("*/") {
+                    in_block = true;
+                }
+            } else if !trimmed.is_empty() && !trimmed.starts_with("//") {
+                if let Some(name) = module_import_name(trimmed) {
+                    is_module = true;
+                    if style.preserve_module_imports {
+                        let duplicate = style.delete_unused_module_imports && !seen.insert(name);
+                        if !duplicate {
+                            kept.push(ModuleImport {
+                                line: trimmed.to_string(),
+                                start: offset,
+                                end: offset + line.len(),
+                            });
+                        }
+                    }
+                } else if !trimmed.starts_with("import ") && !trimmed.starts_with("package ") {
+                    // First non-import / non-package content: the import
+                    // region (and the scan) ends here.
+                    region_open = false;
+                }
+            }
+        }
+        if is_module {
+            // The content bytes to blank: everything except the line ending.
+            let mut content_len = line.len();
+            if content_len > 0 && line.as_bytes()[content_len - 1] == b'\n' {
+                content_len -= 1;
+            }
+            if content_len > 0 && line.as_bytes()[content_len - 1] == b'\r' {
+                content_len -= 1;
+            }
+            mask_ranges.push((offset, content_len));
+        }
+        offset += line.len();
+    }
+    if mask_ranges.is_empty() {
+        return (Cow::Borrowed(source), kept);
+    }
+    // Blank the module lines in place (equal-length spaces keep byte offsets
+    // and diagnostics unaffected).
+    let mut masked = source.to_string();
+    for (start, len) in mask_ranges {
+        masked.replace_range(start..start + len, &" ".repeat(len));
+    }
+    (Cow::Owned(masked), kept)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct Fmt<'s> {
     src: &'s [u8],
     style: &'s JavaStyle,
+    /// The preserved `import module …;` lines (see [`prepare_module_imports`]).
+    module_imports: Vec<ModuleImport>,
 }
 
 // A chain link: one `.method(args)` piece
@@ -241,6 +388,85 @@ fn pad_column_runs(lines: &mut [BodyLine]) {
         }
         i = j;
     }
+}
+
+/// The layout-relevant classification of one import line's text: whether it is
+/// a static import, whether it is an on-demand (`.*`) import, and its package
+/// part (`pkg.Owner` for a static member import, `pkg` for a type import,
+/// empty for a default-package single-segment import).
+fn classify_import_line(text: &str) -> (bool, bool, String) {
+    let mut is_static = false;
+    let mut path = text;
+    if let Some(rest) = path.strip_prefix("import ") {
+        path = rest;
+    }
+    if let Some(rest) = path.strip_prefix("static ") {
+        is_static = true;
+        path = rest;
+    }
+    let path = path.trim().trim_end_matches(';').trim();
+    let (is_on_demand, pkg) = match path.rsplit_once('.') {
+        Some((pkg, simple)) => (simple == "*", pkg.to_string()),
+        None => (false, String::new()),
+    };
+    (is_static, is_on_demand, pkg)
+}
+
+/// True when import package `pkg` belongs to a table entry named `name`:
+/// equal packages always match, subpackages only when the entry is
+/// `withSubpackages` (a package-boundary prefix match, so `java` does not
+/// capture `javafx`).
+fn entry_matches_pkg(name: &str, with_subpackages: bool, pkg: &str) -> bool {
+    match pkg.strip_prefix(name) {
+        Some("") => true,
+        Some(rest) => with_subpackages && rest.starts_with('.'),
+        None => false,
+    }
+}
+
+/// The import-layout entry whose group owns an import with package `pkg` and
+/// the given static-ness, or `None` when no entry matches (callers fall back
+/// to an implicit trailing group so imports are never dropped). Among named
+/// prefix matches the longest name wins; the empty-name entries are the
+/// catch-alls (the first eligible one in table order). With
+/// `LAYOUT_STATIC_IMPORTS_SEPARATELY` on, an entry's `static` attribute must
+/// match the line; off, the attribute is ignored and static imports join the
+/// ordinary package sections.
+fn layout_entry_for(
+    entries: &[ImportLayoutEntry],
+    is_static: bool,
+    pkg: &str,
+    separate: bool,
+) -> Option<usize> {
+    let mut named: Option<(usize, usize)> = None; // (name length, index) — longest wins
+    let mut catch_all: Option<usize> = None; // first eligible empty-name entry
+    for (i, e) in entries.iter().enumerate() {
+        let (name, with_sub, static_attr, is_module) = match e {
+            ImportLayoutEntry::EmptyLine => continue,
+            ImportLayoutEntry::Package {
+                name,
+                with_subpackages,
+                is_static,
+                is_module,
+            } => (name.as_str(), *with_subpackages, *is_static, *is_module),
+        };
+        if is_module {
+            continue;
+        }
+        if separate && static_attr != is_static {
+            continue;
+        }
+        if name.is_empty() {
+            if catch_all.is_none() {
+                catch_all = Some(i);
+            }
+            continue;
+        }
+        if entry_matches_pkg(name, with_sub, pkg) && named.is_none_or(|(len, _)| name.len() > len) {
+            named = Some((name.len(), i));
+        }
+    }
+    named.map(|(_, i)| i).or(catch_all)
 }
 
 impl<'s> Fmt<'s> {
@@ -1048,7 +1274,9 @@ impl<'s> Fmt<'s> {
         // file does not yet contain anything, so no leading gap is inserted).
         let mut prev_end: Option<usize> = header_comments.last().map(|c| c.end_byte());
         let has_pkg = pkg.is_some();
-        let has_imports = !imports.is_empty();
+        // A module-import file with no regular imports still has an import
+        // section (the preserved module lines are emitted from it).
+        let has_imports = !imports.is_empty() || !self.module_imports.is_empty();
 
         if let Some(p) = pkg {
             self.insert_gap(
@@ -1069,22 +1297,43 @@ impl<'s> Fmt<'s> {
                 .iter()
                 .filter_map(|n| self.fld(*n, "name").map(|nm| self.txt(nm).to_string()))
                 .collect();
-            let first = imports[0];
-            self.insert_gap(
-                &mut out,
-                prev_end,
-                first.start_byte(),
-                s.keep_blank_lines_in_declarations,
-                if has_pkg {
-                    s.blank_lines_after_package
-                        .max(s.blank_lines_before_imports)
-                } else {
-                    s.blank_lines_before_imports
-                },
-            );
-            let last_import = imports[imports.len() - 1];
-            out.push_str(&self.imports(imports, &local_types));
-            prev_end = Some(last_import.end_byte());
+            // The section's first byte in the source: the topmost import
+            // content — the first real import node, or a preserved module line
+            // when one sits above the imports (module lines above the section
+            // otherwise leak their surrounding blank lines into the gap).
+            let section_start = imports
+                .first()
+                .map(|n| n.start_byte())
+                .into_iter()
+                .chain(self.module_imports.first().map(|m| m.start))
+                .min();
+            if let Some(start) = section_start {
+                self.insert_gap(
+                    &mut out,
+                    prev_end,
+                    start,
+                    s.keep_blank_lines_in_declarations,
+                    if has_pkg {
+                        s.blank_lines_after_package
+                            .max(s.blank_lines_before_imports)
+                    } else {
+                        s.blank_lines_before_imports
+                    },
+                );
+            }
+            // The file's own package name (from `package …;`), used by
+            // `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST`.
+            let own_package = pkg.map(|p| self.package_name(p));
+            // The end of the emitted import content in the source: the last
+            // real import, or the preserved module region when none. Computed
+            // before `imports()` consumes the node list.
+            let section_end = if imports.is_empty() {
+                self.module_imports.last().map(|m| m.end)
+            } else {
+                Some(imports[imports.len() - 1].end_byte())
+            };
+            out.push_str(&self.imports(imports, &local_types, own_package.as_deref()));
+            prev_end = section_end;
         }
 
         for (i, ty) in top_types.iter().enumerate() {
@@ -1117,44 +1366,197 @@ impl<'s> Fmt<'s> {
     }
 
     fn package_decl(&self, node: Node<'s>) -> String {
-        // Try field "name" first, fall back to scanning named children
-        let name = self
-            .fld(node, "name")
-            .map(|n| self.txt(n))
+        format!("package {};\n", self.package_name(node))
+    }
+
+    /// The package name of a `package …;` declaration (e.g. `com.example`).
+    fn package_name(&self, node: Node<'s>) -> String {
+        // Try field "name" first, fall back to scanning named children.
+        self.fld(node, "name")
+            .map(|n| self.txt(n).to_string())
             .unwrap_or_else(|| {
                 self.named(node)
                     .into_iter()
                     .find(|n| matches!(n.kind(), "scoped_identifier" | "identifier"))
-                    .map(|n| self.txt(n))
-                    .unwrap_or("")
-            });
-        format!("package {};\n", name)
+                    .map(|n| self.txt(n).to_string())
+                    .unwrap_or_default()
+            })
     }
 
     // ── imports ───────────────────────────────────────────────────────────────
 
-    fn imports(&self, nodes: Vec<Node<'s>>, local_types: &[String]) -> String {
+    /// Format the import section. The file's `import_declaration` nodes are
+    /// first merged into on-demand imports (see [`Self::merge_on_demand_imports`]),
+    /// then every emitted line is ordered and grouped per
+    /// [`JavaStyle::import_layout`] (see [`Self::layout_imports`]).
+    fn imports(
+        &self,
+        nodes: Vec<Node<'s>>,
+        local_types: &[String],
+        own_package: Option<&str>,
+    ) -> String {
         let merged = self.merge_on_demand_imports(&nodes, local_types);
+        self.layout_imports(&nodes, &merged, own_package)
+    }
 
-        // Preserve original order but ensure a blank line before java/javax
-        let is_java = |t: &String| t.contains(" java.") || t.contains(" javax.");
+    /// Lay the merged import lines out per the import-layout table
+    /// ([`JavaStyle::import_layout`], java.md "Import-table format").
+    ///
+    /// Each emitted line is classified (static / package / on-demand) from its
+    /// text and matched to the table entry that owns its group: among named
+    /// prefix matches the longest name wins (`withSubpackages` extends the
+    /// match to subpackages), the empty-name entries are the catch-alls, and
+    /// module lines own the reserved module slot (a table without it puts them
+    /// at the head of the section). Groups emit in table order with one blank
+    /// line per `<emptyLine/>` entry strictly between their table positions and
+    /// no trailing blank; a group keeps its internal source order, optionally
+    /// moving the file's own-package on-demand import to the front
+    /// (`LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST`); source blank lines
+    /// inside a group are preserved only under
+    /// `KEEP_BLANK_LINES_BETWEEN_IMPORTS`.
+    fn layout_imports(
+        &self,
+        nodes: &[Node<'s>],
+        merged: &[(usize, String)],
+        own_package: Option<&str>,
+    ) -> String {
+        let s = self.style;
+        let entries = &s.import_layout;
+        let separate = s.layout_static_imports_separately;
 
-        let third_party: Vec<&String> = merged.iter().filter(|t| !is_java(t)).collect();
-        let java: Vec<&String> = merged.iter().filter(|t| is_java(t)).collect();
+        // merged position -> the table-entry index owning its group (the
+        // implicit trailing group `entries.len()` when nothing matched).
+        let mut groups: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
+        for (pos, (_, text)) in merged.iter().enumerate() {
+            let (is_static, _, pkg) = classify_import_line(text);
+            let key = layout_entry_for(entries, is_static, &pkg, separate)
+                .map(|i| i as i64)
+                .unwrap_or(entries.len() as i64);
+            groups.entry(key).or_default().push(pos);
+        }
+
+        // The module slot: the table's reserved module entry when present,
+        // otherwise a virtual slot before every table entry.
+        let module_key: i64 = entries
+            .iter()
+            .position(|e| {
+                matches!(
+                    e,
+                    ImportLayoutEntry::Package {
+                        is_module: true,
+                        ..
+                    }
+                )
+            })
+            .map(|i| i as i64)
+            .unwrap_or(-1);
+        let has_module = !self.module_imports.is_empty();
+        if has_module {
+            groups.entry(module_key).or_default();
+        }
+
+        // Source blank gap before each merged line, from the byte range between
+        // its import node and the previous merged line's node. Indexed by
+        // merged position; `emit_group` uses it only for lines adjacent in both
+        // the merged list and the emitted order.
+        let mut blank_before = vec![0usize; merged.len()];
+        for i in 1..merged.len() {
+            let (prev_idx, _) = merged[i - 1];
+            let (idx, _) = merged[i];
+            if prev_idx < idx {
+                blank_before[i] =
+                    self.blank_lines_between(nodes[prev_idx].end_byte(), nodes[idx].start_byte());
+            }
+        }
 
         let mut out = String::new();
-        for n in &third_party {
-            out.push_str(n);
-            out.push('\n');
-        }
-        if !third_party.is_empty() && !java.is_empty() {
-            out.push('\n');
-        }
-        for n in &java {
-            out.push_str(n);
-            out.push('\n');
+        let mut prev_key: Option<i64> = None;
+        for (&key, positions) in &groups {
+            let is_module_slot = has_module && key == module_key;
+            if positions.is_empty() && !is_module_slot {
+                continue;
+            }
+            if let Some(pk) = prev_key {
+                // Blanks between the two emitted groups: one per `<emptyLine/>`
+                // entry strictly between their table positions.
+                let gap = entries
+                    .iter()
+                    .enumerate()
+                    .filter(|&(i, e)| {
+                        let i = i as i64;
+                        i > pk && i < key && matches!(e, ImportLayoutEntry::EmptyLine)
+                    })
+                    .count();
+                self.push_blanks(&mut out, gap);
+            }
+            if is_module_slot {
+                for m in &self.module_imports {
+                    out.push_str(&m.line);
+                    out.push('\n');
+                }
+            }
+            self.emit_group(
+                &mut out,
+                merged,
+                &blank_before,
+                positions,
+                own_package,
+                s.keep_blank_lines_between_imports,
+                s.layout_on_demand_import_from_same_package_first,
+            );
+            prev_key = Some(key);
         }
         out
+    }
+
+    /// Append one import group's lines in `positions` (merged order). When
+    /// `same_pkg_first` is set and the file has an own package, the group's
+    /// own-package on-demand lines move to the front, preserving relative
+    /// order. With `keep_blanks`, a source blank gap is emitted before a line
+    /// when the previous emitted line is its direct merged-list predecessor
+    /// (the gap travelled with the later line).
+    #[allow(clippy::too_many_arguments)]
+    fn emit_group(
+        &self,
+        out: &mut String,
+        merged: &[(usize, String)],
+        blank_before: &[usize],
+        positions: &[usize],
+        own_package: Option<&str>,
+        keep_blanks: bool,
+        same_pkg_first: bool,
+    ) {
+        let own = own_package.unwrap_or("");
+        let is_own_on_demand = |p: usize| -> bool {
+            let (_, on_demand, pkg) = classify_import_line(&merged[p].1);
+            on_demand && pkg == own
+        };
+        let mut order: Vec<usize> = Vec::with_capacity(positions.len());
+        if same_pkg_first && !own.is_empty() {
+            let front: Vec<usize> = positions
+                .iter()
+                .copied()
+                .filter(|&p| is_own_on_demand(p))
+                .collect();
+            order.extend(front.iter().copied());
+            order.extend(positions.iter().copied().filter(|p| !front.contains(p)));
+        } else {
+            order.extend(positions.iter().copied());
+        }
+        let mut prev_emitted: Option<usize> = None;
+        for p in order {
+            let gap = if keep_blanks && prev_emitted.is_some_and(|pp| p == pp + 1) {
+                blank_before[p]
+            } else {
+                0
+            };
+            if gap > 0 {
+                self.push_blanks(out, gap);
+            }
+            out.push_str(&merged[p].1);
+            out.push('\n');
+            prev_emitted = Some(p);
+        }
     }
 
     /// Collapses single-type imports from the same package into one on-demand
@@ -1167,7 +1569,14 @@ impl<'s> Fmt<'s> {
     /// ambiguous (imported from another package) or when it collides with a
     /// top-level type declared in the same file. Static imports are never
     /// merged.
-    fn merge_on_demand_imports(&self, nodes: &[Node<'s>], local_types: &[String]) -> Vec<String> {
+    /// Returns each emitted line paired with the index of the import node it
+    /// came from (a collapsed wildcard keeps its first import's index) so the
+    /// layout pass can recover the source blank gaps.
+    fn merge_on_demand_imports(
+        &self,
+        nodes: &[Node<'s>],
+        local_types: &[String],
+    ) -> Vec<(usize, String)> {
         struct Entry {
             is_static: bool,
             pkg: String,
@@ -1210,7 +1619,8 @@ impl<'s> Fmt<'s> {
         if entries.iter().any(|e| e.is_wildcard) {
             return nodes
                 .iter()
-                .map(|n| self.txt(*n).trim().to_string())
+                .enumerate()
+                .map(|(i, n)| (i, self.txt(*n).trim().to_string()))
                 .collect();
         }
 
@@ -1249,17 +1659,17 @@ impl<'s> Fmt<'s> {
             }
         }
 
-        let mut out: Vec<String> = Vec::with_capacity(nodes.len());
+        let mut out: Vec<(usize, String)> = Vec::with_capacity(nodes.len());
         for (i, n) in nodes.iter().enumerate() {
             let e = &entries[i];
             let replaced = !e.is_static && !e.is_wildcard && collapse.contains(e.pkg.as_str());
             if replaced {
                 // Emit the on-demand import once, at the first import's position.
                 if groups[&e.pkg.as_str()][0] == i {
-                    out.push(format!("import {}.*;", e.pkg));
+                    out.push((i, format!("import {}.*;", e.pkg)));
                 }
             } else {
-                out.push(self.txt(*n).trim().to_string());
+                out.push((i, self.txt(*n).trim().to_string()));
             }
         }
         out

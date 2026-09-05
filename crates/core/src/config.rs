@@ -192,6 +192,31 @@ impl LineSeparator {
     }
 }
 
+/// One entry of the import-layout table ([`JavaStyle::import_layout`]), in
+/// table order. The table drives the ordering and grouping of the import
+/// section: each [`ImportLayoutEntry::Package`] names the imports that land in
+/// its group, and an [`ImportLayoutEntry::EmptyLine`] inserts one blank line
+/// between the groups around it. Serialized as the nested `<package>` /
+/// `<emptyLine>` children of the option's `<value>` (java.md "Import-table
+/// format").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportLayoutEntry {
+    /// A blank line between the surrounding import groups (`<emptyLine />`).
+    EmptyLine,
+    /// A package group (`<package name=… withSubpackages=… static=… />`).
+    Package {
+        /// The package prefix; empty = the "all other imports" catch-all slot.
+        name: String,
+        /// `withSubpackages="true"`: also matches the package's subpackages.
+        with_subpackages: bool,
+        /// `static="true"`: matches static imports (when
+        /// `LAYOUT_STATIC_IMPORTS_SEPARATELY` is on).
+        is_static: bool,
+        /// `module="true"`: the reserved slot for `import module …;` lines.
+        is_module: bool,
+    },
+}
+
 // ---------------------------------------------------------------------------
 // Public output struct
 // ---------------------------------------------------------------------------
@@ -363,8 +388,16 @@ pub struct JavaStyle {
     pub do_not_wrap_after_single_annotation: bool,
     pub do_not_wrap_after_single_annotation_in_parameter: bool,
 
-    // --- imports ---
+    // --- imports (JavaCodeStyleSettings) ---
     pub class_count_to_use_import_on_demand: u32,
+    /// Ordered import-layout table (see [`ImportLayoutEntry`]); the built-in
+    /// default is java.md's "Default layout".
+    pub import_layout: Vec<ImportLayoutEntry>,
+    pub layout_static_imports_separately: bool,
+    pub layout_on_demand_import_from_same_package_first: bool,
+    pub keep_blank_lines_between_imports: bool,
+    pub preserve_module_imports: bool,
+    pub delete_unused_module_imports: bool,
 
     // --- blank lines: KEEP_BLANK_LINES_* caps + BLANK_LINES_* minimums ---
     pub keep_blank_lines_in_code: u32,
@@ -466,6 +499,51 @@ pub struct JavaStyle {
     pub space_before_while_keyword: bool,
     pub space_before_catch_keyword: bool,
     pub space_before_finally_keyword: bool,
+}
+
+impl JavaStyle {
+    /// IntelliJ's built-in import layout (java.md "Default layout"): the
+    /// reserved module-imports slot, the empty-name non-static catch-all, a
+    /// blank line, `javax.*`, `java.*` (each `withSubpackages`), a blank line,
+    /// then the empty-name static catch-all. The single construction site for
+    /// the built-in table, so [`JavaStyle::default`] and the registry's
+    /// default reference can never diverge.
+    pub fn builtin_import_layout() -> Vec<ImportLayoutEntry> {
+        vec![
+            ImportLayoutEntry::Package {
+                name: String::new(),
+                with_subpackages: true,
+                is_static: false,
+                is_module: true,
+            },
+            ImportLayoutEntry::Package {
+                name: String::new(),
+                with_subpackages: true,
+                is_static: false,
+                is_module: false,
+            },
+            ImportLayoutEntry::EmptyLine,
+            ImportLayoutEntry::Package {
+                name: "javax".to_string(),
+                with_subpackages: true,
+                is_static: false,
+                is_module: false,
+            },
+            ImportLayoutEntry::Package {
+                name: "java".to_string(),
+                with_subpackages: true,
+                is_static: false,
+                is_module: false,
+            },
+            ImportLayoutEntry::EmptyLine,
+            ImportLayoutEntry::Package {
+                name: String::new(),
+                with_subpackages: true,
+                is_static: true,
+                is_module: false,
+            },
+        ]
+    }
 }
 
 impl Default for JavaStyle {
@@ -594,6 +672,12 @@ impl Default for JavaStyle {
             do_not_wrap_after_single_annotation: false,
             do_not_wrap_after_single_annotation_in_parameter: false,
             class_count_to_use_import_on_demand: 5,
+            import_layout: JavaStyle::builtin_import_layout(),
+            layout_static_imports_separately: true,
+            layout_on_demand_import_from_same_package_first: true,
+            keep_blank_lines_between_imports: false,
+            preserve_module_imports: true,
+            delete_unused_module_imports: false,
             keep_blank_lines_in_code: 2,
             keep_blank_lines_in_declarations: 2,
             keep_blank_lines_between_package_declaration_and_header: 2,
@@ -704,7 +788,11 @@ pub enum Section {
 }
 
 /// The value of a supported option, typed per the option's kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Not `Copy`: the list-typed [`OptionValue::ImportLayout`] holds a `Vec`.
+/// The registry's [`OptionDef::default`] for that variant is an empty type tag
+/// whose real value lives in [`JavaStyle::default`] (see `OptionDef::default`).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
     Bool(bool),
     UInt(u32),
@@ -716,18 +804,31 @@ pub enum OptionValue {
     Brace(BraceStyle),
     Force(ForceStyle),
     LineSep(LineSeparator),
+    /// The ordered import-layout table: the nested `<package>` / `<emptyLine>`
+    /// entries of the option's `<value>` (java.md "Import-table format").
+    /// Round-trips through parse/serialize only for the nested-`<value>` XML
+    /// form; the registry default is `Vec::new()` (a type tag — see
+    /// [`OptionDef::default`]).
+    ImportLayout(Vec<ImportLayoutEntry>),
 }
 
 /// Declarative description of one supported code style option — the single
 /// source of truth shared by [`parse_codestyle`], [`serialize_codestyle`] and
-/// the GUI. Each entry's `default` equals the corresponding
-/// [`JavaStyle::default`] value so the serialize/parse round-trip is exact.
+/// the GUI. For the scalar variants each entry's `default` equals the
+/// corresponding [`JavaStyle::default`] value so the serialize/parse
+/// round-trip is exact. The list-typed
+/// [`OptionValue::ImportLayout`] cannot hold its real default in a `static`
+/// literal, so its `default` is an empty `Vec::new()` *type tag* whose real
+/// value lives in [`JavaStyle::default`]; [`serialize_codestyle`] therefore
+/// compares every option against `(def.get)(&JavaStyle::default())` (identical
+/// to the literal default for scalars), and `parse_codestyle` matches on the
+/// tag only to select the ImportLayout arm.
 pub struct OptionDef {
     /// The XML `name` attribute, e.g. `"CLASS_BRACE_STYLE"`.
     pub xml_name: &'static str,
     /// The scheme section the option lives in.
     pub section: Section,
-    /// The IntelliJ default value.
+    /// The IntelliJ default value (see the struct doc for list-typed options).
     pub default: OptionValue,
     /// GUI display group, e.g. `"Braces"`.
     pub group: &'static str,
@@ -2354,6 +2455,84 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "IMPORT_LAYOUT_TABLE",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::ImportLayout(Vec::new()),
+        group: "Imports",
+        description: "Ordering and grouping of the import section: <package> and <emptyLine> entries (java.md Import-table format).",
+        get: |s| OptionValue::ImportLayout(s.import_layout.clone()),
+        set: |s, v| {
+            if let OptionValue::ImportLayout(l) = v {
+                s.import_layout = l;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LAYOUT_STATIC_IMPORTS_SEPARATELY",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Imports",
+        description: "Keep static imports in their own section (the table's static=\"true\" entries); off, they join the ordinary package sections.",
+        get: |s| OptionValue::Bool(s.layout_static_imports_separately),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.layout_static_imports_separately = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Imports",
+        description: "Put the file's own-package on-demand (pkg.*) import before the other imports of its group.",
+        get: |s| OptionValue::Bool(s.layout_on_demand_import_from_same_package_first),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.layout_on_demand_import_from_same_package_first = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PRESERVE_MODULE_IMPORTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Imports",
+        description: "Keep `import module …;` lines on reformat, placed at the layout table's module slot.",
+        get: |s| OptionValue::Bool(s.preserve_module_imports),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.preserve_module_imports = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DELETE_UNUSED_MODULE_IMPORTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Imports",
+        description: "Remove clearly-unused module imports on reformat (conservative: duplicates beyond the first).",
+        get: |s| OptionValue::Bool(s.delete_unused_module_imports),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.delete_unused_module_imports = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_BLANK_LINES_BETWEEN_IMPORTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Imports",
+        description: "Preserve source blank lines between the imports of one group on reformat.",
+        get: |s| OptionValue::Bool(s.keep_blank_lines_between_imports),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_blank_lines_between_imports = b;
+            }
+        },
+    },
     // --- Blank lines: KEEP_BLANK_LINES_* caps (CodeStyleJava) ---
     OptionDef {
         xml_name: "KEEP_BLANK_LINES_IN_CODE",
@@ -3525,12 +3704,19 @@ pub static OPTIONS: &[OptionDef] = &[
 // ---------------------------------------------------------------------------
 
 /// A single `<option name="X" value="Y" />` element.
+///
+/// Both attributes are optional so nested-valued options — an `<option>` whose
+/// setting lives in a `<value>` child tree (the import tables, e.g.
+/// `IMPORT_LAYOUT_TABLE`) — no longer abort the whole parse (R7): they
+/// deserialize with a missing `@value` and are skipped by [`OptionMap`], while
+/// their `<value>` children are ignored by the serde mirror and read with the
+/// event API in [`parse_codestyle`].
 #[derive(Debug, Deserialize)]
 struct XmlOption {
-    #[serde(rename = "@name")]
-    name: String,
-    #[serde(rename = "@value")]
-    value: String,
+    #[serde(rename = "@name", default)]
+    name: Option<String>,
+    #[serde(rename = "@value", default)]
+    value: Option<String>,
 }
 
 /// `<indentOptions> <option .../> </indentOptions>`
@@ -3584,8 +3770,8 @@ impl<'a> OptionMap<'a> {
     fn get(&self, name: &str) -> Option<&str> {
         self.0
             .iter()
-            .find(|o| o.name == name)
-            .map(|o| o.value.as_str())
+            .find(|o| o.name.as_deref() == Some(name))
+            .and_then(|o| o.value.as_deref())
     }
 
     fn get_u32(&self, name: &str, default: u32) -> u32 {
@@ -3637,6 +3823,127 @@ impl<'a> OptionMap<'a> {
 }
 
 // ---------------------------------------------------------------------------
+// Import-layout nested-<value> XML helpers
+// ---------------------------------------------------------------------------
+
+/// Escape a string for use inside an XML attribute value.
+fn xml_attr_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+}
+
+/// Serialize the nested `<option name="IMPORT_LAYOUT_TABLE"><value>…</value>
+/// </option>` fragment for `entries`. The fragment's inner lines carry the
+/// relative indent; the section writers prefix every line, so it nests
+/// correctly under its block.
+fn import_layout_xml(entries: &[ImportLayoutEntry]) -> String {
+    let mut out = String::from("<option name=\"IMPORT_LAYOUT_TABLE\">\n  <value>\n");
+    for e in entries {
+        match e {
+            ImportLayoutEntry::EmptyLine => out.push_str("    <emptyLine />\n"),
+            ImportLayoutEntry::Package {
+                name,
+                with_subpackages,
+                is_static,
+                is_module,
+            } => {
+                out.push_str("    <package name=\"");
+                out.push_str(&xml_attr_escape(name));
+                out.push_str(&format!(
+                    "\" withSubpackages=\"{}\" static=\"{}\"",
+                    with_subpackages, is_static
+                ));
+                if *is_module {
+                    out.push_str(" module=\"true\"");
+                }
+                out.push_str(" />\n");
+            }
+        }
+    }
+    out.push_str("  </value>\n</option>");
+    out
+}
+
+/// Read the `IMPORT_LAYOUT_TABLE` entries from a scheme's
+/// `<JavaCodeStyleSettings>` block, preserving document order, or `None` when
+/// the option is absent. The serde mirror cannot keep the interleaved
+/// `<package>` / `<emptyLine>` children across two tag-typed `Vec`s, so this
+/// order-preserving scan uses quick-xml's event API; unimplemented nested
+/// options stay safely ignored (R7).
+fn read_import_layout_entries(xml: &str) -> Option<Vec<ImportLayoutEntry>> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+    let mut buf = Vec::new();
+    let mut in_java_settings = false;
+    let mut entries: Option<Vec<ImportLayoutEntry>> = None;
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+                let tag = e.name();
+                if tag.as_ref() == b"JavaCodeStyleSettings" {
+                    in_java_settings = true;
+                } else if in_java_settings && tag.as_ref() == b"option" && entries.is_none() {
+                    let is_layout = e.attributes().flatten().any(|a| {
+                        a.key.as_ref() == b"name"
+                            && a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                .map(|v| v == "IMPORT_LAYOUT_TABLE")
+                                .unwrap_or(false)
+                    });
+                    if is_layout {
+                        entries = Some(Vec::new());
+                    }
+                } else if let Some(entries) = entries.as_mut() {
+                    if in_java_settings && tag.as_ref() == b"package" {
+                        let mut name = String::new();
+                        let mut with_subpackages = true;
+                        let mut is_static = false;
+                        let mut is_module = false;
+                        for a in e.attributes().flatten() {
+                            let val = a
+                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                .unwrap_or_default();
+                            match a.key.as_ref() {
+                                b"name" => name = val.into_owned(),
+                                b"withSubpackages" => with_subpackages = val == "true",
+                                b"static" => is_static = val == "true",
+                                b"module" => is_module = val == "true",
+                                _ => {}
+                            }
+                        }
+                        entries.push(ImportLayoutEntry::Package {
+                            name,
+                            with_subpackages,
+                            is_static,
+                            is_module,
+                        });
+                    } else if in_java_settings && tag.as_ref() == b"emptyLine" {
+                        entries.push(ImportLayoutEntry::EmptyLine);
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                if e.name().as_ref() == b"JavaCodeStyleSettings" {
+                    in_java_settings = false;
+                } else if e.name().as_ref() == b"option" && entries.is_some() {
+                    // Closing the layout option: return what was read. Only one
+                    // occurrence is expected; a second is ignored.
+                    return entries;
+                }
+            }
+            Ok(Event::Eof) => break,
+            // A malformed document fails the serde parse above first.
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+    entries
+}
+
+// ---------------------------------------------------------------------------
 // Public parsing function
 // ---------------------------------------------------------------------------
 
@@ -3667,6 +3974,16 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
         .map(|i| OptionMap(&i.options));
 
     for def in OPTIONS {
+        // The import-layout table reads its nested `<value>` subtree with the
+        // event API (order-preserving `<package>` / `<emptyLine>` entries the
+        // serde mirror cannot represent); absent → the built-in default the
+        // style was initialised with stays.
+        if matches!(&def.default, OptionValue::ImportLayout(_)) {
+            if let Some(entries) = read_import_layout_entries(xml) {
+                style.import_layout = entries;
+            }
+            continue;
+        }
         let map = match def.section {
             Section::Root => &top,
             Section::JavaCodeStyle => match &java_settings {
@@ -3691,16 +4008,21 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
         if map.get(def.xml_name).is_none() {
             continue;
         }
-        let value = match def.default {
-            OptionValue::Bool(default) => OptionValue::Bool(map.get_bool(def.xml_name, default)),
-            OptionValue::UInt(default) => OptionValue::UInt(map.get_u32(def.xml_name, default)),
-            OptionValue::Int(default) => OptionValue::Int(map.get_int(def.xml_name, default)),
-            OptionValue::Wrap(default) => OptionValue::Wrap(map.get_wrap(def.xml_name, default)),
-            OptionValue::Brace(default) => OptionValue::Brace(map.get_brace(def.xml_name, default)),
-            OptionValue::Force(default) => OptionValue::Force(map.get_force(def.xml_name, default)),
-            OptionValue::LineSep(default) => {
-                OptionValue::LineSep(map.get_line_sep(def.xml_name, default))
+        let value = match &def.default {
+            OptionValue::Bool(default) => OptionValue::Bool(map.get_bool(def.xml_name, *default)),
+            OptionValue::UInt(default) => OptionValue::UInt(map.get_u32(def.xml_name, *default)),
+            OptionValue::Int(default) => OptionValue::Int(map.get_int(def.xml_name, *default)),
+            OptionValue::Wrap(default) => OptionValue::Wrap(map.get_wrap(def.xml_name, *default)),
+            OptionValue::Brace(default) => {
+                OptionValue::Brace(map.get_brace(def.xml_name, *default))
             }
+            OptionValue::Force(default) => {
+                OptionValue::Force(map.get_force(def.xml_name, *default))
+            }
+            OptionValue::LineSep(default) => {
+                OptionValue::LineSep(map.get_line_sep(def.xml_name, *default))
+            }
+            OptionValue::ImportLayout(_) => unreachable!(),
         };
         (def.set)(&mut style, value);
     }
@@ -3712,6 +4034,21 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
 // Public serialization function
 // ---------------------------------------------------------------------------
 
+/// Append `text` to `out`, prefixing every line with `prefix` and ending with
+/// one newline. Multi-line fragments (the nested import-table option) are
+/// therefore indented on each line under the section that owns them; the
+/// single-line scalar options behave exactly as before.
+fn push_option(out: &mut String, prefix: &str, text: &str) {
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str(prefix);
+        out.push_str(line);
+    }
+    out.push('\n');
+}
+
 /// Serialize a [`JavaStyle`] into a minimal `<code_scheme>` document.
 ///
 /// Only options whose value differs from the IntelliJ default are written
@@ -3719,6 +4056,14 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
 /// in both consumers, so the file stays minimal while remaining semantically
 /// identical. `parse_codestyle(serialize_codestyle(style)) == style`.
 pub fn serialize_codestyle(style: &JavaStyle) -> String {
+    // Reference defaults computed once per call. For the scalar options these
+    // equal the registry literals; for the list-typed import layout the real
+    // built-in table lives in `JavaStyle::default` (`OptionDef::default` is an
+    // empty type tag), so comparing each value against the corresponding
+    // default-style field keeps the minimal-scheme rule uniform across both
+    // kinds.
+    let defaults = JavaStyle::default();
+
     let mut root = Vec::new();
     let mut java_settings = Vec::new();
     let mut java = Vec::new();
@@ -3726,26 +4071,33 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
 
     for def in OPTIONS {
         let value = (def.get)(style);
-        if value == def.default {
+        if value == (def.get)(&defaults) {
             continue;
         }
-        let xml_value = match value {
-            OptionValue::Bool(b) => b.to_string(),
-            OptionValue::UInt(n) => n.to_string(),
-            OptionValue::Int(n) => n.to_string(),
-            OptionValue::Wrap(w) => w.to_int().to_string(),
-            OptionValue::Brace(b) => b.to_int().to_string(),
-            OptionValue::Force(f) => f.to_int().to_string(),
-            OptionValue::LineSep(s) => {
-                // The default (`System`) was already skipped above; the other
-                // separators are serialised in their XML-escaped forms.
-                s.to_xml().unwrap_or("").to_string()
+        let option = match &value {
+            OptionValue::ImportLayout(entries) => import_layout_xml(entries),
+            _ => {
+                let xml_value = match &value {
+                    OptionValue::Bool(b) => b.to_string(),
+                    OptionValue::UInt(n) => n.to_string(),
+                    OptionValue::Int(n) => n.to_string(),
+                    OptionValue::Wrap(w) => w.to_int().to_string(),
+                    OptionValue::Brace(b) => b.to_int().to_string(),
+                    OptionValue::Force(f) => f.to_int().to_string(),
+                    OptionValue::LineSep(s) => {
+                        // The default (`System`) was already skipped above; the
+                        // other separators are serialised in their XML-escaped
+                        // forms.
+                        s.to_xml().unwrap_or("").to_string()
+                    }
+                    OptionValue::ImportLayout(_) => unreachable!(),
+                };
+                format!(
+                    r#"<option name="{}" value="{}" />"#,
+                    def.xml_name, xml_value
+                )
             }
         };
-        let option = format!(
-            r#"<option name="{}" value="{}" />"#,
-            def.xml_name, xml_value
-        );
         match def.section {
             Section::Root => root.push(option),
             Section::JavaCodeStyle => java_settings.push(option),
@@ -3756,32 +4108,24 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
 
     let mut out = String::from("<code_scheme name=\"Project\" version=\"173\">\n");
     for option in &root {
-        out.push_str("  ");
-        out.push_str(option);
-        out.push('\n');
+        push_option(&mut out, "  ", option);
     }
     if !java_settings.is_empty() {
         out.push_str("  <JavaCodeStyleSettings>\n");
         for option in &java_settings {
-            out.push_str("    ");
-            out.push_str(option);
-            out.push('\n');
+            push_option(&mut out, "    ", option);
         }
         out.push_str("  </JavaCodeStyleSettings>\n");
     }
     if !java.is_empty() || !indent.is_empty() {
         out.push_str("  <codeStyleSettings language=\"JAVA\">\n");
         for option in &java {
-            out.push_str("    ");
-            out.push_str(option);
-            out.push('\n');
+            push_option(&mut out, "    ", option);
         }
         if !indent.is_empty() {
             out.push_str("    <indentOptions>\n");
             for option in &indent {
-                out.push_str("      ");
-                out.push_str(option);
-                out.push('\n');
+                push_option(&mut out, "      ", option);
             }
             out.push_str("    </indentOptions>\n");
         }

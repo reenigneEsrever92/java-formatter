@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Order and group imports per the import layout options
 description: Implement IMPORT_LAYOUT_TABLE and the import-section ordering/grouping options.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-05T22:00Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -229,20 +230,20 @@ description), `docs/requirements.md` (new row + milestone paragraph),
 
 ## Steps
 
-- [ ] `crates/core/src/config.rs`: add the six `JavaStyle` fields with their
+- [x] `crates/core/src/config.rs`: add the six `JavaStyle` fields with their
       `Default` values (built-in layout list from java.md "Default layout" +
       the five bools), the `ImportLayoutEntry` type, and the six `OptionDef`s
       (`Section::JavaCodeStyle`, group "Imports", after
       `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`); `cargo build` and the suite stay
       green (AC4 absent → default; config mapping).
-- [ ] `crates/core/src/config.rs`: add `OptionValue::ImportLayout(
+- [x] `crates/core/src/config.rs`: add `OptionValue::ImportLayout(
       Vec<ImportLayoutEntry>)`, drop `Copy` from the derive, and fix the
       mechanical fallout — `parse_codestyle` matches on `&def.default`;
       `serialize_codestyle` compares each value against `(def.get)(&
       JavaStyle::default())` so list-typed options still serialize only when
       non-default; update the `OptionDef`/`OptionValue` doc comments (AC2
       structural round-trip guarantee, AC4 minimal scheme).
-- [ ] `crates/core/src/config.rs`: extend the XML mirrors so `XmlOption`
+- [x] `crates/core/src/config.rs`: extend the XML mirrors so `XmlOption`
       tolerates a missing `value` attribute (nested-valued options no longer
       abort the whole parse, R7); add the order-preserving event-API reader
       for the layout option's `<value>` `<package>`/`<emptyLine>` children and
@@ -253,10 +254,10 @@ description), `docs/requirements.md` (new row + milestone paragraph),
       `parse(serialize(style)) == style` for a non-default layout — nested
       entries survive — recording the check in the changelog (AC2; per AGENTS
       no committed `parse_codestyle` test).
-- [ ] `crates/gui/src/main.rs`: add the `OptionValue::ImportLayout` arm to
+- [x] `crates/gui/src/main.rs`: add the `OptionValue::ImportLayout` arm to
       `option_row` (read-only summary; value passed back unchanged) so the
       exhaustive match compiles; `cargo test` builds the GUI crate (AC4).
-- [ ] `crates/core/src/formatter.rs`: extend `merge_on_demand_imports` to
+- [x] `crates/core/src/formatter.rs`: extend `merge_on_demand_imports` to
       annotate each emitted line with its source import-node index, then
       replace the hard-coded third-party/`java` split in `imports()` with the
       table-driven layout pass (longest-prefix matching, group order,
@@ -264,60 +265,60 @@ description), `docs/requirements.md` (new row + milestone paragraph),
       layout and confirm on `cargo test` that every existing import golden
       under `class_count_to_use_import_on_demand/` is byte-identical (AC1
       absent-table default, AC4).
-- [ ] `crates/core/src/formatter.rs`: honour `LAYOUT_STATIC_IMPORTS_SEPARATELY`
+- [x] `crates/core/src/formatter.rs`: honour `LAYOUT_STATIC_IMPORTS_SEPARATELY`
       (static section vs inline per the entry `static` attribute) and
       `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` (same-package
       on-demand lines to the front of their group, using the file's package
       threaded from `program()`); defaults keep today's output (AC3 for these
       two rows).
-- [ ] `crates/core/src/formatter.rs`: honour `KEEP_BLANK_LINES_BETWEEN_IMPORTS`
+- [x] `crates/core/src/formatter.rs`: honour `KEEP_BLANK_LINES_BETWEEN_IMPORTS`
       using the per-line source-gap blank counts — false (default) drops them
       as today, true preserves them within each resulting group (AC3).
-- [ ] `crates/core/src/formatter.rs`: implement module-import handling —
+- [x] `crates/core/src/formatter.rs`: implement module-import handling —
       line-pattern recognition in the import region, equal-length blanking
       before parse so no ERROR node is produced, module-slot placement when
       preserved, removal when `PRESERVE_MODULE_IMPORTS` is `false`, and
       clearly-unused-only removal (duplicates beyond the first) when
       `DELETE_UNUSED_MODULE_IMPORTS` is `true`; default keeps the lines (AC3,
       R4/R5).
-- [ ] Add `tests/options/import_layout_table.rs` + fixtures under
+- [x] Add `tests/options/import_layout_table.rs` + fixtures under
       `tests/java/import_layout_table/`: a custom table ordering `java.*`
       first (with a changed `<emptyLine/>` set) reorders imports and blanks
       accordingly; a table with an extra/removed `<emptyLine/>` shifts the
       group gap; an absent-table default check (`format`) reproduces today's
       output on an import list shaped like the existing fixtures (AC1).
-- [ ] Add `tests/options/layout_static_imports_separately.rs` + fixtures under
+- [x] Add `tests/options/layout_static_imports_separately.rs` + fixtures under
       `tests/java/layout_static_imports_separately/`: a mixed static/
       non-static import list with the static lines in their own final section
       (`true`, the default, via an absent-option golden) vs inline with the
       ordinary sections (`false`) (AC3).
-- [ ] Add `tests/options/layout_on_demand_import_from_same_package_first.rs`
+- [x] Add `tests/options/layout_on_demand_import_from_same_package_first.rs`
       + fixtures under `tests/java/layout_on_demand_import_from_same_package_first/`:
       a packaged file with an own-package on-demand import among other
       wildcards, asserted at `true` (default golden) and `false`, plus an
       absent-option default check (AC3).
-- [ ] Add `tests/options/keep_blank_lines_between_imports.rs` + fixtures under
+- [x] Add `tests/options/keep_blank_lines_between_imports.rs` + fixtures under
       `tests/java/keep_blank_lines_between_imports/`: an import list with
       user blank lines inside one group (kept below the merge threshold so the
       option is exercised in isolation), asserted at `true` (preserved) and
       `false`/absent (dropped, today's layout) (AC3).
-- [ ] Add `tests/options/preserve_module_imports.rs` and
+- [x] Add `tests/options/preserve_module_imports.rs` and
       `tests/options/delete_unused_module_imports.rs` + fixtures under
       `tests/java/preserve_module_imports/` and
       `tests/java/delete_unused_module_imports/`: module lines kept by default
       and placed in the module slot; dropped when preserve is `false`; a
       duplicated module line dropped (only the first kept) when delete-unused
       is `true` while a single doubtful module line is kept (AC3; R4/R5).
-- [ ] Wire the six modules alphabetically into `tests/options.rs` (per the
+- [x] Wire the six modules alphabetically into `tests/options.rs` (per the
       positions in the approach); re-format each new `*.out.java` under its
       own style to confirm the goldens are idempotent (R6); `cargo test`
       green with no existing golden changed (AC4).
-- [ ] If an IntelliJ installation is available, format representative import
+- [x] If an IntelliJ installation is available, format representative import
       sections there to cross-check the group order, blank-line and
       module-option semantics and the export shape of the table; align the
       goldens and the java.md prose accordingly and record the outcome in the
       changelog.
-- [ ] Docs + final suite: flip the six `docs/settings/java.md` "Imports" rows
+- [x] Docs + final suite: flip the six `docs/settings/java.md` "Imports" rows
       ❌ → ✅ and refresh the "Imports" intro sentence and "Import-table
       format" prose; add the six options to the README honoured-options table
       and rewrite the blank-line formatting-behaviour note (plus the GUI
@@ -327,6 +328,21 @@ description), `docs/requirements.md` (new row + milestone paragraph),
       milestone paragraph; append the `docs/dev/changelog.md` entry; run
       `cargo test` once more and confirm the whole workspace suite is green
       (AC4).
+
+## Verification
+
+- `cargo build --workspace` succeeds (the GUI `ImportLayout` arm is required
+  for compilation).
+- `cargo test --workspace`: 675 passed, 0 failed (was 655 before this change)
+  — no pre-existing golden moved (the default layout reproduces today's import
+  output on the `class_count_to_use_import_on_demand` fixtures and the whole
+  suite; the six new per-option files are green and each new golden is
+  idempotent).
+- parse(serialize(style)) == style for a non-default layout verified by hand
+  (a custom `java`-first table with an added/removed `<emptyLine/>` set and a
+  `module="true"` slot round-trips exactly; the built-in table serializes to
+  nothing, keeping minimal schemes unchanged). No IntelliJ installation was
+  available to cross-check the group order / blank rule / module semantics.
 
 Commit: not committed (worktree changes only — the repository is left for the
 owner to commit).

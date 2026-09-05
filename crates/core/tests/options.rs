@@ -127,6 +127,8 @@ mod class_count_to_use_import_on_demand;
 mod continuation_indent_size;
 #[path = "options/declaration_parameter_indent.rs"]
 mod declaration_parameter_indent;
+#[path = "options/delete_unused_module_imports.rs"]
+mod delete_unused_module_imports;
 #[path = "options/do_not_indent_top_level_class_members.rs"]
 mod do_not_indent_top_level_class_members;
 #[path = "options/do_not_wrap_after_single_annotation.rs"]
@@ -159,6 +161,8 @@ mod for_statement_wrap;
 mod generic_type_parameter_indent;
 #[path = "options/if_brace_force.rs"]
 mod if_brace_force;
+#[path = "options/import_layout_table.rs"]
+mod import_layout_table;
 #[path = "options/indent_break_from_case.rs"]
 mod indent_break_from_case;
 #[path = "options/indent_case_from_switch.rs"]
@@ -167,6 +171,8 @@ mod indent_case_from_switch;
 mod indent_size;
 #[path = "options/keep_blank_lines_before_rbrace.rs"]
 mod keep_blank_lines_before_rbrace;
+#[path = "options/keep_blank_lines_between_imports.rs"]
+mod keep_blank_lines_between_imports;
 #[path = "options/keep_blank_lines_between_package_declaration_and_header.rs"]
 mod keep_blank_lines_between_package_declaration_and_header;
 #[path = "options/keep_blank_lines_in_code.rs"]
@@ -197,6 +203,10 @@ mod label_indent_absolute;
 mod label_indent_size;
 #[path = "options/lambda_brace_style.rs"]
 mod lambda_brace_style;
+#[path = "options/layout_on_demand_import_from_same_package_first.rs"]
+mod layout_on_demand_import_from_same_package_first;
+#[path = "options/layout_static_imports_separately.rs"]
+mod layout_static_imports_separately;
 #[path = "options/line_comment_add_space_in_suppression.rs"]
 mod line_comment_add_space_in_suppression;
 #[path = "options/line_comment_add_space_on_reformat.rs"]
@@ -235,6 +245,8 @@ mod parentheses_expression_rparen_wrap;
 mod place_assignment_sign_on_next_line;
 #[path = "options/prefer_parameters_wrap.rs"]
 mod prefer_parameters_wrap;
+#[path = "options/preserve_module_imports.rs"]
+mod preserve_module_imports;
 #[path = "options/record_components_wrap.rs"]
 mod record_components_wrap;
 #[path = "options/resource_list_lparen_on_next_line.rs"]

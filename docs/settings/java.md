@@ -61,9 +61,11 @@ These are applied when IntelliJ _generates_ code, not when it reformats.
 
 ## Imports
 
-Formatting-relevant import options (import merging is the only one currently
-applied, and only partially). The rows marked n/a are auto-import or
-code-generation settings, not formatter concerns.
+Formatting-relevant import options. The import-layout family — the table plus
+its ordering, blank-line, static and module sub-options — is applied by the
+formatter; `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND` merges single-type imports
+into `pkg.*`. The rows marked n/a are auto-import or code-generation settings,
+not formatter concerns.
 
 | Option                                            | Type  | Default                           | Values                                   | Effect                                                                                | Support |
 | ------------------------------------------------- | ----- | --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------- | ------- |
@@ -72,12 +74,12 @@ code-generation settings, not formatter concerns.
 | `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`             | int   | `5`                               | `0`–`n`                                  | Merge a package's single-type imports into `pkg.*` when the count reaches this value. | ✅      |
 | `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`             | int   | `3`                               | `0`–`n`                                  | Merge static members' imports into `pkg.*` at this count.                             | ❌      |
 | `PACKAGES_TO_USE_IMPORT_ON_DEMAND`                | table | `java.awt`, `javax.swing`         | [import-table XML](#import-table-format) | Packages whose imports are always merged into `pkg.*`.                                | ❌      |
-| `IMPORT_LAYOUT_TABLE`                             | table | [default layout](#default-layout) | [import-table XML](#import-table-format) | Ordering and grouping of import sections.                                             | ❌      |
-| `LAYOUT_STATIC_IMPORTS_SEPARATELY`                | bool  | `true`                            | `true` / `false`                         | Keep static imports in their own section.                                             | ❌      |
-| `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` | bool  | `true`                            | `true` / `false`                         | Sort same-package on-demand imports first.                                            | ❌      |
-| `PRESERVE_MODULE_IMPORTS`                         | bool  | `true`                            | `true` / `false`                         | Keep module (`import module …`) imports on reformat.                                  | ❌      |
-| `DELETE_UNUSED_MODULE_IMPORTS`                    | bool  | `false`                           | `true` / `false`                         | Remove unused module imports on reformat.                                             | ❌      |
-| `KEEP_BLANK_LINES_BETWEEN_IMPORTS`                | bool  | `false`                           | `true` / `false`                         | Preserve blank lines between imports on reformat.                                     | ❌      |
+| `IMPORT_LAYOUT_TABLE`                             | table | [default layout](#default-layout) | [import-table XML](#import-table-format) | Ordering and grouping of import sections.                                             | ✅      |
+| `LAYOUT_STATIC_IMPORTS_SEPARATELY`                | bool  | `true`                            | `true` / `false`                         | Keep static imports in their own section.                                             | ✅      |
+| `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` | bool  | `true`                            | `true` / `false`                         | Sort same-package on-demand imports first.                                            | ✅      |
+| `PRESERVE_MODULE_IMPORTS`                         | bool  | `true`                            | `true` / `false`                         | Keep module (`import module …`) imports on reformat.                                  | ✅      |
+| `DELETE_UNUSED_MODULE_IMPORTS`                    | bool  | `false`                           | `true` / `false`                         | Remove unused module imports on reformat.                                             | ✅      |
+| `KEEP_BLANK_LINES_BETWEEN_IMPORTS`                | bool  | `false`                           | `true` / `false`                         | Preserve blank lines between imports on reformat.                                     | ✅      |
 | `USE_FQ_CLASS_NAMES`                              | bool  | `false`                           | `true` / `false`                         | Use fully-qualified names instead of imports.                                         | n/a     |
 | `DO_NOT_IMPORT_INNER`                             | list  | `[]`                              | `<CLASS name="…"/>` entries              | Inner classes that are never auto-imported.                                           | n/a     |
 
@@ -105,8 +107,19 @@ code-generation settings, not formatter concerns.
 - `<emptyLine />` — a blank line between import groups.
 - The layout table has reserved entries: the first `<package name=""
 module="true">` slot for module imports, an empty-name non-static slot for
-  _all other imports_, and an empty-name static slot for _all other static
+  _all other imports_, and an empty-name static slot for _all other static_
   imports_.
+
+The layout is applied top to bottom: the imports whose package matches a
+`<package>` entry form one group — a package matches when it equals the
+entry's `name`, or is under it when `withSubpackages` is `true`; among
+matching entries the longest name wins, and the empty-name catch-all entries
+receive the remaining imports. Groups are emitted in table order (empty groups
+are skipped) with one blank line per `<emptyLine/>` strictly between their
+positions and no trailing blank; inside a group the source order is kept.
+While `LAYOUT_STATIC_IMPORTS_SEPARATELY` is on an import matches only entries
+whose `static` attribute agrees with it; off, the attribute is ignored and
+static imports join the ordinary package sections.
 
 ### Default layout
 
