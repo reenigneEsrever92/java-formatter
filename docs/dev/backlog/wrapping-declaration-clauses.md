@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Wrap resource lists, extends/implements and throws lists per their *_WRAP options
 description: Implement RESOURCE_LIST_WRAP, EXTENDS_LIST_WRAP, THROWS_LIST_WRAP and related clause-layout sub-options.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-05T08:47:42Z }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -128,33 +129,33 @@ wrapping-declaration-clauses)`.
 
 ## Steps
 
-- [ ] `crates/core/src/config.rs`: add the eight `JavaStyle` fields (grouped
+- [x] `crates/core/src/config.rs`: add the eight `JavaStyle` fields (grouped
       comment) + `Default` values; add the eight contiguous `OptionDef`
       entries after `BINARY_OPERATION_WRAP` (Section::CodeStyleJava, group
       "Wrapping", 3 × `Wrap` default `DoNotWrap`, 5 × `Bool` default
       `false`). Verify: `cargo build` and a quick round-trip that an absent
       option parses to the default (mapping, R7).
-- [ ] Confirm the CST shapes with a temporary scratch test (print node kinds
+- [x] Confirm the CST shapes with a temporary scratch test (print node kinds
       and children of a `resource_specification`, of a class/interface
       `interfaces`/`extends_interfaces` clause and of a `throws` clause),
       record the node/field names in the implementation comments, delete the
       scratch test (AC2 groundwork; `switch-formatting` precedent).
-- [ ] Implement the `throws` clause layout in `method_decl` and
+- [x] Implement the `throws` clause layout in `method_decl` and
       `constructor_decl` via the shared `clause_list` helper honouring
       `throws_list_wrap` and `throws_keyword_wrap`; `DoNotWrap`/absent output
       must be byte-identical to today (AC2 throws, AC3).
-- [ ] Implement the `extends`/`implements` clause layout in `class_decl`,
+- [x] Implement the `extends`/`implements` clause layout in `class_decl`,
       `iface_decl`, `enum_decl` and `record_decl` via the same helper
       honouring `extends_list_wrap` and `extends_keyword_wrap` (AC2
       extends/implements, AC3).
-- [ ] Implement the try-with-resources resource-list layout in `try_stmt`
+- [x] Implement the try-with-resources resource-list layout in `try_stmt`
       (verbatim echo under `DoNotWrap`; canonical flat or wrapped paren list
       per `resource_list_wrap` + the two paren bools), falling back to the
       verbatim echo for unmodelled spec shapes (AC2 resource, AC3, R4/R5).
-- [ ] Implement `prefer_parameters_wrap` in `method_inv` (argument-list wrap
+- [x] Implement `prefer_parameters_wrap` in `method_inv` (argument-list wrap
       attempted before the chain wrap when set and params can wrap); default
       order and output unchanged (AC2, AC3).
-- [ ] Add fixtures and golden-pair test files for each of the eight options
+- [x] Add fixtures and golden-pair test files for each of the eight options
       (AGENTS layout, wired alphabetically in `tests/options.rs`): wrap-code
       tests at `0`/`1`/`2`/`5` for the three `*_WRAP` options plus a
       default/absent golden (e.g. a long resource spec preserved verbatim by
@@ -165,18 +166,18 @@ wrapping-declaration-clauses)`.
       `false` diverge; and one stable self-golden per wrapped family
       (extends/throws/resources) whose input already matches the wrapped
       output — reformatting it is a no-op (AC1, AC5).
-- [ ] Run `cargo test` (whole workspace); every pre-existing golden must stay
+- [x] Run `cargo test` (whole workspace); every pre-existing golden must stay
       green unchanged (AC3) and the new fixtures must pass; regenerate any
       golden only after eyeballing it for correctness (AC2).
-- [ ] If an IntelliJ installation is available, format the wrapped fixtures
+- [x] If an IntelliJ installation is available, format the wrapped fixtures
       there and align the goldens (paren/keyword placement, continuation
       indent); record the outcome in the changelog entry (fidelity check,
       `binary-expression-wrapping` precedent).
-- [ ] Docs pass + final suite: update `docs/settings/common.md` (eight rows
+- [x] Docs pass + final suite: update `docs/settings/common.md` (eight rows
       ❌ → ✅; keyword rows to `bool`/`false`), `README.md` (honoured-options
       rows; replace the "throws / extends / implements clauses are preserved"
       limitation with a clause-wrapping behaviour note),
-      `docs/requirements.md` (add requirement R16 and extend the milestone
-      delivered list), then run `cargo test` once more and append the
-      `(R16, wrapping-declaration-clauses)` entry to `docs/dev/changelog.md`
-      (AC4, whole suite green).
+      `docs/requirements.md` (add the next free requirement row — R26 — and
+      extend the milestone delivered list), then run `cargo test` once more
+      and append the `(R26, wrapping-declaration-clauses)` entry to
+      `docs/dev/changelog.md` (AC4, whole suite green).

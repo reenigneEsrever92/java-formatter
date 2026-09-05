@@ -67,6 +67,10 @@ mod continuation_indent_size;
 mod dowhile_brace_force;
 #[path = "options/else_on_new_line.rs"]
 mod else_on_new_line;
+#[path = "options/extends_keyword_wrap.rs"]
+mod extends_keyword_wrap;
+#[path = "options/extends_list_wrap.rs"]
+mod extends_list_wrap;
 #[path = "options/finally_on_new_line.rs"]
 mod finally_on_new_line;
 #[path = "options/for_brace_force.rs"]
@@ -121,8 +125,16 @@ mod method_parameters_rparen_on_next_line;
 mod method_parameters_wrap;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
+#[path = "options/prefer_parameters_wrap.rs"]
+mod prefer_parameters_wrap;
 #[path = "options/record_components_wrap.rs"]
 mod record_components_wrap;
+#[path = "options/resource_list_lparen_on_next_line.rs"]
+mod resource_list_lparen_on_next_line;
+#[path = "options/resource_list_rparen_on_next_line.rs"]
+mod resource_list_rparen_on_next_line;
+#[path = "options/resource_list_wrap.rs"]
+mod resource_list_wrap;
 #[path = "options/right_margin.rs"]
 mod right_margin;
 #[path = "options/soft_margins.rs"]
@@ -271,6 +283,10 @@ mod special_else_if_treatment;
 mod switch_expressions_wrap;
 #[path = "options/tab_size.rs"]
 mod tab_size;
+#[path = "options/throws_keyword_wrap.rs"]
+mod throws_keyword_wrap;
+#[path = "options/throws_list_wrap.rs"]
+mod throws_list_wrap;
 #[path = "options/use_tab_character.rs"]
 mod use_tab_character;
 #[path = "options/while_brace_force.rs"]

@@ -7,6 +7,52 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-05
+
+- **Resource, extends / implements and throws lists wrap per their `*_WRAP`
+  options (R26, wrapping-declaration-clauses)**: the eight clause-layout
+  options — `RESOURCE_LIST_WRAP` (default do not wrap),
+  `RESOURCE_LIST_LPAREN_ON_NEXT_LINE` / `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`
+  (default false), `EXTENDS_LIST_WRAP` (default do not wrap),
+  `EXTENDS_KEYWORD_WRAP` (default false, a boolean in real schemes),
+  `THROWS_LIST_WRAP` (default do not wrap), `THROWS_KEYWORD_WRAP` (default
+  false, likewise boolean) and `PREFER_PARAMETERS_WRAP` (default false) —
+  previously ignored (R7) and marked ❌ in the docs/settings/common.md
+  "Wrapping & braces" tables (whose keyword rows claimed `int`/`0`), are now
+  parsed into `JavaStyle` (three `WrapStyle` fields and five `bool` fields
+  with the IntelliJ built-in defaults, plus eight contiguous `OptionDef`
+  entries in the `OPTIONS` registry after `BINARY_OPERATION_WRAP` under the
+  JAVA `codeStyleSettings` block, GUI group "Wrapping") and applied in the
+  engine: a shared `Fmt::clause_list` helper lays out `throws` lists
+  (`method_decl`, `constructor_decl`) and the `extends` / `implements` lists
+  of class / interface / enum / record headers (`Fmt::append_type_clause`
+  over the clause `type_list`), breaking one element per continuation line
+  at `cont(indent)` when the flat clause overflows under wrap-if-long /
+  chop-down (`1` / `5` — identical for these atomic elements) or always
+  under wrap-always (`2`), with `*_KEYWORD_WRAP` moving the keyword to its
+  own continuation line and single-element lists never splitting;
+  `Fmt::resource_list` renders try-with-resources paren lists canonically
+  (flat `(r1; r2)` when they fit, else one resource per line at
+  `ind(indent + 1)` mirroring the call-parameter paren layout, honouring
+  the two paren-on-next-line bools), falling back to the verbatim echo for
+  spec shapes with comments or other unmodelled children (R4); and
+  `Fmt::method_inv` honours `PREFER_PARAMETERS_WRAP` by wrapping the tail
+  call's overflowing arguments before breaking its chain. Layout /
+  whitespace only (R5); absent options keep the defaults and default
+  output stays byte-identical (no existing golden changed), and every new
+  golden was re-formatted under its own style and confirmed byte-identical
+  (R6) — including explicit self-goldens for the three wrapped families
+  (extends, throws, resources). Covered by eight new per-option golden test
+  files under `tests/options/` (`extends_keyword_wrap.rs`,
+  `extends_list_wrap.rs`, `prefer_parameters_wrap.rs`,
+  `resource_list_lparen_on_next_line.rs`, `resource_list_rparen_on_next_line.rs`,
+  `resource_list_wrap.rs`, `throws_keyword_wrap.rs`, `throws_list_wrap.rs`),
+  each asserting its interesting values plus the absent-option default, with
+  fixtures under `tests/java/<option>/`; the suite grew from 362 to 391
+  tests, all green (`cargo test --workspace`). No IntelliJ installation was
+  available to cross-check the goldens; the layouts follow the request's
+  decisions and the existing call-parameter wrap conventions.
+
 ## 2026-09-04
 
 - **The switch / case indentation and wrapping options are honoured (R25,

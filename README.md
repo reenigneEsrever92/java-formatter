@@ -92,12 +92,20 @@ The options currently honoured are:
 | `CALL_PARAMETERS_WRAP`                   | Wrapping of method-call argument lists                                                                                          |
 | `CALL_PARAMETERS_LPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `(` goes on its own line                                                                               |
 | `CALL_PARAMETERS_RPAREN_ON_NEXT_LINE`    | Whether a wrapped call's `)` goes on its own line                                                                               |
+| `PREFER_PARAMETERS_WRAP`                 | Prefer wrapping the argument list of a chain's tail call over breaking the chain                                                |
 | `METHOD_PARAMETERS_WRAP`                 | Wrapping of method / constructor parameter lists                                                                                |
 | `METHOD_PARAMETERS_LPAREN_ON_NEXT_LINE`  | Whether a wrapped declaration's `(` goes on its own line                                                                        |
 | `METHOD_PARAMETERS_RPAREN_ON_NEXT_LINE`  | Whether a wrapped declaration's `)` goes on its own line                                                                        |
+| `RESOURCE_LIST_WRAP`                     | Wrapping of try-with-resources resource lists                                                                                   |
+| `RESOURCE_LIST_LPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `(` goes on its own line                                                                      |
+| `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `)` goes on its own line                                                                      |
 | `METHOD_CALL_CHAIN_WRAP`                 | Wrapping of chained method calls                                                                                                |
 | `ASSIGNMENT_WRAP`                        | Wrapping of assignment statements and variable / field initialisers                                                             |
 | `BINARY_OPERATION_WRAP`                  | Wrapping of binary expressions at their operators                                                                               |
+| `EXTENDS_LIST_WRAP`                      | Wrapping of `extends` / `implements` lists of type declarations                                                                 |
+| `EXTENDS_KEYWORD_WRAP`                   | Whether a wrapped list's `extends` / `implements` keyword goes on its own line                                                   |
+| `THROWS_LIST_WRAP`                       | Wrapping of method / constructor `throws` lists                                                                                 |
+| `THROWS_KEYWORD_WRAP`                    | Whether a wrapped `throws` list's keyword goes on its own line                                                                  |
 | `SWITCH_EXPRESSIONS_WRAP`                | Wrapping of switch expressions used as values                                                                                    |
 | `WRAP_LONG_LINES`                        | Hard-wrap lines longer than the right margin at the last whitespace boundary (literals and comments are never split)            |
 | `KEEP_LINE_BREAKS`                       | Keep a construct's existing line breaks (its canonical wrapped layout) instead of joining it onto one line                        |
@@ -254,8 +262,19 @@ braces when the body spans multiple lines, `3` = always force braces.
   `do tick(); while (go);`) that the source already has on the header's line
   stays there, and a body on its own line keeps its own line. Off, every
   brace-less body is moved to its own line.
-- Method `throws` clauses, constructor type parameters and `extends` /
-  `implements` clauses are preserved.
+- Resource lists and declaration clause lists wrap per the scheme's options:
+  `RESOURCE_LIST_WRAP` (with `RESOURCE_LIST_LPAREN_ON_NEXT_LINE` /
+  `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`) breaks an over-margin
+  try-with-resources list into one resource per line, and `EXTENDS_LIST_WRAP` /
+  `THROWS_LIST_WRAP` break over-margin `extends` / `implements` and `throws`
+  lists into one type per line at the continuation indent — with
+  `EXTENDS_KEYWORD_WRAP` / `THROWS_KEYWORD_WRAP` moving the keyword to its own
+  line. A class's single `extends Base` supertype is not a list and never
+  wraps; code `5` (chop down) lays these atomic list elements out exactly like
+  code `1`. Under the defaults (`0` = do not wrap) the clauses stay on one
+  line, preserving today's output byte-for-byte, and with `PREFER_PARAMETERS_WRAP`
+  an overflowing tail call's arguments wrap before its method-call chain
+  breaks.
 - Spacing inside generic type-argument lists is normalised rather than copied
   from the source: no space inside the angle brackets, no space before a
   comma, and no stray spaces around nested brackets (`List< String >` and

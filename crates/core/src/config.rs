@@ -258,6 +258,16 @@ pub struct JavaStyle {
     // --- binary expression wrapping ---
     pub binary_operation_wrap: WrapStyle,
 
+    // --- declaration clause wrapping (resources / extends-implements / throws) ---
+    pub resource_list_wrap: WrapStyle,
+    pub resource_list_lparen_on_next_line: bool,
+    pub resource_list_rparen_on_next_line: bool,
+    pub extends_list_wrap: WrapStyle,
+    pub extends_keyword_wrap: bool,
+    pub throws_list_wrap: WrapStyle,
+    pub throws_keyword_wrap: bool,
+    pub prefer_parameters_wrap: bool,
+
     // --- one-liners ---
     pub keep_simple_blocks_in_one_line: bool,
     pub keep_simple_methods_in_one_line: bool,
@@ -420,6 +430,14 @@ impl Default for JavaStyle {
             annotation_parameter_wrap: WrapStyle::DoNotWrap,
             assignment_wrap: WrapStyle::DoNotWrap,
             binary_operation_wrap: WrapStyle::DoNotWrap,
+            resource_list_wrap: WrapStyle::DoNotWrap,
+            resource_list_lparen_on_next_line: false,
+            resource_list_rparen_on_next_line: false,
+            extends_list_wrap: WrapStyle::DoNotWrap,
+            extends_keyword_wrap: false,
+            throws_list_wrap: WrapStyle::DoNotWrap,
+            throws_keyword_wrap: false,
+            prefer_parameters_wrap: false,
             keep_simple_blocks_in_one_line: false,
             keep_simple_methods_in_one_line: false,
             keep_simple_lambdas_in_one_line: false,
@@ -994,6 +1012,111 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.binary_operation_wrap = w;
+            }
+        },
+    },
+    // --- Declaration clause wrapping (resource / extends-implements / throws lists) ---
+    OptionDef {
+        xml_name: "RESOURCE_LIST_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of try-with-resources resource lists.",
+        get: |s| OptionValue::Wrap(s.resource_list_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.resource_list_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "RESOURCE_LIST_LPAREN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the '(' of a wrapped resource list on its own line.",
+        get: |s| OptionValue::Bool(s.resource_list_lparen_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.resource_list_lparen_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "RESOURCE_LIST_RPAREN_ON_NEXT_LINE",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the ')' of a wrapped resource list on its own line.",
+        get: |s| OptionValue::Bool(s.resource_list_rparen_on_next_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.resource_list_rparen_on_next_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "EXTENDS_LIST_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of extends / implements lists of type declarations.",
+        get: |s| OptionValue::Wrap(s.extends_list_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.extends_list_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "EXTENDS_KEYWORD_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the extends / implements keyword on its own line when the list wraps.",
+        get: |s| OptionValue::Bool(s.extends_keyword_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.extends_keyword_wrap = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "THROWS_LIST_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Wrapping",
+        description: "Wrapping of method / constructor throws lists.",
+        get: |s| OptionValue::Wrap(s.throws_list_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.throws_list_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "THROWS_KEYWORD_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Put the throws keyword on its own line when the list wraps.",
+        get: |s| OptionValue::Bool(s.throws_keyword_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.throws_keyword_wrap = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PREFER_PARAMETERS_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Wrapping",
+        description: "Prefer wrapping a call's argument list over wrapping its method-call chain.",
+        get: |s| OptionValue::Bool(s.prefer_parameters_wrap),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.prefer_parameters_wrap = b;
             }
         },
     },

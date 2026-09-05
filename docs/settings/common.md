@@ -226,22 +226,22 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 | `CALL_PARAMETERS_WRAP`                  | int  | `0`     | Wrapping of method-call argument lists.                        | ✅      |
 | `CALL_PARAMETERS_LPAREN_ON_NEXT_LINE`   | bool | `false` | Put `(` of a wrapped call on its own line.                     | ✅      |
 | `CALL_PARAMETERS_RPAREN_ON_NEXT_LINE`   | bool | `false` | Put `)` of a wrapped call on its own line.                     | ✅      |
-| `PREFER_PARAMETERS_WRAP`                | bool | `false` | Prefer wrapping the parameter list over other wrapping points. | ❌      |
+| `PREFER_PARAMETERS_WRAP`                | bool | `false` | Prefer wrapping the parameter list over other wrapping points. | ✅      |
 | `METHOD_PARAMETERS_WRAP`                | int  | `0`     | Wrapping of method / constructor parameter lists.              | ✅      |
 | `METHOD_PARAMETERS_LPAREN_ON_NEXT_LINE` | bool | `false` | Put `(` of a wrapped declaration on its own line.              | ✅      |
 | `METHOD_PARAMETERS_RPAREN_ON_NEXT_LINE` | bool | `false` | Put `)` of a wrapped declaration on its own line.              | ✅      |
-| `RESOURCE_LIST_WRAP`                    | int  | `0`     | Wrapping of try-with-resources clauses.                        | ❌      |
-| `RESOURCE_LIST_LPAREN_ON_NEXT_LINE`     | bool | `false` | `(` of a wrapped resource list on its own line.                | ❌      |
-| `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`     | bool | `false` | `)` of a wrapped resource list on its own line.                | ❌      |
+| `RESOURCE_LIST_WRAP`                    | int  | `0`     | Wrapping of try-with-resources clauses.                        | ✅      |
+| `RESOURCE_LIST_LPAREN_ON_NEXT_LINE`     | bool | `false` | `(` of a wrapped resource list on its own line.                | ✅      |
+| `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`     | bool | `false` | `)` of a wrapped resource list on its own line.                | ✅      |
 
 ### Extends / implements / throws
 
 | Option                 | Type | Default | Effect                                                   | Support |
 | ---------------------- | ---- | ------- | -------------------------------------------------------- | ------- |
-| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` lists.              | ❌      |
-| `EXTENDS_KEYWORD_WRAP` | int  | `0`     | Put the `extends` keyword on its own line when wrapping. | ❌      |
-| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                              | ❌      |
-| `THROWS_KEYWORD_WRAP`  | int  | `0`     | Put the `throws` keyword on its own line when wrapping.  | ❌      |
+| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` lists.              | ✅      |
+| `EXTENDS_KEYWORD_WRAP` | bool | `false` | Put the `extends` / `implements` keyword on its own line when wrapping. | ✅      |
+| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                              | ✅      |
+| `THROWS_KEYWORD_WRAP`  | bool | `false` | Put the `throws` keyword on its own line when wrapping.  | ✅      |
 
 ### Expressions and statements
 

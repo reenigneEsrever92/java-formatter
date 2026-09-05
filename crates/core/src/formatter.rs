@@ -1162,6 +1162,7 @@ impl<'s> Fmt<'s> {
 
     fn class_decl(&self, node: Node<'s>, indent: usize) -> String {
         let mut header = String::new();
+        let c = self.col_after(0, &self.ind(indent));
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
@@ -1188,8 +1189,7 @@ impl<'s> Fmt<'s> {
             }
         }
         if let Some(ifaces) = self.fld(node, "interfaces") {
-            header.push_str(" implements ");
-            header.push_str(&self.flat_type_list(ifaces));
+            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
         }
 
         let body = self
@@ -1202,6 +1202,7 @@ impl<'s> Fmt<'s> {
 
     fn iface_decl(&self, node: Node<'s>, indent: usize) -> String {
         let mut header = String::new();
+        let c = self.col_after(0, &self.ind(indent));
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
@@ -1224,8 +1225,7 @@ impl<'s> Fmt<'s> {
             .into_iter()
             .find(|c| c.kind() == "extends_interfaces")
         {
-            header.push_str(" extends ");
-            header.push_str(&self.flat_type_list(ext));
+            self.append_type_clause(&mut header, "extends", ext, indent, c);
         }
 
         let body = self
@@ -1238,6 +1238,7 @@ impl<'s> Fmt<'s> {
 
     fn enum_decl(&self, node: Node<'s>, indent: usize) -> String {
         let mut header = String::new();
+        let c = self.col_after(0, &self.ind(indent));
 
         if let Some(mods) = self.get_mods(node) {
             header.push_str(&self.modifiers(mods, indent));
@@ -1250,8 +1251,7 @@ impl<'s> Fmt<'s> {
         header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
         if let Some(ifaces) = self.fld(node, "interfaces") {
-            header.push_str(" implements ");
-            header.push_str(&self.flat_type_list(ifaces));
+            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
         }
 
         // Enum body: keep original text for enum constants; format methods
@@ -1360,8 +1360,7 @@ impl<'s> Fmt<'s> {
         }
 
         if let Some(ifaces) = self.fld(node, "interfaces") {
-            header.push_str(" implements ");
-            header.push_str(&self.flat_type_list(ifaces));
+            self.append_type_clause(&mut header, "implements", ifaces, indent, c);
         }
 
         let body = self
@@ -1580,13 +1579,20 @@ impl<'s> Fmt<'s> {
 
         // throws
         if let Some(throws) = self.get_throws(node) {
-            out.push_str(" throws ");
-            let excs: Vec<_> = self
+            let excs: Vec<String> = self
                 .named(throws)
                 .iter()
                 .map(|n| self.flat_type(*n))
                 .collect();
-            out.push_str(&excs.join(self.comma_sep(self.style.space_after_comma)));
+            let cur = self.col_after(c, &out);
+            out.push_str(&self.clause_list(
+                "throws",
+                &excs,
+                self.style.throws_keyword_wrap,
+                self.style.throws_list_wrap,
+                indent,
+                cur,
+            ));
         }
 
         // body or semicolon
@@ -1625,13 +1631,20 @@ impl<'s> Fmt<'s> {
         }
 
         if let Some(throws) = self.get_throws(node) {
-            out.push_str(" throws ");
-            let excs: Vec<_> = self
+            let excs: Vec<String> = self
                 .named(throws)
                 .iter()
                 .map(|n| self.flat_type(*n))
                 .collect();
-            out.push_str(&excs.join(self.comma_sep(self.style.space_after_comma)));
+            let cur = self.col_after(c, &out);
+            out.push_str(&self.clause_list(
+                "throws",
+                &excs,
+                self.style.throws_keyword_wrap,
+                self.style.throws_list_wrap,
+                indent,
+                cur,
+            ));
         }
 
         if let Some(body) = self.fld(node, "body") {
@@ -2981,12 +2994,19 @@ impl<'s> Fmt<'s> {
             // The resource_specification node already includes its parens.
             self.fld(node, "resources")
                 .map(|n| {
-                    let t = self.txt(n).trim();
-                    format!(
-                        "{}{}",
-                        self.sp(self.style.space_before_try_parentheses),
-                        pad_outer_parens(t, self.style.space_within_try_parentheses)
-                    )
+                    if self.style.resource_list_wrap != WrapStyle::DoNotWrap {
+                        // Canonical resource-list layout (flat when it fits,
+                        // one resource per line otherwise). Unmodelled spec
+                        // shapes fall back to the verbatim echo below (R4).
+                        self.resource_list(n, indent, c)
+                    } else {
+                        let t = self.txt(n).trim();
+                        format!(
+                            "{}{}",
+                            self.sp(self.style.space_before_try_parentheses),
+                            pad_outer_parens(t, self.style.space_within_try_parentheses)
+                        )
+                    }
                 })
                 .unwrap_or_default()
         } else {
@@ -3057,6 +3077,131 @@ impl<'s> Fmt<'s> {
         }
 
         out
+    }
+
+    // ── try-with-resources resource-list layout (RESOURCE_LIST_WRAP) ────────
+
+    /// Render the resource-list tail of a `try` statement (the gap before the
+    /// parens plus the `(…)` list) canonically. CST shape (tree-sitter-java
+    /// 0.23): the `resource_specification` field node includes its own
+    /// parens — children are `(`, then alternating `resource` (named,
+    /// one resource each) and `;` (anonymous) nodes, then `)`. Specs whose
+    /// shape is not exactly that — extra children such as comments — fall
+    /// back to the verbatim echo (R4).
+    ///
+    /// When the list must wrap, one resource goes per continuation line at
+    /// `ind(indent + 1)` with `;` separators, mirroring `args_wrapped`'s four
+    /// `(lparen_on_next_line, rparen_on_next_line)` paren layouts.
+    fn resource_list(&self, spec: Node<'s>, indent: usize, c: usize) -> String {
+        let gap = self.sp(self.style.space_before_try_parentheses);
+        let pad = self.style.space_within_try_parentheses;
+        let fallback = || {
+            let t = self.txt(spec).trim();
+            format!("{}{}", gap, pad_outer_parens(t, pad))
+        };
+
+        let resources: Vec<String> = match self.recognised_resource_spec(spec) {
+            Some(res) if !res.is_empty() && !self.has_comment_subtree(spec) => {
+                res.iter().map(|n| normalise_ws(self.txt(*n))).collect()
+            }
+            _ => return fallback(),
+        };
+
+        // The column of the opening `(`: `try` starts at `c` and the gap
+        // precedes the parens.
+        let paren_col = self.col_after(c, "try") + gap.len();
+        let semi = format!(
+            "{}{}{}",
+            Self::sep(self.style.space_before_semicolon),
+            ";",
+            Self::sep(self.style.space_after_semicolon)
+        );
+        let flat = Self::within('(', ')', pad, &resources.join(&semi));
+
+        let should_wrap = match self.style.resource_list_wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => resources.len() > 1,
+            _ => resources.len() > 1 && !self.fits(paren_col, &flat),
+        };
+        if !should_wrap {
+            return format!("{}{}", gap, flat);
+        }
+
+        let inner = indent + 1;
+        let ind = self.ind(inner);
+        let before = Self::sep(self.style.space_before_semicolon);
+        let lines: Vec<String> = resources
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let mut line = format!("{}{}", ind, r);
+                if i + 1 < resources.len() {
+                    line.push_str(before);
+                    line.push(';');
+                }
+                line
+            })
+            .collect();
+
+        let (lp, rp) = (
+            self.style.resource_list_lparen_on_next_line,
+            self.style.resource_list_rparen_on_next_line,
+        );
+        let wrapped = match (lp, rp) {
+            (true, true) => Self::within(
+                '(',
+                ')',
+                pad,
+                &format!("\n{}\n{}", lines.join("\n"), self.ind(indent)),
+            ),
+            (true, false) => Self::within('(', ')', pad, &format!("\n{}", lines.join("\n"))),
+            (false, true) => Self::within(
+                '(',
+                ')',
+                pad,
+                &format!("{}\n{}", lines.join("\n"), self.ind(indent)),
+            ),
+            (false, false) => Self::within('(', ')', pad, &format!("\n{}", lines.join("\n"))),
+        };
+        format!("{}{}", gap, wrapped)
+    }
+
+    /// Extract the resource nodes of a `resource_specification` when its
+    /// children match the canonical `( resource ; resource … )` shape; `None`
+    /// for any other shape (comments, stray tokens) so callers can fall back
+    /// to the verbatim echo (R4).
+    fn recognised_resource_spec(&self, spec: Node<'s>) -> Option<Vec<Node<'s>>> {
+        let ch = self.all_ch(spec);
+        if ch.len() < 3 || self.txt(ch[0]) != "(" || self.txt(ch[ch.len() - 1]) != ")" {
+            return None;
+        }
+        let mut out = Vec::new();
+        for n in &ch[1..ch.len() - 1] {
+            if n.is_named() {
+                if n.kind() != "resource" {
+                    return None;
+                }
+                out.push(*n);
+            } else if self.txt(*n) != ";" {
+                return None;
+            }
+        }
+        Some(out)
+    }
+
+    /// True when `node`'s subtree contains a comment (line or block). Used to
+    /// keep comments out of the canonical resource-list renderer (R4).
+    fn has_comment_subtree(&self, node: Node<'s>) -> bool {
+        let mut cur = node.walk();
+        for ch in node.children(&mut cur) {
+            if matches!(ch.kind(), "line_comment" | "block_comment") {
+                return true;
+            }
+            if self.has_comment_subtree(ch) {
+                return true;
+            }
+        }
+        false
     }
 
     fn sync_stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -3543,6 +3688,17 @@ impl<'s> Fmt<'s> {
         if keep || self.style.method_call_chain_wrap != WrapStyle::DoNotWrap {
             let (base, links) = self.collect_chain(node);
             if links.len() >= 2 {
+                // PREFER_PARAMETERS_WRAP: when the option is on and the tail
+                // call's argument list would itself wrap (either it overflows
+                // or its source lines are kept), wrap the arguments instead of
+                // breaking the surrounding chain. Applied even when `keep` is
+                // set so reformatting wrapped-argument output is a no-op.
+                if self.style.prefer_parameters_wrap
+                    && self.style.call_parameters_wrap != WrapStyle::DoNotWrap
+                    && (self.args_keep_wrapped(node) || self.overflowing_args(node, indent, c))
+                {
+                    return self.inv_wrapped(node, indent, c);
+                }
                 return self.fmt_chain(&base, &links, indent, c);
             }
         }
@@ -3694,6 +3850,28 @@ impl<'s> Fmt<'s> {
             ),
             (false, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join(",\n"))),
         }
+    }
+
+    // True when this invocation's argument list would wrap under
+    // `args_wrapped` (the flat list overflows from the `(` column). Used by
+    // `method_inv` to honour `PREFER_PARAMETERS_WRAP`.
+    fn overflowing_args(&self, node: Node<'s>, indent: usize, c: usize) -> bool {
+        let Some(a) = self.fld(node, "arguments") else {
+            return false;
+        };
+        let obj = self
+            .fld(node, "object")
+            .map(|n| format!("{}{}", self.expr(n, indent, c), "."))
+            .unwrap_or_default();
+        let ta = self
+            .fld(node, "type_arguments")
+            .map(|n| self.flat_type_args(n))
+            .unwrap_or_default();
+        let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+        let gap = self.sp(self.style.space_before_method_call_parentheses);
+        let prefix = format!("{}{}{}{}", obj, ta, name, gap);
+        let args_col = self.col_after(c, &prefix);
+        !self.fits(args_col, &self.flat_args(a))
     }
 
     // Collect a method-invocation chain bottom-up.
@@ -4360,6 +4538,121 @@ impl<'s> Fmt<'s> {
             .unwrap_or(t)
             .trim()
             .to_string()
+    }
+
+    // ── declaration clause lists (extends / implements / throws) ─────────────
+
+    /// Append the ` extends A, B` / ` implements A, B` tail of a type-declaration
+    /// header to `header`. The clause column is `col_after(c, header)` — the
+    /// cursor sits on the header's current physical line (annotations or
+    /// wrapped record components may already contain newlines). Clauses whose
+    /// `type_list` is present and non-empty wrap per `EXTENDS_LIST_WRAP` /
+    /// `EXTENDS_KEYWORD_WRAP`; anything else keeps today's verbatim
+    /// `flat_type_list` echo (R4).
+    fn append_type_clause(
+        &self,
+        header: &mut String,
+        keyword: &str,
+        clause: Node<'s>,
+        indent: usize,
+        c: usize,
+    ) {
+        match self.type_list_items(clause) {
+            Some(items) => {
+                let cur = self.col_after(c, header);
+                header.push_str(&self.clause_list(
+                    keyword,
+                    &items,
+                    self.style.extends_keyword_wrap,
+                    self.style.extends_list_wrap,
+                    indent,
+                    cur,
+                ));
+            }
+            None => {
+                header.push(' ');
+                header.push_str(keyword);
+                header.push(' ');
+                header.push_str(&self.flat_type_list(clause));
+            }
+        }
+    }
+
+    /// The flattened elements of a clause's `type_list` (`extends_interfaces`
+    /// / `super_interfaces` — both have an anonymous `extends` / `implements`
+    /// keyword child followed by a named `type_list`), or `None` when the
+    /// clause carries no usable `type_list`.
+    fn type_list_items(&self, clause: Node<'s>) -> Option<Vec<String>> {
+        let tl = self
+            .named(clause)
+            .into_iter()
+            .find(|n| n.kind() == "type_list")?;
+        let items: Vec<String> = self.named(tl).iter().map(|n| self.flat_type(*n)).collect();
+        if items.is_empty() {
+            None
+        } else {
+            Some(items)
+        }
+    }
+
+    /// Render a declaration clause tail — the text appended where the clause
+    /// begins at column `cur_col` — for the shared `throws` / `extends` /
+    /// `implements` layout. `DoNotWrap` (and single-element lists) produce the
+    /// flat ` keyword A, B` clause byte-identical to today's output. When the
+    /// list wraps, the keyword stays on the header line (`) throws A,`) unless
+    /// `keyword_wrap` moves it to a continuation line at `self.cont(indent)`;
+    /// every further element goes on its own `\n<cont>` line. `WrapIfLong` and
+    /// `ChopDownIfLong` share the layout: these atomic list elements cannot be
+    /// split further.
+    fn clause_list(
+        &self,
+        keyword: &str,
+        items: &[String],
+        keyword_wrap: bool,
+        wrap: WrapStyle,
+        indent: usize,
+        cur_col: usize,
+    ) -> String {
+        let flat = format!(
+            " {} {}",
+            keyword,
+            items.join(self.comma_sep(self.style.space_after_comma))
+        );
+        let should_wrap = match wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => items.len() > 1,
+            _ => items.len() > 1 && !self.fits(cur_col, &flat),
+        };
+        if !should_wrap {
+            return flat;
+        }
+
+        let cont = self.cont(indent);
+        let comma = if self.style.space_before_comma {
+            " ,"
+        } else {
+            ","
+        };
+        let mut lines: Vec<String> = Vec::with_capacity(items.len());
+        for (i, it) in items.iter().enumerate() {
+            let mut line = it.clone();
+            if i + 1 < items.len() {
+                line.push_str(comma);
+            }
+            lines.push(line);
+        }
+
+        let mut s = if keyword_wrap {
+            format!("\n{}{} {}", cont, keyword, lines[0])
+        } else {
+            format!(" {} {}", keyword, lines[0])
+        };
+        for l in lines.iter().skip(1) {
+            s.push('\n');
+            s.push_str(&cont);
+            s.push_str(l);
+        }
+        s
     }
 
     // ── flat (one-line) versions ──────────────────────────────────────────────
