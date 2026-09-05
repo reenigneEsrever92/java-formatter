@@ -180,6 +180,9 @@ The options currently honoured are:
 | `ALIGN_CONSECUTIVE_ASSIGNMENTS`          | Align the operators of consecutive assignment statements in a column                                                              |
 | `ALIGN_SUBSEQUENT_SIMPLE_METHODS`        | Align the names of output-adjacent one-line methods in columns                                                                    |
 | `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`    | Collapse single-type imports of one package into `pkg.*` above this count                                                       |
+| `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`    | Collapse one owner's static member imports into `import static pkg.Owner.*;` above this count                                      |
+| `PACKAGES_TO_USE_IMPORT_ON_DEMAND`        | Packages whose single-type imports always collapse into `pkg.*` (any count)                                                   |
+| `USE_SINGLE_CLASS_IMPORTS`                | Keep single-class imports (off: prefer `pkg.*` on-demand imports for every package)                                              |
 | `IMPORT_LAYOUT_TABLE`                     | Ordering and grouping of the import section (see the java.md import-table format)                                              |
 | `LAYOUT_STATIC_IMPORTS_SEPARATELY`        | Keep static imports in their own section (off: inline with the ordinary sections)                                             |
 | `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` | Put the file's own-package on-demand (`pkg.*`) import before its group's other imports                                 |
@@ -311,8 +314,15 @@ braces when the body spans multiple lines, `3` = always force braces.
   lines inside a group.
 - Import-on-demand merging is conservative: it is skipped when the file already
   uses a wildcard import, when a simple name would become ambiguous (imported
-  from another package), when a top-level type of the same name is declared in
-  the file, and it never merges static imports.
+  from another package, or from another static-import owner), or when a
+  top-level type of the same name is declared in the file. Within those guards,
+  a package's single-type imports merge into `pkg.*` above
+  `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`, when the package is listed in
+  `PACKAGES_TO_USE_IMPORT_ON_DEMAND` (even a single import), or whenever
+  `USE_SINGLE_CLASS_IMPORTS` is off; and one owner's static member imports
+  merge into `import static pkg.Owner.*;` above
+  `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`. Each merged group is emitted as one
+  wildcard line at its first import's position.
 - Conditions (`if`, `while`, `do`, `synchronized`) are rendered with exactly the
   parentheses that belong to them; no extra parentheses are added.
 - With `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`, a one-statement `try` body collapses to
@@ -646,7 +656,8 @@ cargo run -p java-formatter-gui
 It renders every option the formatter supports, grouped logically, with the
 correct control per type (bool → checkbox, `u32` → drag value, wrap/brace/force
 → labeled combo of the IntelliJ meaning; the import-layout table is shown as a
-read-only entry count, as a full table editor is out of scope):
+read-only entry count, as a full table editor is out of scope, and the
+always-on-demand package list as a multi-line text box, one package per line):
 
 - **New** resets the style to the IntelliJ built-in defaults.
 - **Open…** opens a native file chooser (or drop a `codestyle.xml` anywhere in

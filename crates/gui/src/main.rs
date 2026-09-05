@@ -213,6 +213,24 @@ impl CodestyleApp {
                     let n = entries.len();
                     ui.label(egui::RichText::new(format!("{n} entries (read-only)")).weak());
                 }
+                OptionValue::Packages(packages) => {
+                    // One package per line; the joined/edited text is written
+                    // back into the list so `set` below persists edits.
+                    let mut text = packages.join("\n");
+                    let response = ui.add(
+                        egui::TextEdit::multiline(&mut text)
+                            .desired_rows(2)
+                            .desired_width(200.0),
+                    );
+                    if response.changed() {
+                        *packages = text
+                            .lines()
+                            .map(str::trim)
+                            .filter(|l| !l.is_empty())
+                            .map(str::to_string)
+                            .collect();
+                    }
+                }
             }
             (def.set)(&mut self.style, value);
             let response = ui.label(egui::RichText::new(def.xml_name).monospace());

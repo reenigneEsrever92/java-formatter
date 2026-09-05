@@ -1559,16 +1559,25 @@ impl<'s> Fmt<'s> {
         }
     }
 
-    /// Collapses single-type imports from the same package into one on-demand
-    /// import (`import pkg.*;`) when more than
-    /// [`class_count_to_use_import_on_demand`](JavaStyle::class_count_to_use_import_on_demand)
-    /// imports of that package are present.
+    /// Collapses single-type imports of one package into one on-demand import
+    /// (`import pkg.*;`) and static member imports of one owner into
+    /// `import static pkg.Owner.*;` when the merge rules apply.
+    ///
+    /// A non-static package group collapses when the group size exceeds
+    /// [`class_count_to_use_import_on_demand`](JavaStyle::class_count_to_use_import_on_demand),
+    /// or when the package is listed in
+    /// [`packages_to_use_import_on_demand`](JavaStyle::packages_to_use_import_on_demand)
+    /// (any count, including a single import), or when
+    /// [`use_single_class_imports`](JavaStyle::use_single_class_imports) is off
+    /// (any non-empty group). A static member group collapses when its size
+    /// exceeds [`names_count_to_use_import_on_demand`](JavaStyle::names_count_to_use_import_on_demand).
     ///
     /// Merging is deliberately conservative: it is skipped when the file
     /// already uses a wildcard import, when a simple name would become
-    /// ambiguous (imported from another package) or when it collides with a
-    /// top-level type declared in the same file. Static imports are never
-    /// merged.
+    /// ambiguous (the same name imported from another package / owner) or when
+    /// it collides with a top-level type declared in the same file. Each
+    /// collapsed group is emitted as one wildcard line at its first import's
+    /// position.
     /// Returns each emitted line paired with the index of the import node it
     /// came from (a collapsed wildcard keeps its first import's index) so the
     /// layout pass can recover the source blank gaps.
@@ -1624,49 +1633,98 @@ impl<'s> Fmt<'s> {
                 .collect();
         }
 
-        // simple name -> set of packages that import it (non-static only).
+        // simple name -> set of packages / owners that import it. For a static
+        // member import `pkg.Owner.m`, `pkg` holds the owner (`pkg.Owner`);
+        // each import kind is tracked separately (member and type names live
+        // in different namespaces, so a name clash only matters within one
+        // kind).
         let mut name_pkgs: HashMap<&str, HashSet<&str>> = HashMap::new();
         let mut groups: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut name_owners: HashMap<&str, HashSet<&str>> = HashMap::new();
+        let mut static_groups: HashMap<&str, Vec<usize>> = HashMap::new();
         for (i, e) in entries.iter().enumerate() {
-            if e.is_static || e.is_wildcard || e.pkg.is_empty() {
+            if e.is_wildcard || e.pkg.is_empty() {
                 continue;
             }
-            name_pkgs
-                .entry(e.simple.as_str())
-                .or_default()
-                .insert(e.pkg.as_str());
-            groups.entry(e.pkg.as_str()).or_default().push(i);
+            if e.is_static {
+                name_owners
+                    .entry(e.simple.as_str())
+                    .or_default()
+                    .insert(e.pkg.as_str());
+                static_groups.entry(e.pkg.as_str()).or_default().push(i);
+            } else {
+                name_pkgs
+                    .entry(e.simple.as_str())
+                    .or_default()
+                    .insert(e.pkg.as_str());
+                groups.entry(e.pkg.as_str()).or_default().push(i);
+            }
         }
 
-        let threshold = self.style.class_count_to_use_import_on_demand as usize;
+        let class_count = self.style.class_count_to_use_import_on_demand as usize;
+        let names_count = self.style.names_count_to_use_import_on_demand as usize;
         let local: HashSet<&str> = local_types.iter().map(|s| s.as_str()).collect();
+
+        // A group collapses only when every member's simple name is imported
+        // from exactly this package / owner (dropping a single import could
+        // otherwise hand name precedence to a remaining same-name single
+        // import from elsewhere) and does not collide with a local top-level
+        // type.
+        let safe = |e: &Entry, names: &HashMap<&str, HashSet<&str>>| {
+            !local.contains(e.simple.as_str())
+                && names
+                    .get(e.simple.as_str())
+                    .is_some_and(|owners| owners.len() == 1 && owners.contains(e.pkg.as_str()))
+        };
 
         // Decide which packages are replaced by a single on-demand import.
         let mut collapse: HashSet<&str> = HashSet::new();
         for (&pkg, idxs) in &groups {
-            if idxs.len() <= threshold {
+            let listed = self
+                .style
+                .packages_to_use_import_on_demand
+                .iter()
+                .any(|p| p == pkg);
+            if !(idxs.len() > class_count || listed || !self.style.use_single_class_imports) {
                 continue;
             }
-            let safe = idxs.iter().all(|&i| {
-                let e = &entries[i];
-                !local.contains(e.simple.as_str())
-                    && name_pkgs
-                        .get(e.simple.as_str())
-                        .map_or(false, |pkgs| pkgs.len() == 1 && pkgs.contains(pkg))
-            });
-            if safe {
+            if idxs.iter().all(|&i| safe(&entries[i], &name_pkgs)) {
                 collapse.insert(pkg);
+            }
+        }
+
+        // Static member groups collapse per owner above the names count.
+        let mut static_collapse: HashSet<&str> = HashSet::new();
+        for (&owner, idxs) in &static_groups {
+            if idxs.len() <= names_count {
+                continue;
+            }
+            if idxs.iter().all(|&i| safe(&entries[i], &name_owners)) {
+                static_collapse.insert(owner);
             }
         }
 
         let mut out: Vec<(usize, String)> = Vec::with_capacity(nodes.len());
         for (i, n) in nodes.iter().enumerate() {
             let e = &entries[i];
-            let replaced = !e.is_static && !e.is_wildcard && collapse.contains(e.pkg.as_str());
+            let replaced = if e.is_static {
+                static_collapse.contains(e.pkg.as_str())
+            } else {
+                collapse.contains(e.pkg.as_str())
+            };
             if replaced {
                 // Emit the on-demand import once, at the first import's position.
-                if groups[&e.pkg.as_str()][0] == i {
-                    out.push((i, format!("import {}.*;", e.pkg)));
+                let first = if e.is_static {
+                    static_groups[&e.pkg.as_str()][0]
+                } else {
+                    groups[&e.pkg.as_str()][0]
+                };
+                if first == i {
+                    if e.is_static {
+                        out.push((i, format!("import static {}.*;", e.pkg)));
+                    } else {
+                        out.push((i, format!("import {}.*;", e.pkg)));
+                    }
                 }
             } else {
                 out.push((i, self.txt(*n).trim().to_string()));

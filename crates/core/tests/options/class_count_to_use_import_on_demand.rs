@@ -28,11 +28,6 @@ const LOCAL_CONFLICT: &str =
     include_str!("../java/class_count_to_use_import_on_demand/local_conflict.java");
 const LOCAL_CONFLICT_OUT: &str =
     include_str!("../java/class_count_to_use_import_on_demand/local_conflict.out.java");
-const STATIC_NEVER_MERGED: &str =
-    include_str!("../java/class_count_to_use_import_on_demand/static_never_merged.java");
-const STATIC_NEVER_MERGED_OUT: &str = include_str!(
-    "../java/class_count_to_use_import_on_demand/static_never_merged.out.java"
-);
 const MERGED_POSITION: &str =
     include_str!("../java/class_count_to_use_import_on_demand/merged_position.java");
 const MERGED_POSITION_OUT: &str =
@@ -80,11 +75,6 @@ fn local_type_with_same_name_disables_merging() {
     assert_eq!(format_with(LOCAL_CONFLICT, &style), LOCAL_CONFLICT_OUT);
 }
 
-#[test]
-fn static_imports_are_never_merged() {
-    let style = style(|s| s.class_count_to_use_import_on_demand = 1);
-    assert_eq!(format_with(STATIC_NEVER_MERGED, &style), STATIC_NEVER_MERGED_OUT);
-}
 
 #[test]
 fn merged_wildcard_keeps_position_and_java_grouping() {

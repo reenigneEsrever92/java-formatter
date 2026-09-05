@@ -63,17 +63,20 @@ These are applied when IntelliJ _generates_ code, not when it reformats.
 
 Formatting-relevant import options. The import-layout family — the table plus
 its ordering, blank-line, static and module sub-options — is applied by the
-formatter; `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND` merges single-type imports
-into `pkg.*`. The rows marked n/a are auto-import or code-generation settings,
-not formatter concerns.
+formatter; `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`,
+`NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`, `PACKAGES_TO_USE_IMPORT_ON_DEMAND` and
+`USE_SINGLE_CLASS_IMPORTS` together drive the merging of single imports into
+on-demand (`pkg.*`) imports (see the Import-table format below). The rows
+marked n/a are auto-import or code-generation settings, not formatter
+concerns.
 
 | Option                                            | Type  | Default                           | Values                                   | Effect                                                                                | Support |
 | ------------------------------------------------- | ----- | --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------- | ------- |
-| `USE_SINGLE_CLASS_IMPORTS`                        | bool  | `true`                            | `true` / `false`                         | Use single-class imports instead of on-demand (`*`) imports where possible.           | ❌      |
+| `USE_SINGLE_CLASS_IMPORTS`                        | bool  | `true`                            | `true` / `false`                         | Use single-class imports instead of on-demand (`*`) imports where possible.           | ✅      |
 | `INSERT_INNER_CLASS_IMPORTS`                      | bool  | `false`                           | `true` / `false`                         | Add imports for inner classes.                                                        | n/a     |
 | `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`             | int   | `5`                               | `0`–`n`                                  | Merge a package's single-type imports into `pkg.*` when the count reaches this value. | ✅      |
-| `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`             | int   | `3`                               | `0`–`n`                                  | Merge static members' imports into `pkg.*` at this count.                             | ❌      |
-| `PACKAGES_TO_USE_IMPORT_ON_DEMAND`                | table | `java.awt`, `javax.swing`         | [import-table XML](#import-table-format) | Packages whose imports are always merged into `pkg.*`.                                | ❌      |
+| `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`             | int   | `3`                               | `0`–`n`                                  | Merge static members' imports into `pkg.*` at this count.                             | ✅      |
+| `PACKAGES_TO_USE_IMPORT_ON_DEMAND`                | table | `java.awt`, `javax.swing`         | [import-table XML](#import-table-format) | Packages whose imports are always merged into `pkg.*`.                                | ✅      |
 | `IMPORT_LAYOUT_TABLE`                             | table | [default layout](#default-layout) | [import-table XML](#import-table-format) | Ordering and grouping of import sections.                                             | ✅      |
 | `LAYOUT_STATIC_IMPORTS_SEPARATELY`                | bool  | `true`                            | `true` / `false`                         | Keep static imports in their own section.                                             | ✅      |
 | `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST` | bool  | `true`                            | `true` / `false`                         | Sort same-package on-demand imports first.                                            | ✅      |
@@ -85,8 +88,25 @@ not formatter concerns.
 
 ### Import-table format
 
-`PACKAGES_TO_USE_IMPORT_ON_DEMAND` and `IMPORT_LAYOUT_TABLE` serialize as an
-`<option>` whose `<value>` child holds the entries:
+The two table-typed options serialize as an `<option>` whose `<value>` child
+holds the entries.
+
+`PACKAGES_TO_USE_IMPORT_ON_DEMAND` holds a `<list>` of `<option
+value="pkg.*"/>` entries — the package prefixes carry the `.*` suffix in the
+XML and are stripped of it on parse:
+
+```xml
+<option name="PACKAGES_TO_USE_IMPORT_ON_DEMAND">
+  <value>
+    <list>
+      <option value="java.awt.*" />
+      <option value="javax.swing.*" />
+    </list>
+  </value>
+</option>
+```
+
+`IMPORT_LAYOUT_TABLE` holds the ordered layout entries:
 
 ```xml
 <option name="IMPORT_LAYOUT_TABLE">

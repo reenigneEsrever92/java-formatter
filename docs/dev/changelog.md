@@ -9,6 +9,56 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **The remaining import-on-demand options are honoured (R35,
+  import-on-demand-extensions)**: the three options previously ignored (R7) and
+  marked ❌ in the docs/settings/java.md Imports table — `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`
+  (default `3`), `PACKAGES_TO_USE_IMPORT_ON_DEMAND` (default `java.awt`,
+  `javax.swing`) and `USE_SINGLE_CLASS_IMPORTS` (default `true`) — are now
+  parsed into `JavaStyle` (three fields in the imports block with the built-in
+  defaults, plus three `OptionDef` entries in the `OPTIONS` registry,
+  `Section::JavaCodeStyle`, group "Imports"). `OptionValue` grows a
+  list-typed `Packages(Vec<String>)` variant holding bare package prefixes,
+  sharing the empty-`Vec::new()` type-tag `default` convention of the
+  import-layout table: `XmlOption` now also captures a nested `<value>` child
+  (a small `XmlValue`/`XmlList`/`XmlListOption` serde mirror) so the real
+  IntelliJ shape `<value><list><option value="pkg.*"/>…</list></value>`
+  parses (previously the whole scheme failed with `missing field @value`, R7),
+  `OptionMap` decodes it via `get_packages` (stripping the `.*` suffix; an
+  explicitly empty list is honoured), and the serializer writes the nested
+  fragment only when the list differs from the default, indenting every line
+  per section. `merge_on_demand_imports` is reworked into one rule set over
+  the existing conservative guards (wildcard present, same-name ambiguity,
+  local top-level type): non-static single-type imports collapse into `pkg.*`
+  when the group size exceeds `class_count_to_use_import_on_demand` (as
+  before), when the package is in `packages_to_use_import_on_demand` (any
+  count, including a single import), or when `use_single_class_imports` is
+  off (any non-empty group); and — replacing the obsolete "static imports are
+  never merged" behaviour — a static owner's member imports collapse into
+  `import static pkg.Owner.*;` when the group size exceeds
+  `names_count_to_use_import_on_demand`. Each collapsed group emits one
+  wildcard line at its first import's position. The GUI's `option_row` gains
+  a `Packages` arm (multi-line text box, one package per line) so the crate
+  compiles. Covered by three new per-option golden test files under
+  `tests/options/` (`names_count_to_use_import_on_demand.rs`,
+  `packages_to_use_import_on_demand.rs`, `use_single_class_imports.rs`,
+  wired alphabetically in `tests/options.rs`), fixtures under
+  `tests/java/<option>/` — each with the option-state goldens (collapse above
+  the count / threshold respected / guards, listed-package and default-list
+  merges below the class count incl. a single import, off-preference below
+  the class count incl. count one, absent-option defaults) and a self-golden
+  idempotency fixture; the class-count file's stale
+  `static_imports_are_never_merged` case folded into the names-count file as
+  the default below-threshold case, and the sibling layout fixtures'
+  lone `javax.swing.JButton` inputs re-based to the merged `javax.swing.*`
+  (the built-in package list now folds them — the only pre-existing golden
+  change beyond the fold). The suite grew from 675 to 696 tests, all green
+  (`cargo test --workspace`). parse(serialize(style)) == style was verified
+  by hand for a non-default package list (nested `<list>` survives; an empty
+  list round-trips) and for a scheme mixing the nested package list with the
+  layout table's `<package>`/`<emptyLine>` `<value>`; no IntelliJ
+  installation was available to cross-check the goldens; the pinned semantics
+  follow the docs/settings table.
+
 - **Import ordering and grouping are honoured (R34, import-ordering-and-layout)**:
   the six import-layout options previously ignored (R7) and marked ❌ in the
   docs/settings/java.md Imports table are now parsed into `JavaStyle` and

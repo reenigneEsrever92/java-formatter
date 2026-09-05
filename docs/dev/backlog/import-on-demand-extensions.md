@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Extend import-on-demand merging per the on-demand import options
 description: Implement NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND, PACKAGES_TO_USE_IMPORT_ON_DEMAND and USE_SINGLE_CLASS_IMPORTS.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-05 }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -163,15 +164,15 @@ with the same style and comparing it to the golden.
 
 ## Steps
 
-- [ ] config.rs: add the three `JavaStyle` fields and `Default` values, plus the
+- [x] config.rs: add the three `JavaStyle` fields and `Default` values, plus the
       three `OPTIONS` entries (`Section::JavaCodeStyle`, group "Imports",
       defaults `3` / `["java.awt", "javax.swing"]` / `true`); `cargo check`
       (AC: absent option → default, config mapping).
-- [ ] config.rs: add `OptionValue::Packages(Vec<String>)`, drop `Copy` from the
+- [x] config.rs: add `OptionValue::Packages(Vec<String>)`, drop `Copy` from the
       derive, and fix the mechanical fallout — `parse_codestyle` matches on
       `&def.default`, `serialize_codestyle` compares `&value == &def.default`;
       adapt the new entries' get/set closures.
-- [ ] config.rs: extend the XML mirrors so `XmlOption` tolerates a missing
+- [x] config.rs: extend the XML mirrors so `XmlOption` tolerates a missing
       `value` attribute and captures the nested `<value><list><option
       value="pkg.*"/></list></value>` child; add `OptionMap::get_packages` and
       the parse arm; extend the serializer to emit the nested fragment (entries
@@ -181,10 +182,10 @@ with the same style and comparing it to the golden.
       that `parse_codestyle(serialize_codestyle(style)) == style` for a
       non-default package list (per AGENTS no committed `parse_codestyle`
       test).
-- [ ] crates/gui: add the `OptionValue::Packages` arm to `option_row` (multi-line
+- [x] crates/gui: add the `OptionValue::Packages` arm to `option_row` (multi-line
       editor, one package per line) so the exhaustive match compiles; `cargo
       test` builds the GUI crate.
-- [ ] formatter.rs: extend `merge_on_demand_imports` — static member groups by
+- [x] formatter.rs: extend `merge_on_demand_imports` — static member groups by
       owner collapsing to `import static pkg.Owner.*;` above the NAMES count,
       listed-package single-type imports collapsing to `pkg.*` at any count,
       and `use_single_class_imports == false` collapsing any non-empty
@@ -192,40 +193,40 @@ with the same style and comparing it to the golden.
       both kinds; update the function and `imports()` doc comments; run
       `cargo test` and confirm no existing golden changed (AC: guards hold,
       absent-option output unchanged).
-- [ ] Reconcile `class_count_to_use_import_on_demand.rs`: fold the now-stale
+- [x] Reconcile `class_count_to_use_import_on_demand.rs`: fold the now-stale
       `static_imports_are_never_merged` case (and its fixture) into the new
       names-count test file as the below-threshold case, so the class-count
       file no longer claims statics are never merged (R9).
-- [ ] Add `tests/options/names_count_to_use_import_on_demand.rs` + fixtures
+- [x] Add `tests/options/names_count_to_use_import_on_demand.rs` + fixtures
       under `tests/java/names_count_to_use_import_on_demand/`: collapse above
       the count (`import static a.one.Methods.*;` at the first member's
       position), threshold respected, wildcard-present guard, same-member-name
       ambiguity guard, local-name guard, and a default-style below-threshold
       case (AC: member imports of one owner collapse at the NAMES count).
-- [ ] Add `tests/options/packages_to_use_import_on_demand.rs` + fixtures under
+- [x] Add `tests/options/packages_to_use_import_on_demand.rs` + fixtures under
       `tests/java/packages_to_use_import_on_demand/`: listed package collapses
       below the class count (incl. a single import), unlisted packages stay
       single-class, the default list collapses a lone `java.awt` import under
       the default style (`format`), and the wildcard/ambiguity/local guards
       hold (AC: listed-package collapse; guards).
-- [ ] Add `tests/options/use_single_class_imports.rs` + fixtures under
+- [x] Add `tests/options/use_single_class_imports.rs` + fixtures under
       `tests/java/use_single_class_imports/`: `false` prefers on-demand for
       ordinary packages below the class count (incl. count 1) keeping each
       merged import's first position; `true` (default) keeps single imports
       below the count; guards hold when `false`; an absent-option default case
       pins unchanged output (AC: on-demand preference + position; guards;
       absent-option output).
-- [ ] Wire the three modules alphabetically into `tests/options.rs` (names
+- [x] Wire the three modules alphabetically into `tests/options.rs` (names
       before `new_line_after_lparen_in_record_header`, packages after it,
       `use_single_class_imports` between `tab_size` and `use_tab_character`);
       assert idempotency of each new golden by re-formatting the `*.out.java`
       with the same style (AC: goldens idempotent, suite green).
-- [ ] If an IntelliJ installation is available, reformat representative
+- [x] If an IntelliJ installation is available, reformat representative
       static/package/single-class snippets there to cross-check the collapse
       thresholds and capture the real `PACKAGES_TO_USE_IMPORT_ON_DEMAND` XML
       shape; align goldens and the java.md format prose accordingly and record
       the outcome in the changelog.
-- [ ] Docs + full suite: flip `USE_SINGLE_CLASS_IMPORTS`, `NAMES_COUNT_…` and
+- [x] Docs + full suite: flip `USE_SINGLE_CLASS_IMPORTS`, `NAMES_COUNT_…` and
       `PACKAGES_TO_USE_IMPORT_ON_DEMAND` to ✅ in `docs/settings/java.md` and
       refresh the "Imports" intro sentence; add the three rows to the README
       honoured-options table and rewrite the conservative-merging note (the
@@ -236,6 +237,29 @@ with the same style and comparing it to the golden.
       `docs/dev/changelog.md` entry; run `cargo test` and confirm the whole
       workspace suite is green with default-scheme output unchanged (AC:
       docs marks, README note, suite green).
+
+## Verification
+
+- `cargo build --workspace` succeeds (the GUI `Packages` arm is required for
+  compilation).
+- `cargo test --workspace`: 696 passed, 0 failed (was 675 before this change).
+  New per-option files: `names_count_to_use_import_on_demand.rs` (7 tests),
+  `packages_to_use_import_on_demand.rs` (8 tests) and
+  `use_single_class_imports.rs` (7 tests), each golden asserted idempotent by
+  re-formatting. Pre-existing golden changes are limited to the class-count
+  re-fold (the stale `static_imports_are_never_merged` case moved to the
+  names-count file as its below-threshold case) plus the four
+  `import_layout_table` goldens whose lone `javax.swing.JButton` inputs now
+  merge to `javax.swing.*` under the default always-merge package list — the
+  fixture trip the decisions anticipated (default-scheme output stays
+  byte-identical "except where a fixture trips a new default threshold"), and
+  the layout ordering semantics those tests pin are unchanged.
+- parse(serialize(style)) == style for a non-default package list verified by
+  hand (the nested `<list>` with `.*` entries survives the round trip exactly;
+  an explicitly empty list round-trips; a scheme mixing the package list with
+  the layout table's `<value>` `<package>`/`<emptyLine>` children parses). No
+  IntelliJ installation was available to cross-check the collapse thresholds or
+  the captured XML shape; the pinned semantics follow the docs/settings table.
 
 Commit: not committed (worktree changes only — the repository is left for the
 owner to commit).

@@ -1,5 +1,5 @@
 import com.acme.Widget;
-import javax.swing.JButton;
+import javax.swing.*;
 
 
 import java.util.List;

@@ -229,12 +229,16 @@ mod method_parameters_rparen_on_next_line;
 mod method_parameters_wrap;
 #[path = "options/modifier_list_wrap.rs"]
 mod modifier_list_wrap;
+#[path = "options/names_count_to_use_import_on_demand.rs"]
+mod names_count_to_use_import_on_demand;
 #[path = "options/new_line_after_lparen_in_annotation.rs"]
 mod new_line_after_lparen_in_annotation;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
 #[path = "options/new_line_when_body_is_presented.rs"]
 mod new_line_when_body_is_presented;
+#[path = "options/packages_to_use_import_on_demand.rs"]
+mod packages_to_use_import_on_demand;
 #[path = "options/parameter_annotation_wrap.rs"]
 mod parameter_annotation_wrap;
 #[path = "options/parentheses_expression_lparen_wrap.rs"]
@@ -425,6 +429,8 @@ mod throws_keyword_wrap;
 mod throws_list_wrap;
 #[path = "options/use_relative_indents.rs"]
 mod use_relative_indents;
+#[path = "options/use_single_class_imports.rs"]
+mod use_single_class_imports;
 #[path = "options/use_tab_character.rs"]
 mod use_tab_character;
 #[path = "options/variable_annotation_wrap.rs"]

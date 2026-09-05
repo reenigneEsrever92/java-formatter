@@ -390,6 +390,19 @@ pub struct JavaStyle {
 
     // --- imports (JavaCodeStyleSettings) ---
     pub class_count_to_use_import_on_demand: u32,
+    /// Static member imports of one owner collapse into
+    /// `import static pkg.Owner.*;` when their count exceeds this (java.md
+    /// NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND).
+    pub names_count_to_use_import_on_demand: u32,
+    /// Package prefixes whose single-type imports always merge into `pkg.*`
+    /// on demand, regardless of count (java.md
+    /// PACKAGES_TO_USE_IMPORT_ON_DEMAND). Stored as bare package prefixes;
+    /// the `.*` suffix is an XML-boundary concern.
+    pub packages_to_use_import_on_demand: Vec<String>,
+    /// Prefer single-class imports over on-demand (`pkg.*`) imports where
+    /// possible; off, every eligible non-static group merges (java.md
+    /// USE_SINGLE_CLASS_IMPORTS).
+    pub use_single_class_imports: bool,
     /// Ordered import-layout table (see [`ImportLayoutEntry`]); the built-in
     /// default is java.md's "Default layout".
     pub import_layout: Vec<ImportLayoutEntry>,
@@ -672,6 +685,12 @@ impl Default for JavaStyle {
             do_not_wrap_after_single_annotation: false,
             do_not_wrap_after_single_annotation_in_parameter: false,
             class_count_to_use_import_on_demand: 5,
+            names_count_to_use_import_on_demand: 3,
+            packages_to_use_import_on_demand: vec![
+                "java.awt".to_string(),
+                "javax.swing".to_string(),
+            ],
+            use_single_class_imports: true,
             import_layout: JavaStyle::builtin_import_layout(),
             layout_static_imports_separately: true,
             layout_on_demand_import_from_same_package_first: true,
@@ -789,9 +808,10 @@ pub enum Section {
 
 /// The value of a supported option, typed per the option's kind.
 ///
-/// Not `Copy`: the list-typed [`OptionValue::ImportLayout`] holds a `Vec`.
-/// The registry's [`OptionDef::default`] for that variant is an empty type tag
-/// whose real value lives in [`JavaStyle::default`] (see `OptionDef::default`).
+/// Not `Copy`: the list-typed [`OptionValue::ImportLayout`] and
+/// [`OptionValue::Packages`] variants hold a `Vec`. The registry's
+/// [`OptionDef::default`] for those variants is an empty type tag whose real
+/// value lives in [`JavaStyle::default`] (see `OptionDef::default`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
     Bool(bool),
@@ -810,6 +830,12 @@ pub enum OptionValue {
     /// form; the registry default is `Vec::new()` (a type tag — see
     /// [`OptionDef::default`]).
     ImportLayout(Vec<ImportLayoutEntry>),
+    /// The always-on-demand package list of
+    /// `PACKAGES_TO_USE_IMPORT_ON_DEMAND`, stored as bare package prefixes
+    /// (the `.*` suffix is an XML-boundary concern — stripped on parse,
+    /// appended on serialize). The registry default is `Vec::new()` (a type
+    /// tag — see [`OptionDef::default`]).
+    Packages(Vec<String>),
 }
 
 /// Declarative description of one supported code style option — the single
@@ -817,12 +843,13 @@ pub enum OptionValue {
 /// the GUI. For the scalar variants each entry's `default` equals the
 /// corresponding [`JavaStyle::default`] value so the serialize/parse
 /// round-trip is exact. The list-typed
-/// [`OptionValue::ImportLayout`] cannot hold its real default in a `static`
-/// literal, so its `default` is an empty `Vec::new()` *type tag* whose real
-/// value lives in [`JavaStyle::default`]; [`serialize_codestyle`] therefore
+/// [`OptionValue::ImportLayout`] and [`OptionValue::Packages`] cannot hold
+/// their real default in a `static` literal, so their `default` is an empty
+/// `Vec::new()` *type tag* whose real value lives in [`JavaStyle::default`];
+/// [`serialize_codestyle`] therefore
 /// compares every option against `(def.get)(&JavaStyle::default())` (identical
 /// to the literal default for scalars), and `parse_codestyle` matches on the
-/// tag only to select the ImportLayout arm.
+/// tag only to select the ImportLayout / Packages arm.
 pub struct OptionDef {
     /// The XML `name` attribute, e.g. `"CLASS_BRACE_STYLE"`.
     pub xml_name: &'static str,
@@ -2456,6 +2483,45 @@ pub static OPTIONS: &[OptionDef] = &[
         },
     },
     OptionDef {
+        xml_name: "NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::UInt(3),
+        group: "Imports",
+        description: "Merge one owner's static member imports into static pkg.Owner.* above this count.",
+        get: |s| OptionValue::UInt(s.names_count_to_use_import_on_demand),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.names_count_to_use_import_on_demand = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "PACKAGES_TO_USE_IMPORT_ON_DEMAND",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Packages(Vec::new()),
+        group: "Imports",
+        description: "Packages whose single-type imports always merge into pkg.* on demand (nested list of pkg.* entries).",
+        get: |s| OptionValue::Packages(s.packages_to_use_import_on_demand.clone()),
+        set: |s, v| {
+            if let OptionValue::Packages(p) = v {
+                s.packages_to_use_import_on_demand = p;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "USE_SINGLE_CLASS_IMPORTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Imports",
+        description: "Prefer single-class imports; off, every eligible package merges into pkg.* on demand.",
+        get: |s| OptionValue::Bool(s.use_single_class_imports),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.use_single_class_imports = b;
+            }
+        },
+    },
+    OptionDef {
         xml_name: "IMPORT_LAYOUT_TABLE",
         section: Section::JavaCodeStyle,
         default: OptionValue::ImportLayout(Vec::new()),
@@ -3706,17 +3772,46 @@ pub static OPTIONS: &[OptionDef] = &[
 /// A single `<option name="X" value="Y" />` element.
 ///
 /// Both attributes are optional so nested-valued options — an `<option>` whose
-/// setting lives in a `<value>` child tree (the import tables, e.g.
-/// `IMPORT_LAYOUT_TABLE`) — no longer abort the whole parse (R7): they
-/// deserialize with a missing `@value` and are skipped by [`OptionMap`], while
-/// their `<value>` children are ignored by the serde mirror and read with the
-/// event API in [`parse_codestyle`].
+/// setting lives in a `<value>` child tree (the import tables and package
+/// lists, e.g. `IMPORT_LAYOUT_TABLE`, `PACKAGES_TO_USE_IMPORT_ON_DEMAND`) — no
+/// longer abort the whole parse (R7): they deserialize with a missing `@value`
+/// and are skipped by [`OptionMap`]'s attribute decoders, while the layout
+/// table's `<value>` children are read with the event API in
+/// [`parse_codestyle`] and the package list's with [`OptionMap::get_packages`].
 #[derive(Debug, Deserialize)]
 struct XmlOption {
     #[serde(rename = "@name", default)]
     name: Option<String>,
     #[serde(rename = "@value", default)]
     value: Option<String>,
+    /// The nested `<value>` child tree of a list-valued option (see
+    /// [`XmlValue`]); `None` for scalar options.
+    #[serde(rename = "value", default)]
+    nested: Option<XmlValue>,
+}
+
+/// The nested `<value>` child of a list-valued option
+/// (`PACKAGES_TO_USE_IMPORT_ON_DEMAND`): `<value><list><option
+/// value="pkg.*"/>…</list></value>`. Entries carry the IntelliJ `.*` suffix,
+/// which [`OptionMap::get_packages`] strips.
+#[derive(Debug, Deserialize, Default)]
+struct XmlValue {
+    #[serde(rename = "list", default)]
+    list: Option<XmlList>,
+}
+
+/// The `<option value="pkg.*"/>` entries of a nested package list.
+#[derive(Debug, Deserialize, Default)]
+struct XmlListOption {
+    #[serde(rename = "@value", default)]
+    value: Option<String>,
+}
+
+/// The entries of a list-valued option's `<list>` element.
+#[derive(Debug, Deserialize, Default)]
+struct XmlList {
+    #[serde(rename = "option", default)]
+    options: Vec<XmlListOption>,
 }
 
 /// `<indentOptions> <option .../> </indentOptions>`
@@ -3820,6 +3915,23 @@ impl<'a> OptionMap<'a> {
             .and_then(LineSeparator::from_str)
             .unwrap_or(default)
     }
+
+    /// The nested `<value><list>` package entries of a list-valued option
+    /// (e.g. `PACKAGES_TO_USE_IMPORT_ON_DEMAND`), each stripped of the
+    /// IntelliJ `.*` suffix, or `None` when the option is absent or has no
+    /// list. An explicitly empty list round-trips as `Some(vec![])` so a
+    /// scheme can clear the always-merge packages.
+    fn get_packages(&self, name: &str) -> Option<Vec<String>> {
+        let opt = self.0.iter().find(|o| o.name.as_deref() == Some(name))?;
+        let list = opt.nested.as_ref()?.list.as_ref()?;
+        Some(
+            list.options
+                .iter()
+                .filter_map(|o| o.value.as_deref())
+                .map(|v| v.strip_suffix(".*").unwrap_or(v).to_string())
+                .collect(),
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -3862,6 +3974,24 @@ fn import_layout_xml(entries: &[ImportLayoutEntry]) -> String {
         }
     }
     out.push_str("  </value>\n</option>");
+    out
+}
+
+/// Serialize the nested `<option name="PACKAGES_TO_USE_IMPORT_ON_DEMAND"><value>
+/// <list><option value="pkg.*"/>…</list></value></option>` fragment for
+/// `packages` (bare package prefixes; the `.*` suffix is appended here, the
+/// XML-boundary form). The fragment's inner lines carry the relative indent;
+/// the section writers prefix every line, so it nests correctly under its
+/// block.
+fn packages_xml(packages: &[String]) -> String {
+    let mut out =
+        String::from("<option name=\"PACKAGES_TO_USE_IMPORT_ON_DEMAND\">\n  <value>\n    <list>\n");
+    for p in packages {
+        out.push_str("      <option value=\"");
+        out.push_str(&xml_attr_escape(p));
+        out.push_str(".*\" />\n");
+    }
+    out.push_str("    </list>\n  </value>\n</option>");
     out
 }
 
@@ -3999,6 +4129,15 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
                 None => continue,
             },
         };
+        // The package list has no `value` attribute (its entries live in the
+        // nested `<value><list>` child), so it is read before the attribute
+        // presence guard below; absent → the built-in default stays.
+        if matches!(&def.default, OptionValue::Packages(_)) {
+            if let Some(packages) = map.get_packages(def.xml_name) {
+                (def.set)(&mut style, OptionValue::Packages(packages));
+            }
+            continue;
+        }
         // Options absent from the scheme keep the `JavaStyle` defaults the
         // style was initialised with (identical to the registry defaults).
         // Skipping them — rather than re-applying the default — lets an
@@ -4023,6 +4162,7 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
                 OptionValue::LineSep(map.get_line_sep(def.xml_name, *default))
             }
             OptionValue::ImportLayout(_) => unreachable!(),
+            OptionValue::Packages(_) => unreachable!(),
         };
         (def.set)(&mut style, value);
     }
@@ -4076,6 +4216,7 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
         }
         let option = match &value {
             OptionValue::ImportLayout(entries) => import_layout_xml(entries),
+            OptionValue::Packages(packages) => packages_xml(packages),
             _ => {
                 let xml_value = match &value {
                     OptionValue::Bool(b) => b.to_string(),
@@ -4091,6 +4232,7 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
                         s.to_xml().unwrap_or("").to_string()
                     }
                     OptionValue::ImportLayout(_) => unreachable!(),
+                    OptionValue::Packages(_) => unreachable!(),
                 };
                 format!(
                     r#"<option name="{}" value="{}" />"#,
