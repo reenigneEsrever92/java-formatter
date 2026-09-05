@@ -45,6 +45,8 @@ mod align_multiline_throws_list;
 mod align_subsequent_simple_methods;
 #[path = "options/align_throws_keyword.rs"]
 mod align_throws_keyword;
+#[path = "options/annotation_new_line_in_record_component.rs"]
+mod annotation_new_line_in_record_component;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
 #[path = "options/array_element_indent.rs"]
@@ -95,6 +97,8 @@ mod blank_lines_before_imports;
 mod blank_lines_before_method_body;
 #[path = "options/blank_lines_before_package.rs"]
 mod blank_lines_before_package;
+#[path = "options/blank_lines_between_record_components.rs"]
+mod blank_lines_between_record_components;
 #[path = "options/block_comment_at_first_column.rs"]
 mod block_comment_at_first_column;
 #[path = "options/brace_style.rs"]
@@ -243,6 +247,8 @@ mod resource_list_wrap;
 mod right_margin;
 #[path = "options/rparen_on_new_line_in_annotation.rs"]
 mod rparen_on_new_line_in_annotation;
+#[path = "options/rparen_on_new_line_in_record_header.rs"]
+mod rparen_on_new_line_in_record_header;
 #[path = "options/smart_tabs.rs"]
 mod smart_tabs;
 #[path = "options/soft_margins.rs"]
@@ -379,6 +385,8 @@ mod space_within_method_call_parentheses;
 mod space_within_method_parentheses;
 #[path = "options/space_within_parentheses.rs"]
 mod space_within_parentheses;
+#[path = "options/space_within_record_header.rs"]
+mod space_within_record_header;
 #[path = "options/space_within_switch_parentheses.rs"]
 mod space_within_switch_parentheses;
 #[path = "options/space_within_synchronized_parentheses.rs"]

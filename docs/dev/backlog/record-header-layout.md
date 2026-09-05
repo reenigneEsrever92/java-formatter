@@ -3,10 +3,13 @@ type: ChangeRequest
 kind: feature
 title: Honour the remaining record-header layout options
 description: Implement the record-component wrapping/annotation/spacing sub-options not yet shipped.
-state: planned
+state: done
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
+verified:
+  by: Zed coding agent
+  at: 2026-09-05T16:00:00Z
 ---
 
 # Problem
@@ -137,56 +140,56 @@ the sibling requests did.
 
 ## Steps
 
-- [ ] `crates/core/src/config.rs`: add the four `JavaStyle` fields +
+- [x] `crates/core/src/config.rs`: add the four `JavaStyle` fields +
       `Default` values (three bools `false`, count `0`) in the record block,
       and the four `OptionDef`s after `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER`
       (`Section::JavaCodeStyle`, group "Records & annotations",
       `Bool`/`Bool`/`Bool`/`UInt`, registry defaults equal to the fields);
       `cargo build` and the suite stay green (AC5 defaults; R7 absent →
       default).
-- [ ] `crates/core/src/formatter.rs`: rework `record_components` per the
+- [x] `crates/core/src/formatter.rs`: rework `record_components` per the
       approach (per-component blocks; `space_within_record_header` pad;
       rparen closing line; annotation own-line blocks; blank-line separators)
       and update its doc comment; confirm the whole existing suite stays
       byte-identical before adding new tests (AC5).
-- [ ] RPAREN fixture + test: `tests/java/rparen_on_new_line_in_record_header/component_wrap.java`
+- [x] RPAREN fixture + test: `tests/java/rparen_on_new_line_in_record_header/component_wrap.java`
       (three components) wrapped via `WrapStyle::WrapAlways` + alignment off;
       goldens for the option set (`)` alone at the record indent) and
       absent/false (today's glued shape); new
       `tests/options/rparen_on_new_line_in_record_header.rs`; wire in
       `tests/options.rs` (AC1).
-- [ ] SPACE fixture + test: `tests/java/space_within_record_header/header.java`
+- [x] SPACE fixture + test: `tests/java/space_within_record_header/header.java`
       short record (e.g. `record R(String key, int value) {}`); goldens for
       the option set (`record R( String key, int value ) {}`) and
       absent/false (unchanged input); new
       `tests/options/space_within_record_header.rs`; wire in `tests/options.rs`
       (AC2).
-- [ ] ANNOTATION fixture + test: `tests/java/annotation_new_line_in_record_component/component_wrap.java`
+- [x] ANNOTATION fixture + test: `tests/java/annotation_new_line_in_record_component/component_wrap.java`
       whose annotated components each sit on their own line in the wrapped
       layout (`WrapStyle::WrapAlways` + `new_line_after_lparen_in_record_header`
       true + alignment off; marker annotations kept verbatim); goldens for the
       option set (each annotation above its component) and absent/false
       (inline); new `tests/options/annotation_new_line_in_record_component.rs`;
       wire in `tests/options.rs` (AC3).
-- [ ] BLANK fixture + test: same wrapped three-component header under
+- [x] BLANK fixture + test: same wrapped three-component header under
       `tests/java/blank_lines_between_record_components/`; goldens at the
       absent default `0` (no blank lines) and `1` (one bare blank line between
       components); new `tests/options/blank_lines_between_record_components.rs`;
       wire in `tests/options.rs` (AC4).
-- [ ] Run `cargo test`; confirm the suite is green, every existing golden is
+- [x] Run `cargo test`; confirm the suite is green, every existing golden is
       byte-identical, and each new golden formats to itself on a second pass
       (AC5; R6).
-- [ ] Update docs: flip the three ❌ Records rows (`RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`,
+- [x] Update docs: flip the three ❌ Records rows (`RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`,
       `SPACE_WITHIN_RECORD_HEADER`, `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT`)
       and the ❌ `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` row in
       `docs/settings/java.md` to ✅; add the four options to the README
       honoured-options table plus a record-header formatting-behaviour bullet;
-      add a record-header-layout requirement row (the next free number — R16 at
-      the time of writing) to `docs/requirements.md` and note it in the
-      milestones paragraph when shipping; append the `docs/dev/changelog.md`
-      entry (recording whether an IntelliJ install was available to cross-check
-      the goldens); run `cargo test` once more to confirm the shipped state is
-      green (AC5).
+      add a record-header-layout requirement row (R33 — the next free number
+      after R32 at the time of shipping) to `docs/requirements.md` and note it
+      in the milestones paragraph; append the `docs/dev/changelog.md` entry
+      (recording that no IntelliJ install was available to cross-check the
+      goldens); the shipped state is green (`cargo test --workspace`, 655
+      tests).
 
 Commit: not committed (worktree changes only — the repository is left for the
 owner to commit).

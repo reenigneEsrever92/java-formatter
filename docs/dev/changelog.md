@@ -9,6 +9,50 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **The remaining record-header layout options are honoured (R33,
+  record-header-layout)**: the four record-component layout options
+  previously ignored (R7) and marked ❌ in the docs/settings tables —
+  `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`, `SPACE_WITHIN_RECORD_HEADER` and
+  `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` (Records table, bools default
+  `false`) plus `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` (Miscellaneous
+  spacing & blank lines, int default `0`) — are now parsed into `JavaStyle`
+  (four fields in the record block with the IntelliJ built-in defaults, plus
+  four `OptionDef` entries in the `OPTIONS` registry,
+  `Section::JavaCodeStyle`, group "Records & annotations", registry defaults
+  equal to the field defaults so the parse/serialize round trip stays exact)
+  and applied in the engine's `record_components`. The wrapped path now
+  renders per-component blocks, and the options slot in:
+  `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER` moves the lparen-attached layout's
+  glued `)` to its own line at the record indent (the lparen-on layout
+  already closes alone, so it is unchanged under both values);
+  `SPACE_WITHIN_RECORD_HEADER` puts one space just inside each `(` / `)`
+  that shares its line with a component — the flat `( parts )`, the
+  lparen-attached first line `( first,` and the glued `last )` — leaves a
+  paren alone on its line bare, measures the margin over the padded flat and
+  shifts the aligned column by the pad;
+  `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` renders an own-line
+  `formal_parameter` component with annotations as one line per annotation
+  (the existing annotation rendering, tokens verbatim) followed by the
+  declaration core (keyword modifiers + type + name), while the first inline
+  component of the lparen-attached layout, non-`formal_parameter` shapes and
+  headers that stay single-line keep their inline rendering; and
+  `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` inserts `n` bare blank lines
+  between the components of a wrapped header (the `,\n` separator becomes `,`
+  followed by `n + 1` newlines) and is inert when the header is not wrapped.
+  `record_components`' doc comment now lists all seven record options. All
+  changes are whitespace/layout only (R5, R6), absent and default options
+  keep today's output byte-for-byte (no existing golden moved), and each new
+  golden is asserted idempotent by re-formatting it. Covered by four new
+  per-option golden test files under `tests/options/` (`rparen_on_new_line_in_record_header.rs`,
+  `space_within_record_header.rs`, `annotation_new_line_in_record_component.rs`
+  and `blank_lines_between_record_components.rs`, wired alphabetically in
+  `tests/options.rs`), fixtures under `tests/java/<option>/` — each with the
+  option-set golden, the absent/false golden and a self-golden idempotency
+  fixture, wrapped layouts forced via `WrapStyle::WrapAlways`; the suite grew
+  from 639 to 655 tests, all green (`cargo test --workspace`). No IntelliJ
+  installation was available to cross-check the goldens; the pinned semantics
+  follow the docs/settings table and the sibling record/annotation layouts.
+
 - **The remaining indentation options are honoured (R32, indentation-details)**:
   the eleven options previously ignored (R7) and marked ❌ in the
   docs/settings tables — `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` (JAVA

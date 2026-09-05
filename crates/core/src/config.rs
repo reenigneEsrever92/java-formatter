@@ -349,6 +349,10 @@ pub struct JavaStyle {
     pub record_components_wrap: WrapStyle,
     pub align_multiline_records: bool,
     pub new_line_after_lparen_in_record_header: bool,
+    pub rparen_on_new_line_in_record_header: bool,
+    pub space_within_record_header: bool,
+    pub annotation_new_line_in_record_component: bool,
+    pub blank_lines_between_record_components: u32,
 
     // --- annotation body layout (JavaCodeStyleSettings) ---
     pub enum_field_annotation_wrap: WrapStyle,
@@ -578,6 +582,10 @@ impl Default for JavaStyle {
             record_components_wrap: WrapStyle::DoNotWrap,
             align_multiline_records: true,
             new_line_after_lparen_in_record_header: false,
+            rparen_on_new_line_in_record_header: false,
+            space_within_record_header: false,
+            annotation_new_line_in_record_component: false,
+            blank_lines_between_record_components: 0,
             enum_field_annotation_wrap: WrapStyle::DoNotWrap,
             align_multiline_annotation_parameters: false,
             new_line_after_lparen_in_annotation: false,
@@ -2277,6 +2285,58 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.new_line_after_lparen_in_record_header = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "RPAREN_ON_NEW_LINE_IN_RECORD_HEADER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Put the ')' of a wrapped record header on its own line.",
+        get: |s| OptionValue::Bool(s.rparen_on_new_line_in_record_header),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.rparen_on_new_line_in_record_header = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_RECORD_HEADER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Put one space just inside the parens of a record header.",
+        get: |s| OptionValue::Bool(s.space_within_record_header),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_record_header = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Records & annotations",
+        description: "Put a wrapped record component's annotations on their own lines.",
+        get: |s| OptionValue::Bool(s.annotation_new_line_in_record_component),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.annotation_new_line_in_record_component = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "BLANK_LINES_BETWEEN_RECORD_COMPONENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::UInt(0),
+        group: "Records & annotations",
+        description: "Blank lines between the components of a wrapped record header.",
+        get: |s| OptionValue::UInt(s.blank_lines_between_record_components),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.blank_lines_between_record_components = n;
             }
         },
     },

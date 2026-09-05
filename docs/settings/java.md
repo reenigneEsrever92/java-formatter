@@ -129,9 +129,9 @@ java.*                       (withSubpackages)
 | `RECORD_COMPONENTS_WRAP`                  | int  | `1` (wrap as needed) | Wrapping of record component lists.                        | ✅      |
 | `ALIGN_MULTILINE_RECORDS`                 | bool | `true`               | Align wrapped record components under the first component. | ✅      |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER`  | bool | `false`              | Put `(` of a wrapped record header on its own line.        | ✅      |
-| `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`     | bool | `false`              | Put `)` of a wrapped record header on its own line.        | ❌      |
-| `SPACE_WITHIN_RECORD_HEADER`              | bool | `false`              | `record R( String s )` vs `record R(String s)`.            | ❌      |
-| `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` | bool | `false`              | Put a component's annotation on a new line.                | ❌      |
+| `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`     | bool | `false`              | Put `)` of a wrapped record header on its own line.        | ✅      |
+| `SPACE_WITHIN_RECORD_HEADER`              | bool | `false`              | `record R( String s )` vs `record R(String s)`.            | ✅      |
+| `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` | bool | `false`              | Put a component's annotation on a new line.                | ✅      |
 
 > **Divergence (recorded, not fixed):** the table lists `RECORD_COMPONENTS_WRAP`
 > with IntelliJ's built-in default `1` (wrap as needed), but
@@ -200,7 +200,7 @@ the common block — see [Annotations](common.md#annotations).
 | `NEW_LINE_WHEN_BODY_IS_PRESENTED`                 | bool | `false` | Put the body of a one-line block on a new line.                                        | ✅      |
 | `BLANK_LINES_AROUND_INITIALIZER`                  | int  | `1`     | Blank lines around instance / static initializer blocks.                               | ✅      |
 | `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS`       | int  | `0`     | Blank lines around annotated fields.                                                   | ✅      |
-| `BLANK_LINES_BETWEEN_RECORD_COMPONENTS`           | int  | `0`     | Blank lines between record components.                                                 | ❌      |
+| `BLANK_LINES_BETWEEN_RECORD_COMPONENTS`           | int  | `0`     | Blank lines between record components.                                                 | ✅      |
 | `WRAP_SEMICOLON_AFTER_CALL_CHAIN`                 | bool | `false` | Put `;` of a wrapped chained call on its own line.                                     | ✅      |
 
 ## Javadoc

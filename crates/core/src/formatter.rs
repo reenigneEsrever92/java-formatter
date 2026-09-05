@@ -1647,21 +1647,39 @@ impl<'s> Fmt<'s> {
 
     /// Formats a record header's component list (`(…)`).
     ///
-    /// Honors `RECORD_COMPONENTS_WRAP`, `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER`
-    /// and `ALIGN_MULTILINE_RECORDS`. When a wrap is needed, components are
-    /// placed one per line; with `new_line_after_lparen_in_record_header` the
-    /// opening paren stays on the header line and components start on the next
-    /// line, otherwise the first component stays inline after the paren.
+    /// Honors the record-header options `RECORD_COMPONENTS_WRAP` (wrapped
+    /// components one per line), `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` (a
+    /// wrapped header's components start on the line below the `(`),
+    /// `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER` (a wrapped header's `)` on its
+    /// own line at the record indent), `ALIGN_MULTILINE_RECORDS` (component
+    /// lines pad under the first component), `SPACE_WITHIN_RECORD_HEADER` (one
+    /// space just inside a `(` / `)` that shares its line with a component),
+    /// `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` (an own-line component's
+    /// annotations each on their own line above the declaration core) and
+    /// `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` (bare blank lines between the
+    /// components of a wrapped header). A header that fits the margin — or a
+    /// lparen-attached single-component header — keeps its flat single-line
+    /// rendering; with `new_line_after_lparen_in_record_header` the opening
+    /// paren stays on the header line and components start on the next line,
+    /// otherwise the first component stays inline after the paren.
     fn record_components(&self, node: Node<'s>, indent: usize, c: usize, header: &str) -> String {
         let comps = self.named(node);
         if comps.is_empty() {
             return "()".to_string();
         }
 
+        // `SPACE_WITHIN_RECORD_HEADER`: one space just inside each paren that
+        // shares its line with a component (the flat form, the lparen-off
+        // first line and the glued `)`); a paren alone on its own line gets
+        // no pad.
+        let pad = Self::sep(self.style.space_within_record_header);
+
         let parts: Vec<String> = comps.iter().map(|&p| self.flat_param(p)).collect();
         let flat = format!(
-            "({})",
-            parts.join(self.comma_sep(self.style.space_after_comma))
+            "({}{}{})",
+            pad,
+            parts.join(self.comma_sep(self.style.space_after_comma)),
+            pad
         );
 
         // Column of the opening paren within the physical line (tab-aware:
@@ -1677,33 +1695,121 @@ impl<'s> Fmt<'s> {
             return flat;
         }
 
-        // Alignment column: right after '(' when aligning, otherwise a single
-        // continuation indent level below the record header.
-        let inner_indent = if self.style.align_multiline_records {
-            self.align_prefix(open_col + 1)
-        } else {
-            self.cont(indent)
-        };
+        // `BLANK_LINES_BETWEEN_RECORD_COMPONENTS`: between consecutive
+        // wrapped components `n` bare blank lines — the inter-block `,\n`
+        // becomes `,` followed by `n + 1` newlines. Inert on a header that
+        // is not wrapped (the flat return above).
+        let sep = format!(
+            ",{}",
+            "\n".repeat(self.style.blank_lines_between_record_components as usize + 1)
+        );
+        // Annotation-rendering level for an own-line component's annotations.
+        let level = indent + 1;
 
         if self.style.new_line_after_lparen_in_record_header {
-            let lines: Vec<String> = parts
-                .iter()
-                .map(|p| format!("{}{}", inner_indent, p))
-                .collect();
-            format!("(\n{}\n{})", lines.join(",\n"), self.ind(indent))
-        } else {
-            // First component stays on the header line, the rest wrap.
-            let rest: Vec<String> = parts
-                .iter()
-                .skip(1)
-                .map(|p| format!("{}{}", inner_indent, p))
-                .collect();
-            if rest.is_empty() {
-                flat
+            // `(` stays alone on its line, every component starts its own
+            // line below it and `)` closes alone at the record indent — the
+            // closing shape the rparen option produces, whichever value the
+            // option carries.
+            let pref = if self.style.align_multiline_records {
+                self.align_prefix(open_col + 1)
             } else {
-                format!("({},\n{})", parts[0], rest.join(",\n"))
+                self.cont(indent)
+            };
+            let lines: Vec<String> = comps
+                .iter()
+                .map(|&p| {
+                    format!(
+                        "{}{}",
+                        pref,
+                        self.record_component_block(p, &pref, level, true)
+                    )
+                })
+                .collect();
+            format!("(\n{}\n{})", lines.join(&sep), self.ind(indent))
+        } else {
+            // The first component stays on the header line after `(` (its
+            // inline column right of the paren plus the pad), the rest start
+            // their own lines. A lone component cannot wrap and keeps the
+            // flat form.
+            if comps.len() == 1 {
+                return flat;
+            }
+            let pref = if self.style.align_multiline_records {
+                // The aligned column sits under the first inline component,
+                // so it shifts by the pad when the pad is on.
+                self.align_prefix(open_col + 1 + pad.len())
+            } else {
+                self.cont(indent)
+            };
+            let mut out = format!("({}{}", pad, self.flat_param(comps[0]));
+            for &p in &comps[1..] {
+                out.push_str(&sep);
+                out.push_str(&pref);
+                out.push_str(&self.record_component_block(p, &pref, level, true));
+            }
+            // `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`: `)` closes on its own
+            // line at the record indent; otherwise it glues to the last
+            // component's line (padded when the pad is on).
+            if self.style.rparen_on_new_line_in_record_header {
+                out.push('\n');
+                out.push_str(&self.ind(indent));
+                out.push(')');
+            } else {
+                out.push_str(pad);
+                out.push(')');
+            }
+            out
+        }
+    }
+
+    /// Render one record component of a wrapped header as whole lines at its
+    /// own column: the caller prefixes the first line and `prefix` repeats on
+    /// every line after it. Under `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` an
+    /// own-line `formal_parameter` with annotations renders one line per
+    /// annotation (the existing annotation rendering, tokens verbatim)
+    /// followed by the declaration core — keyword modifiers + type + name,
+    /// `flat_param`'s assembly with the annotation text removed — at `level`;
+    /// every other component (no annotations, a non-`formal_parameter` shape,
+    /// or a component sharing the `(` line) keeps its inline `flat_param`.
+    fn record_component_block(
+        &self,
+        node: Node<'s>,
+        prefix: &str,
+        level: usize,
+        own_line: bool,
+    ) -> String {
+        if own_line
+            && self.style.annotation_new_line_in_record_component
+            && node.kind() == "formal_parameter"
+        {
+            if let Some(mods) = self.get_mods(node) {
+                let (anns, keywords) = self.mods_parts(mods);
+                if !anns.is_empty() {
+                    let mut out = String::new();
+                    for (i, a) in anns.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(&format!("\n{}", prefix));
+                        }
+                        out.push_str(&self.annotation(*a, level));
+                    }
+                    let kw = keywords.join(" ");
+                    let ty = self
+                        .fld(node, "type")
+                        .map(|n| self.flat_type(n))
+                        .unwrap_or_default();
+                    let nm = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+                    let core = if kw.is_empty() {
+                        format!("{} {}", ty, nm)
+                    } else {
+                        format!("{} {} {}", kw, ty, nm)
+                    };
+                    out.push_str(&format!("\n{}{}", prefix, core));
+                    return out;
+                }
             }
         }
+        self.flat_param(node)
     }
 
     /// Attach `{ body }` to header following the brace style. The space

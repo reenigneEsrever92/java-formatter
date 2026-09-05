@@ -157,6 +157,9 @@ The options currently honoured are:
 | `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` | Keep a lone parameter annotation inline in the wrapped parameter list                                              |
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` | Layout of a wrapped record header                                                                                               |
+| `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`    | Put `)` of a wrapped record header on its own line                                                                               |
+| `SPACE_WITHIN_RECORD_HEADER`             | Space just inside the parens of a record header (default: none, `record R(String s)`)                                            |
+| `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` | Put each annotation of a wrapped own-line record component on its own line                                                     |
 | `ALIGN_MULTILINE_RECORDS`                | Whether wrapped record components align under the first component                                                               |
 | `ALIGN_MULTILINE_PARAMETERS`             | Align wrapped method / constructor parameter lists under the first parameter (default on)                                      |
 | `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`    | Align wrapped method-call / `new` arguments under the first argument                                                            |
@@ -196,6 +199,7 @@ The options currently honoured are:
 | `BLANK_LINES_BEFORE_CLASS_END`           | Min blank lines before a class's closing brace                                                                                 |
 | `BLANK_LINES_AROUND_INITIALIZER`         | Min blank lines around instance / static initializer blocks                                                                    |
 | `BLANK_LINES_AROUND_FIELD_WITH_ANNOTATIONS` | Min blank lines around annotated fields                                                                                      |
+| `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` | Blank lines between the components of a wrapped record header                                                                    |
 | `INDENT_SIZE`                            | Indentation width                                                                                                               |
 | `CONTINUATION_INDENT_SIZE`               | Continuation-indent width                                                                                                       |
 | `TAB_SIZE`                               | Width of a tab in columns; drives tab output and column arithmetic                                                              |
@@ -475,6 +479,24 @@ braces when the body spans multiple lines, `3` = always force braces.
   (`ALIGN_MULTILINE_PARAMETERS`, `ALIGN_MULTILINE_RESOURCES`, `ALIGN_MULTILINE_FOR`);
   the rest default off. Alignment is space-based like the record model, so the
   option's output is byte-stable under `USE_TAB_CHARACTER` schemes too.
+- A wrapped record header follows the record-layout options: `RECORD_COMPONENTS_WRAP`
+  sends the components to their wrapped one-per-line shape (a lone component
+  under the lparen-attached layout keeps the flat header);
+  `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` and `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`
+  (both default false) start a wrapped header's components on the line below
+  the `(` and close its `)` on its own line at the record indent
+  respectively; `ALIGN_MULTILINE_RECORDS`
+  (default true) pads the component lines under the first component instead of
+  the continuation indent;
+  `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` (default false) puts each
+  annotation of an own-line component on its own line above the declaration
+  core (the first inline component of the lparen-attached layout keeps its
+  annotation inline); `SPACE_WITHIN_RECORD_HEADER` (default false) inserts one
+  space just inside each `(` / `)` that shares its line with a component
+  (`record R( String s )` — a paren alone on its line stays bare); and
+  `BLANK_LINES_BETWEEN_RECORD_COMPONENTS` (default 0) inserts that many bare
+  blank lines between the components of a wrapped header. Headers that fit the
+  margin stay single-line under all of these.
 - `switch` statements are laid out with `case` / `default` labels indented one
   level and their statements a further level; colon and arrow (`case x ->`)
   forms are preserved. The layout follows the scheme's case options:
