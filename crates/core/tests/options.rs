@@ -5,8 +5,44 @@
 
 mod common;
 
+#[path = "options/align_consecutive_assignments.rs"]
+mod align_consecutive_assignments;
+#[path = "options/align_consecutive_variable_declarations.rs"]
+mod align_consecutive_variable_declarations;
+#[path = "options/align_group_field_declarations.rs"]
+mod align_group_field_declarations;
+#[path = "options/align_multiline_array_initializer_expression.rs"]
+mod align_multiline_array_initializer_expression;
+#[path = "options/align_multiline_assignment.rs"]
+mod align_multiline_assignment;
+#[path = "options/align_multiline_binary_operation.rs"]
+mod align_multiline_binary_operation;
+#[path = "options/align_multiline_chained_methods.rs"]
+mod align_multiline_chained_methods;
+#[path = "options/align_multiline_extends_list.rs"]
+mod align_multiline_extends_list;
+#[path = "options/align_multiline_for.rs"]
+mod align_multiline_for;
+#[path = "options/align_multiline_method_brackets.rs"]
+mod align_multiline_method_brackets;
+#[path = "options/align_multiline_parameters.rs"]
+mod align_multiline_parameters;
+#[path = "options/align_multiline_parameters_in_calls.rs"]
+mod align_multiline_parameters_in_calls;
+#[path = "options/align_multiline_parenthesized_expression.rs"]
+mod align_multiline_parenthesized_expression;
 #[path = "options/align_multiline_records.rs"]
 mod align_multiline_records;
+#[path = "options/align_multiline_resources.rs"]
+mod align_multiline_resources;
+#[path = "options/align_multiline_ternary_operation.rs"]
+mod align_multiline_ternary_operation;
+#[path = "options/align_multiline_throws_list.rs"]
+mod align_multiline_throws_list;
+#[path = "options/align_subsequent_simple_methods.rs"]
+mod align_subsequent_simple_methods;
+#[path = "options/align_throws_keyword.rs"]
+mod align_throws_keyword;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
 #[path = "options/array_initializer_lbrace_on_next_line.rs"]

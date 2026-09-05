@@ -106,24 +106,24 @@ align under the first element instead of using the continuation indent.
 
 | Option                                         | Type | Default | Effect                                                                       | Support |
 | ---------------------------------------------- | ---- | ------- | ---------------------------------------------------------------------------- | ------- |
-| `ALIGN_MULTILINE_PARAMETERS`                   | bool | `true`  | Align wrapped method parameter declarations.                                 | ❌      |
-| `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`          | bool | `false` | Align wrapped method-call arguments.                                         | ❌      |
-| `ALIGN_MULTILINE_RESOURCES`                    | bool | `true`  | Align wrapped try-with-resources clauses.                                    | ❌      |
-| `ALIGN_MULTILINE_FOR`                          | bool | `true`  | Align wrapped `for` header parts.                                            | ❌      |
-| `ALIGN_MULTILINE_BINARY_OPERATION`             | bool | `false` | Align wrapped binary expression operands.                                    | ❌      |
-| `ALIGN_MULTILINE_ASSIGNMENT`                   | bool | `false` | Align wrapped assignment right-hand sides.                                   | ❌      |
-| `ALIGN_MULTILINE_TERNARY_OPERATION`            | bool | `false` | Align wrapped ternary expression operands.                                   | ❌      |
-| `ALIGN_MULTILINE_THROWS_LIST`                  | bool | `false` | Align wrapped `throws` list entries.                                         | ❌      |
-| `ALIGN_THROWS_KEYWORD`                         | bool | `false` | Align the `throws` keyword itself.                                           | ❌      |
-| `ALIGN_MULTILINE_EXTENDS_LIST`                 | bool | `false` | Align wrapped `extends` / `implements` list entries.                         | ❌      |
-| `ALIGN_MULTILINE_METHOD_BRACKETS`              | bool | `false` | Align method declaration parentheses (`(` / `)`) when wrapped.               | ❌      |
-| `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`     | bool | `false` | Align wrapped parenthesized expressions.                                     | ❌      |
-| `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` | bool | `false` | Align wrapped array initializer entries.                                     | ❌      |
-| `ALIGN_MULTILINE_CHAINED_METHODS`              | bool | `false` | Align the dots of a wrapped chained call under the first call.               | ❌      |
-| `ALIGN_GROUP_FIELD_DECLARATIONS`               | bool | `false` | Align consecutive field / variable declarations and initialisers in columns. | ❌      |
-| `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS`      | bool | `false` | Align consecutive local variable declarations.                               | ❌      |
-| `ALIGN_CONSECUTIVE_ASSIGNMENTS`                | bool | `false` | Align consecutive assignment statements.                                     | ❌      |
-| `ALIGN_SUBSEQUENT_SIMPLE_METHODS`              | bool | `false` | Align consecutive one-line methods.                                          | ❌      |
+| `ALIGN_MULTILINE_PARAMETERS`                   | bool | `true`  | Align wrapped method parameter declarations.                                 | ✅      |
+| `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`          | bool | `false` | Align wrapped method-call arguments.                                         | ✅      |
+| `ALIGN_MULTILINE_RESOURCES`                    | bool | `true`  | Align wrapped try-with-resources clauses.                                    | ✅      |
+| `ALIGN_MULTILINE_FOR`                          | bool | `true`  | Align wrapped `for` header parts.                                            | ✅      |
+| `ALIGN_MULTILINE_BINARY_OPERATION`             | bool | `false` | Align wrapped binary expression operands.                                    | ✅      |
+| `ALIGN_MULTILINE_ASSIGNMENT`                   | bool | `false` | Align wrapped assignment right-hand sides.                                   | ✅      |
+| `ALIGN_MULTILINE_TERNARY_OPERATION`            | bool | `false` | Align wrapped ternary expression operands.                                   | ✅      |
+| `ALIGN_MULTILINE_THROWS_LIST`                  | bool | `false` | Align wrapped `throws` list entries.                                         | ✅      |
+| `ALIGN_THROWS_KEYWORD`                         | bool | `false` | Align the `throws` keyword itself.                                           | ✅      |
+| `ALIGN_MULTILINE_EXTENDS_LIST`                 | bool | `false` | Align wrapped `extends` / `implements` list entries.                         | ✅      |
+| `ALIGN_MULTILINE_METHOD_BRACKETS`              | bool | `false` | Align method declaration parentheses (`(` / `)`) when wrapped.               | ✅      |
+| `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`     | bool | `false` | Align wrapped parenthesized expressions.                                     | ✅      |
+| `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` | bool | `false` | Align wrapped array initializer entries.                                     | ✅      |
+| `ALIGN_MULTILINE_CHAINED_METHODS`              | bool | `false` | Align the dots of a wrapped chained call under the first call.               | ✅      |
+| `ALIGN_GROUP_FIELD_DECLARATIONS`               | bool | `false` | Align consecutive field / variable declarations and initialisers in columns. | ✅      |
+| `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS`      | bool | `false` | Align consecutive local variable declarations.                               | ✅      |
+| `ALIGN_CONSECUTIVE_ASSIGNMENTS`                | bool | `false` | Align consecutive assignment statements.                                     | ✅      |
+| `ALIGN_SUBSEQUENT_SIMPLE_METHODS`              | bool | `false` | Align consecutive one-line methods.                                          | ✅      |
 
 ## Spaces
 

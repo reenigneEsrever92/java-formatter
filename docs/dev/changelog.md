@@ -9,6 +9,52 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **The align-when-multiline options are honoured (R29, align-multiline-options)**:
+  the eighteen alignment options — `ALIGN_MULTILINE_PARAMETERS` (default true),
+  `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`, `ALIGN_MULTILINE_RESOURCES` (default
+  true), `ALIGN_MULTILINE_FOR` (default true), `ALIGN_MULTILINE_BINARY_OPERATION`,
+  `ALIGN_MULTILINE_ASSIGNMENT`, `ALIGN_MULTILINE_TERNARY_OPERATION`,
+  `ALIGN_MULTILINE_THROWS_LIST`, `ALIGN_THROWS_KEYWORD`,
+  `ALIGN_MULTILINE_EXTENDS_LIST`, `ALIGN_MULTILINE_METHOD_BRACKETS`,
+  `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`,
+  `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION`, `ALIGN_MULTILINE_CHAINED_METHODS`,
+  `ALIGN_GROUP_FIELD_DECLARATIONS`, `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS`,
+  `ALIGN_CONSECUTIVE_ASSIGNMENTS` and `ALIGN_SUBSEQUENT_SIMPLE_METHODS` —
+  previously ignored (R7) and marked ❌ in the docs/settings/common.md
+  Alignment table, are now parsed into `JavaStyle` (eighteen `bool` fields with
+  the IntelliJ built-in defaults, plus eighteen `OptionDef` entries, GUI group
+  `Alignment`, `Section::CodeStyleJava`) and applied in the engine: a shared
+  space-based `align_prefix` helper (the shipped `ALIGN_MULTILINE_RECORDS`
+  model) replaces the fixed continuation prefix of a wrapped construct's
+  continuation lines with spaces to the first element's column. The declaration
+  parameter list / call-argument / try-with-resources / `throws` /
+  `extends`-`implements` list layouts keep their first element on the header
+  line after `(` / the keyword and pad the remaining element lines under it;
+  a wrapped `for` header's cond / update (and enhanced `for` value) pad under
+  its first slot; binary / ternary / parenthesized-expression continuation
+  lines pad under the first operand / condition / `(`; chained-call link lines
+  pad under the first link's dot; a wrapped assignment's right-hand side pads
+  to the column right after the operator (its continuation column flows into
+  nested non-aligning expressions); `ALIGN_MULTILINE_METHOD_BRACKETS` puts a
+  wrapped declaration's own-line `)` under its `(` and `ALIGN_THROWS_KEYWORD`
+  puts a wrapped `throws` keyword at its natural header column; and the four
+  columnar options pad runs of output-adjacent members / statements — fields,
+  one-line methods, local variable declarations and assignment statements with
+  no blank line and no comment between them — so the declared names / method
+  names / operators share one column. Because the three default-true options
+  engage on absent schemes, thirteen wrapped-layout goldens were re-baselined
+  to the aligned shape (the `(lparen-stays, rparen-alone)` and wrapped-`for`
+  layouts, which previously carried a continuation-indent artifact); every
+  other existing golden is byte-identical. Covered by eighteen new per-option
+  golden test files under `tests/options/` (one per XML option, each asserting
+  the on / off values plus the absent-option default and a self-golden
+  idempotency fixture), fixtures under `tests/java/<option>/`; the suite grew
+  from 455 to 527 tests, all green (`cargo test --workspace`). No IntelliJ
+  installation was available to cross-check the goldens; the layouts follow the
+  request's two canonical shapes (first element on the header line with the
+  rest aligned under it; own-line elements keep their shared column) and the
+  pinned shapes are called out in the option files.
+
 - **Ternary, assert, for-header, array-initialiser and chain wrapping are
   honoured (R27, wrapping-expressions-and-statements)**: the seventeen
   expression / statement wrapping options — `WRAP_FIRST_METHOD_IN_CALL_CHAIN`,
@@ -107,8 +153,6 @@ tags: [dev, changelog]
   tests, all green (`cargo test --workspace`). No IntelliJ installation was
   available to cross-check the goldens; the layouts follow the request's
   decisions and the existing call-parameter wrap conventions.
-
-## 2026-09-04
 
 - **The switch / case indentation and wrapping options are honoured (R25,
   switch-case-layout)**: the four layout options — `INDENT_CASE_FROM_SWITCH`

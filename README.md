@@ -1,5 +1,6 @@
 # java-formatter
 
+
 A Java source code formatter that applies [IntelliJ IDEA code style](https://www.jetbrains.com/help/idea/code-style.html) rules declared in a `codestyle.xml` scheme (e.g. `.idea/codeStyles/Project.xml`).
 
 It parses Java with [tree-sitter-java](https://github.com/tree-sitter/tree-sitter-java) and pretty-prints the syntax tree according to a [`JavaStyle`](crates/core/src/config.rs) configuration. When no style file is given, IntelliJ built-in defaults are used.
@@ -140,6 +141,24 @@ The options currently honoured are:
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` | Layout of a wrapped record header                                                                                               |
 | `ALIGN_MULTILINE_RECORDS`                | Whether wrapped record components align under the first component                                                               |
+| `ALIGN_MULTILINE_PARAMETERS`             | Align wrapped method / constructor parameter lists under the first parameter (default on)                                      |
+| `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`    | Align wrapped method-call / `new` arguments under the first argument                                                            |
+| `ALIGN_MULTILINE_RESOURCES`              | Align wrapped try-with-resources lists under the first resource (default on)                                                   |
+| `ALIGN_MULTILINE_FOR`                    | Align the parts of a wrapped `for` header under its first slot (default on)                                                    |
+| `ALIGN_MULTILINE_BINARY_OPERATION`       | Align wrapped binary operands under the first operand                                                                            |
+| `ALIGN_MULTILINE_ASSIGNMENT`             | Align a wrapped assignment's right-hand side under the operator                                                                  |
+| `ALIGN_MULTILINE_TERNARY_OPERATION`      | Align the `?` / `:` lines of a wrapped ternary under the condition                                                               |
+| `ALIGN_MULTILINE_THROWS_LIST`            | Align wrapped `throws` list entries under the first exception                                                                    |
+| `ALIGN_THROWS_KEYWORD`                   | Align a wrapped `throws` keyword at its natural header column                                                                     |
+| `ALIGN_MULTILINE_EXTENDS_LIST`           | Align wrapped `extends` / `implements` entries under the first entry                                                             |
+| `ALIGN_MULTILINE_METHOD_BRACKETS`        | Align a wrapped declaration's `)` under its `(`                                                                                   |
+| `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION` | Align a wrapped parenthesized expression's continuation under the `(`                                                          |
+| `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` | Align a wrapped array initializer's entries under the first entry                                                         |
+| `ALIGN_MULTILINE_CHAINED_METHODS`        | Align the dots of a wrapped chained call under the first call's dot                                                               |
+| `ALIGN_GROUP_FIELD_DECLARATIONS`         | Align the declared names of output-adjacent fields in columns                                                                     |
+| `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS` | Align the declared names of consecutive local variables in columns                                                              |
+| `ALIGN_CONSECUTIVE_ASSIGNMENTS`          | Align the operators of consecutive assignment statements in a column                                                              |
+| `ALIGN_SUBSEQUENT_SIMPLE_METHODS`        | Align the names of output-adjacent one-line methods in columns                                                                    |
 | `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`    | Collapse single-type imports of one package into `pkg.*` above this count                                                       |
 | `KEEP_BLANK_LINES_IN_CODE`               | Max blank lines kept inside code (between statements)                                                                          |
 | `KEEP_BLANK_LINES_IN_DECLARATIONS`       | Max blank lines kept between class members                                                                                     |
@@ -341,6 +360,27 @@ braces when the body spans multiple lines, `3` = always force braces.
   wrap decisions always use logical columns — a tab counts as `TAB_SIZE` — so
   a tab scheme wraps exactly where the equivalent space scheme does. Without
   `USE_TAB_CHARACTER`, output is space-indented as before.
+- The align-when-multiline family replaces the continuation indent of a wrapped
+  construct's continuation lines with spaces to the first element's column,
+  exactly like the record-header alignment (`ALIGN_MULTILINE_RECORDS` aligns
+  wrapped record components under the opening paren): with the toggle on, the
+  wrapped parameter / argument / resource / `throws` / `extends`-`implements`
+  list lines pad to the first element's column (the first element stays on the
+  header line after `(` / the keyword); the parts of a wrapped `for` header pad
+  to its first slot; wrapped binary / ternary / parenthesized-expression
+  continuation lines pad to the first operand / condition / `(`; a wrapped
+  chained call's link lines pad to the first link's dot; and a wrapped
+  assignment's right-hand side pads to the column right after the operator.
+  The columnar options (`ALIGN_GROUP_FIELD_DECLARATIONS`,
+  `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS`, `ALIGN_CONSECUTIVE_ASSIGNMENTS`,
+  `ALIGN_SUBSEQUENT_SIMPLE_METHODS`) instead pad runs of output-adjacent class
+  members / block statements — fields, one-line methods, local variable
+  declarations and assignment statements with no blank line and no comment
+  between them — so the declared names / method names / operators share one
+  column. Three of the wrapped-list options default on
+  (`ALIGN_MULTILINE_PARAMETERS`, `ALIGN_MULTILINE_RESOURCES`, `ALIGN_MULTILINE_FOR`);
+  the rest default off. Alignment is space-based like the record model, so the
+  option's output is byte-stable under `USE_TAB_CHARACTER` schemes too.
 - `switch` statements are laid out with `case` / `default` labels indented one
   level and their statements a further level; colon and arrow (`case x ->`)
   forms are preserved. The layout follows the scheme's case options:
@@ -531,6 +571,7 @@ the `tests/options.rs` aggregator. Every test is a golden pair: it formats a
 `*.out.java` golden next to it (e.g. `tests/java/assignment_wrap/long_init_wrap_if_long.java`
 → `..._wrap_if_long.out.java`), so each option's input→output transformation
 is visible at a glance. Fixtures are embedded into the tests at compile time.
+
 
 ## Benchmarking
 

@@ -287,6 +287,26 @@ pub struct JavaStyle {
     pub throws_keyword_wrap: bool,
     pub prefer_parameters_wrap: bool,
 
+    // --- alignment when multiline (ALIGN_*) ---
+    pub align_multiline_parameters: bool,
+    pub align_multiline_parameters_in_calls: bool,
+    pub align_multiline_resources: bool,
+    pub align_multiline_for: bool,
+    pub align_multiline_binary_operation: bool,
+    pub align_multiline_assignment: bool,
+    pub align_multiline_ternary_operation: bool,
+    pub align_multiline_throws_list: bool,
+    pub align_throws_keyword: bool,
+    pub align_multiline_extends_list: bool,
+    pub align_multiline_method_brackets: bool,
+    pub align_multiline_parenthesized_expression: bool,
+    pub align_multiline_array_initializer_expression: bool,
+    pub align_multiline_chained_methods: bool,
+    pub align_group_field_declarations: bool,
+    pub align_consecutive_variable_declarations: bool,
+    pub align_consecutive_assignments: bool,
+    pub align_subsequent_simple_methods: bool,
+
     // --- one-liners ---
     pub keep_simple_blocks_in_one_line: bool,
     pub keep_simple_methods_in_one_line: bool,
@@ -474,6 +494,24 @@ impl Default for JavaStyle {
             throws_list_wrap: WrapStyle::DoNotWrap,
             throws_keyword_wrap: false,
             prefer_parameters_wrap: false,
+            align_multiline_parameters: true,
+            align_multiline_parameters_in_calls: false,
+            align_multiline_resources: true,
+            align_multiline_for: true,
+            align_multiline_binary_operation: false,
+            align_multiline_assignment: false,
+            align_multiline_ternary_operation: false,
+            align_multiline_throws_list: false,
+            align_throws_keyword: false,
+            align_multiline_extends_list: false,
+            align_multiline_method_brackets: false,
+            align_multiline_parenthesized_expression: false,
+            align_multiline_array_initializer_expression: false,
+            align_multiline_chained_methods: false,
+            align_group_field_declarations: false,
+            align_consecutive_variable_declarations: false,
+            align_consecutive_assignments: false,
+            align_subsequent_simple_methods: false,
             keep_simple_blocks_in_one_line: false,
             keep_simple_methods_in_one_line: false,
             keep_simple_lambdas_in_one_line: false,
@@ -1401,6 +1439,241 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.switch_expressions_wrap = w;
+            }
+        },
+    },
+    // --- Alignment (align-when-multiline options) ---
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_PARAMETERS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Alignment",
+        description: "Align wrapped method declaration parameters under the first parameter.",
+        get: |s| OptionValue::Bool(s.align_multiline_parameters),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_parameters = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_PARAMETERS_IN_CALLS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped method-call arguments under the first argument.",
+        get: |s| OptionValue::Bool(s.align_multiline_parameters_in_calls),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_parameters_in_calls = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_RESOURCES",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Alignment",
+        description: "Align wrapped try-with-resources clauses under the first resource.",
+        get: |s| OptionValue::Bool(s.align_multiline_resources),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_resources = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_FOR",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(true),
+        group: "Alignment",
+        description: "Align wrapped for header parts under the first part.",
+        get: |s| OptionValue::Bool(s.align_multiline_for),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_for = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_BINARY_OPERATION",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped binary expression operands under the first operand.",
+        get: |s| OptionValue::Bool(s.align_multiline_binary_operation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_binary_operation = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_ASSIGNMENT",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align a wrapped assignment's right-hand side under the assignment start.",
+        get: |s| OptionValue::Bool(s.align_multiline_assignment),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_assignment = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_TERNARY_OPERATION",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped ternary operands under the condition.",
+        get: |s| OptionValue::Bool(s.align_multiline_ternary_operation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_ternary_operation = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_THROWS_LIST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped throws list entries under the first exception.",
+        get: |s| OptionValue::Bool(s.align_multiline_throws_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_throws_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_THROWS_KEYWORD",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align a wrapped throws clause's keyword with the exception column.",
+        get: |s| OptionValue::Bool(s.align_throws_keyword),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_throws_keyword = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_EXTENDS_LIST",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped extends / implements list entries under the first type.",
+        get: |s| OptionValue::Bool(s.align_multiline_extends_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_extends_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_METHOD_BRACKETS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align the closing paren of a wrapped declaration under its opening paren.",
+        get: |s| OptionValue::Bool(s.align_multiline_method_brackets),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_method_brackets = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align a wrapped parenthesized expression's continuation under the '('.",
+        get: |s| OptionValue::Bool(s.align_multiline_parenthesized_expression),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_parenthesized_expression = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped array initializer entries under the first entry.",
+        get: |s| OptionValue::Bool(s.align_multiline_array_initializer_expression),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_array_initializer_expression = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_CHAINED_METHODS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align wrapped chained-call dots under the first call's dot.",
+        get: |s| OptionValue::Bool(s.align_multiline_chained_methods),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_chained_methods = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_GROUP_FIELD_DECLARATIONS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align consecutive field declarations in columns.",
+        get: |s| OptionValue::Bool(s.align_group_field_declarations),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_group_field_declarations = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align consecutive local variable declarations in columns.",
+        get: |s| OptionValue::Bool(s.align_consecutive_variable_declarations),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_consecutive_variable_declarations = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_CONSECUTIVE_ASSIGNMENTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align consecutive assignment statements in columns.",
+        get: |s| OptionValue::Bool(s.align_consecutive_assignments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_consecutive_assignments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_SUBSEQUENT_SIMPLE_METHODS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Alignment",
+        description: "Align consecutive one-line methods' names in columns.",
+        get: |s| OptionValue::Bool(s.align_subsequent_simple_methods),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_subsequent_simple_methods = b;
             }
         },
     },

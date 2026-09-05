@@ -186,6 +186,63 @@ enum BodyKind {
     Anonymous,
 }
 
+/// One emitted statement / member line, buffered so the columnar
+/// `ALIGN_CONSECUTIVE_*` / `ALIGN_GROUP_*` / `ALIGN_SUBSEQUENT_*` options can
+/// pad runs of consecutive lines before they are written.
+struct BodyLine {
+    /// Blank lines to emit before this line.
+    blanks: usize,
+    /// Whether the emitter prefixes `ind(inner)` to `text` — false for
+    /// comments, which render their own column placement.
+    indented: bool,
+    /// The line content (statement/member text or a full comment).
+    text: String,
+    /// Columnar-alignment candidate info: the run kind, the column (within
+    /// `text`) of the element to align, and the offset (within `text`) where
+    /// padding is inserted. `None` for comments and other non-candidates,
+    /// which break runs.
+    align: Option<(u8, usize, usize)>,
+}
+
+/// Pad the lines of each run — a maximal stretch of consecutive candidate
+/// lines of the same kind with no blank line and no non-candidate between — so
+/// the aligned element (declaration/method name, assignment `=`) shares one
+/// column. Space-based, like the continuation alignment (README tab note); a
+/// line whose element already sits at the widest column is left alone.
+fn pad_column_runs(lines: &mut [BodyLine]) {
+    let mut i = 0;
+    while i < lines.len() {
+        let start_kind = match lines[i].align {
+            Some((k, _, _)) => k,
+            None => {
+                i += 1;
+                continue;
+            }
+        };
+        let mut j = i + 1;
+        while j < lines.len()
+            && lines[j].blanks == 0
+            && lines[j].align.is_some_and(|(k, _, _)| k == start_kind)
+        {
+            j += 1;
+        }
+        let max = lines[i..j]
+            .iter()
+            .filter_map(|l| l.align)
+            .map(|(_, col, _)| col)
+            .max()
+            .unwrap_or(0);
+        for l in &mut lines[i..j] {
+            if let Some((_, col, ins)) = l.align {
+                if col < max && ins <= l.text.len() {
+                    l.text.insert_str(ins, &" ".repeat(max - col));
+                }
+            }
+        }
+        i = j;
+    }
+}
+
 impl<'s> Fmt<'s> {
     // ── text helpers ──────────────────────────────────────────────────────────
 
@@ -203,6 +260,15 @@ impl<'s> Fmt<'s> {
         self.indent_str(
             level * self.style.indent_size as usize + self.style.continuation_indent_size as usize,
         )
+    }
+
+    /// Alignment prefix: `width` spaces, so the following token starts at
+    /// 0-based column `width` — the column of the construct's first element
+    /// the continuation lines are aligned under. Space-based like the record
+    /// header alignment (see the README tab note), because a tab-prefixed
+    /// line could not land exactly on the alignment column.
+    fn align_prefix(&self, width: usize) -> String {
+        " ".repeat(width)
     }
 
     /// Build an indentation string of `width` columns. When
@@ -1398,7 +1464,7 @@ impl<'s> Fmt<'s> {
         // Alignment column: right after '(' when aligning, otherwise a single
         // continuation indent level below the record header.
         let inner_indent = if self.style.align_multiline_records {
-            " ".repeat(open_col + 1)
+            self.align_prefix(open_col + 1)
         } else {
             self.cont(indent)
         };
@@ -1458,30 +1524,52 @@ impl<'s> Fmt<'s> {
 
         let inner = indent + 1;
         let anchor = node.start_byte(); // the opening `{`
-        let mut out = String::from("{\n");
         let mut prev: Option<Node<'s>> = None;
         let mut last: Option<Node<'s>> = None;
 
+        let mut lines: Vec<BodyLine> = Vec::with_capacity(members.len());
         for m in members {
             if self.is_comment_node(m) {
                 // Comments are content but take no part in the spacing
                 // options: they are emitted in place, without their own gap.
                 // `comment` renders the full line(s) (column placement, the
                 // optional space after `//`, wrapping), so the member indent
-                // prefix is not added here.
-                out.push_str(&self.comment(m, inner));
-                out.push('\n');
+                // prefix is not added here. Comments break columnar runs.
+                lines.push(BodyLine {
+                    blanks: 0,
+                    indented: false,
+                    text: self.comment(m, inner),
+                    align: None,
+                });
                 last = Some(m);
                 continue;
             }
 
             let gap = self.member_gap(prev, m, anchor, kind);
-            self.push_blanks(&mut out, gap);
-            out.push_str(&self.ind(inner));
-            out.push_str(&self.class_member(m, inner));
-            out.push('\n');
             prev = Some(m);
             last = Some(m);
+            let text = self.class_member(m, inner);
+            let align = self.member_align_elem(m, &text);
+            lines.push(BodyLine {
+                blanks: gap,
+                indented: true,
+                text,
+                align,
+            });
+        }
+
+        // Columnar alignment over output-adjacent members
+        // (`ALIGN_GROUP_FIELD_DECLARATIONS`, `ALIGN_SUBSEQUENT_SIMPLE_METHODS`).
+        pad_column_runs(&mut lines);
+
+        let mut out = String::from("{\n");
+        for l in lines {
+            self.push_blanks(&mut out, l.blanks);
+            if l.indented {
+                out.push_str(&self.ind(inner));
+            }
+            out.push_str(&l.text);
+            out.push('\n');
         }
 
         // Closing gap: blank lines before the closing brace. Measured from
@@ -1501,6 +1589,36 @@ impl<'s> Fmt<'s> {
         out.push_str(&self.ind(indent));
         out.push('}');
         out
+    }
+
+    /// Columnar-alignment element of a class-body member for
+    /// `ALIGN_GROUP_FIELD_DECLARATIONS` / `ALIGN_SUBSEQUENT_SIMPLE_METHODS`:
+    /// the column of the declaration / method name when the member is a
+    /// single-line single-declarator field or a single-line method, else
+    /// `None`. Padding is inserted right before the name, so the names of a
+    /// run share one column. Multi-line members (wrapped initialisers,
+    /// annotations on their own lines, block bodies) and multi-declarator
+    /// fields are not aligned and break runs.
+    fn member_align_elem(&self, m: Node<'s>, text: &str) -> Option<(u8, usize, usize)> {
+        if text.contains('\n') {
+            return None;
+        }
+        let decl_col = |s: &Self, node: Node<'s>, text: &str| -> Option<(u8, usize, usize)> {
+            let col = s.decl_name_col(node, text)?;
+            Some((0, col, col))
+        };
+        match m.kind() {
+            "field_declaration"
+                if self.style.align_group_field_declarations && self.single_declarator(m) =>
+            {
+                decl_col(self, m, text)
+            }
+            "method_declaration" if self.style.align_subsequent_simple_methods => {
+                let col = self.method_name_col(m, text)?;
+                Some((2, col, col))
+            }
+            _ => None,
+        }
     }
 
     fn class_member(&self, node: Node<'s>, indent: usize) -> String {
@@ -1582,6 +1700,8 @@ impl<'s> Fmt<'s> {
                 self.style.throws_list_wrap,
                 indent,
                 cur,
+                self.style.align_multiline_throws_list,
+                self.style.align_throws_keyword,
             ));
         }
 
@@ -1632,6 +1752,8 @@ impl<'s> Fmt<'s> {
                 self.style.throws_list_wrap,
                 indent,
                 cur,
+                self.style.align_multiline_throws_list,
+                self.style.align_throws_keyword,
             ));
         }
 
@@ -1722,7 +1844,7 @@ impl<'s> Fmt<'s> {
                 let prefix = format!("{} {}", out, name);
                 return format!(
                     "{};",
-                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node))
+                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node), None)
                 );
             }
         }
@@ -2056,26 +2178,65 @@ impl<'s> Fmt<'s> {
 
         let inner = indent + 1;
         let ind = self.ind(inner);
-        let wrapped = flat_parts
-            .iter()
-            .map(|p| format!("{}{}", ind, p))
-            .collect::<Vec<_>>()
-            .join(",\n");
-
-        let pad = self.style.space_within_method_parentheses;
-        match (lparen_nl, rparen_nl) {
-            (true, true) => Self::within(
-                '(',
-                ')',
-                pad,
-                &format!("\n{}\n{}", wrapped, self.ind(indent)),
-            ),
-            (true, false) => Self::within('(', ')', pad, &format!("\n{}", wrapped)),
-            (false, true) => {
-                Self::within('(', ')', pad, &format!("{}\n{}", wrapped, self.ind(indent)))
+        // `ALIGN_MULTILINE_PARAMETERS` (declarations) /
+        // `ALIGN_MULTILINE_PARAMETERS_IN_CALLS` (calls): when the first
+        // parameter stays on the header line after `(` (the
+        // lparen-stays / rparen-alone arm) it is glued directly after `(` and
+        // the remaining lines pad with spaces to the column after `(` — the
+        // same two canonical layouts `record_components` distinguishes. Where
+        // every parameter begins its own line the elements already share the
+        // first parameter's own column, so alignment leaves them unchanged.
+        let align_on = if is_call {
+            self.style.align_multiline_parameters_in_calls
+        } else {
+            self.style.align_multiline_parameters
+        };
+        let first_inline = !lparen_nl && rparen_nl;
+        let wrapped = if first_inline && align_on {
+            let pref = self.align_prefix(c + 1);
+            let mut parts = flat_parts.iter();
+            let mut s = String::new();
+            if let Some(first) = parts.next() {
+                s.push_str(first);
             }
-            (false, false) => Self::within('(', ')', pad, &format!("\n{}", wrapped)),
-        }
+            for p in parts {
+                s.push_str(",\n");
+                s.push_str(&pref);
+                s.push_str(p);
+            }
+            s
+        } else {
+            flat_parts
+                .iter()
+                .map(|p| format!("{}{}", ind, p))
+                .collect::<Vec<_>>()
+                .join(",\n")
+        };
+
+        // `ALIGN_MULTILINE_METHOD_BRACKETS`: a closing paren on its own line
+        // aligns under the opening paren's column instead of the declaration
+        // indent.
+        let tail = if rparen_nl {
+            if self.style.align_multiline_method_brackets {
+                format!("\n{}", self.align_prefix(c))
+            } else {
+                format!("\n{}", self.ind(indent))
+            }
+        } else {
+            String::new()
+        };
+        // Elements begin their own lines after `(` when the lparen moves or
+        // the rparen stays attached (same layout for both lparen settings, as
+        // the option files pin); only the lparen-stays / rparen-alone arm
+        // keeps the first element on the header line.
+        let lead_nl = lparen_nl || !rparen_nl;
+        let inner = if lead_nl {
+            format!("\n{}{}", wrapped, tail)
+        } else {
+            format!("{}{}", wrapped, tail)
+        };
+        let pad = self.style.space_within_method_parentheses;
+        Self::within('(', ')', pad, &inner)
     }
 
     fn flat_param(&self, node: Node<'s>) -> String {
@@ -2132,6 +2293,132 @@ impl<'s> Fmt<'s> {
 
     // ── block ─────────────────────────────────────────────────────────────────
 
+    /// True when `node` (a declaration) carries exactly one `variable_declarator`.
+    fn single_declarator(&self, node: Node<'s>) -> bool {
+        self.named(node)
+            .into_iter()
+            .filter(|n| n.kind() == "variable_declarator")
+            .count()
+            == 1
+    }
+
+    /// The column (within a rendered single-line declaration) where the
+    /// declarator name starts — the element `ALIGN_CONSECUTIVE_VARIABLE_`
+    /// `DECLARATIONS` / `ALIGN_GROUP_FIELD_DECLARATIONS` align. The name
+    /// follows the canonical `[mods ]type ` prefix; when the rendered text
+    /// does not start with that prefix (an R4 echo or annotation line) `None`
+    /// keeps the member out of a run.
+    fn decl_name_col(&self, node: Node<'s>, text: &str) -> Option<usize> {
+        if text.contains('\n') || text.starts_with('@') {
+            return None;
+        }
+        let mods = self
+            .get_mods(node)
+            .map(|m| self.flat_mods(m))
+            .unwrap_or_default();
+        let ty = self
+            .fld(node, "type")
+            .map(|n| self.flat_type(n))
+            .unwrap_or_default();
+        let prefix = if mods.is_empty() {
+            format!("{} ", ty)
+        } else {
+            format!("{} {} ", mods, ty)
+        };
+        if !text.starts_with(&prefix) {
+            return None;
+        }
+        Some(prefix.len())
+    }
+
+    /// The column (within a rendered single-line method declaration) where
+    /// the method name starts — the element
+    /// `ALIGN_SUBSEQUENT_SIMPLE_METHODS` aligns. The name follows the
+    /// canonical `[mods ]type ` prefix; `None` keeps the member out of a run
+    /// (a method with no name-prefix match, annotations, or a wrapped body).
+    fn method_name_col(&self, node: Node<'s>, text: &str) -> Option<usize> {
+        if text.contains('\n') || text.starts_with('@') {
+            return None;
+        }
+        let mut prefix = String::new();
+        if let Some(mods) = self.get_mods(node) {
+            let ms = self.flat_mods(mods);
+            if !ms.is_empty() {
+                prefix.push_str(&ms);
+                prefix.push(' ');
+            }
+        }
+        if let Some(tp) = self.fld(node, "type_parameters") {
+            prefix.push_str(&self.flat_type_params(tp));
+            prefix.push(' ');
+        }
+        let ty = self.fld(node, "type")?;
+        prefix.push_str(&self.flat_type(ty));
+        prefix.push(' ');
+        if !text.starts_with(&prefix) {
+            return None;
+        }
+        Some(prefix.len())
+    }
+
+    /// Columnar-alignment element of a block statement for
+    /// `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS` (kind 0: the declarator
+    /// name) / `ALIGN_CONSECUTIVE_ASSIGNMENTS` (kind 1: the `=`), or `None`
+    /// for non-candidates, which break runs.
+    fn stmt_align_elem(&self, s: Node<'s>, text: &str) -> Option<(u8, usize, usize)> {
+        match s.kind() {
+            "local_variable_declaration"
+                if self.style.align_consecutive_variable_declarations
+                    && self.single_declarator(s) =>
+            {
+                let col = self.decl_name_col(s, text)?;
+                Some((0, col, col))
+            }
+            "expression_statement" if self.style.align_consecutive_assignments => {
+                let e = s.named_child(0)?;
+                if e.kind() != "assignment_expression" || text.contains('\n') {
+                    return None;
+                }
+                let left = self
+                    .fld(e, "left")
+                    .map(|n| self.flat(n))
+                    .unwrap_or_default();
+                if left.is_empty() || !text.starts_with(&left) {
+                    return None;
+                }
+                let op = self
+                    .all_ch(e)
+                    .into_iter()
+                    .find(|n| {
+                        !n.is_named()
+                            && matches!(
+                                self.txt(*n),
+                                "=" | "+="
+                                    | "-="
+                                    | "*="
+                                    | "/="
+                                    | "&="
+                                    | "|="
+                                    | "^="
+                                    | "%="
+                                    | "<<="
+                                    | ">>="
+                                    | ">>>="
+                            )
+                    })
+                    .map(|n| self.txt(n))
+                    .unwrap_or("=");
+                let sep = self.op_sep(op);
+                // The operator starts `left.len() + sep.len()` columns in;
+                // padding inserted right after the left side shifts it to the
+                // run's widest operator column.
+                let eq_col = left.len() + sep.len();
+                Some((1, eq_col, left.len()))
+            }
+            _ => None,
+        }
+    }
+
     /// Renders a statement block `{ … }`. `body_lead_min` is the minimum
     /// blank lines to insert at the start of the body (`BLANK_LINES_BEFORE_METHOD_BODY`
     /// for method/constructor bodies, 0 otherwise); existing source runs after
@@ -2151,7 +2438,8 @@ impl<'s> Fmt<'s> {
 
         let inner = indent + 1;
         let keep = self.style.keep_blank_lines_in_code;
-        let mut out = String::from("{\n");
+        let sc = self.col_after(0, &self.ind(inner));
+        let mut lines: Vec<BodyLine> = Vec::with_capacity(stmts.len());
 
         for (i, s) in stmts.iter().enumerate() {
             let blanks = if i == 0 {
@@ -2165,17 +2453,41 @@ impl<'s> Fmt<'s> {
                 let existing = self.blank_lines_between(prev_end, cur_start);
                 self.spacing(existing, keep, 0)
             };
-            self.push_blanks(&mut out, blanks);
-            let sc = self.col_after(0, &self.ind(inner));
             if s.is_extra() {
                 // `comment` renders the full line(s) — column placement, the
                 // optional space after `//`, and WRAP_COMMENTS — so the
-                // statement indent prefix is not added for extras.
-                out.push_str(&self.comment(*s, inner));
+                // statement indent prefix is not added for extras. Comments
+                // break columnar runs.
+                lines.push(BodyLine {
+                    blanks,
+                    indented: false,
+                    text: self.comment(*s, inner),
+                    align: None,
+                });
             } else {
-                out.push_str(&self.ind(inner));
-                out.push_str(&self.stmt(*s, inner, sc));
+                let text = self.stmt(*s, inner, sc);
+                let align = self.stmt_align_elem(*s, &text);
+                lines.push(BodyLine {
+                    blanks,
+                    indented: true,
+                    text,
+                    align,
+                });
             }
+        }
+
+        // Columnar alignment over consecutive statements
+        // (`ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS`,
+        // `ALIGN_CONSECUTIVE_ASSIGNMENTS`).
+        pad_column_runs(&mut lines);
+
+        let mut out = String::from("{\n");
+        for l in lines {
+            self.push_blanks(&mut out, l.blanks);
+            if l.indented {
+                out.push_str(&self.ind(inner));
+            }
+            out.push_str(&l.text);
             out.push('\n');
         }
 
@@ -2384,7 +2696,7 @@ impl<'s> Fmt<'s> {
                 let prefix = format!("{}{}", out, name); // `out` ends with a space
                 return format!(
                     "{};",
-                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node))
+                    self.assign_expr(val, indent, c, &prefix, "=", self.keep_wrapped(node), None)
                 );
             }
         }
@@ -2722,8 +3034,25 @@ impl<'s> Fmt<'s> {
         }
 
         let cont = self.cont(indent);
+        // `ALIGN_MULTILINE_FOR`: the cond / update continuation lines align
+        // under the init slot (the first element after `(`), which sits right
+        // after the opening paren on the header (or paren) line. Where the
+        // lparen moves to its own line the paren line itself is at `cont`, so
+        // the alignment column is `cont` width + 1 — the record-header model
+        // for a lparen on its own line.
+        let lparen_nl = self.style.for_statement_lparen_on_next_line;
+        let part_pref = if self.style.align_multiline_for {
+            let paren_col = if lparen_nl {
+                self.col_after(0, &cont)
+            } else {
+                self.col_after(c, "for") + gap.len()
+            };
+            self.align_prefix(paren_col + 1 + if pad { 1 } else { 0 })
+        } else {
+            cont.clone()
+        };
         let mut out = String::from("for");
-        if self.style.for_statement_lparen_on_next_line {
+        if lparen_nl {
             out.push('\n');
             out.push_str(&cont);
         } else {
@@ -2740,14 +3069,14 @@ impl<'s> Fmt<'s> {
         out.push(';');
         if !cond.is_empty() {
             out.push('\n');
-            out.push_str(&cont);
+            out.push_str(&part_pref);
             out.push_str(&cond);
             out.push_str(before);
             out.push(';');
         }
         if !upd.is_empty() {
             out.push('\n');
-            out.push_str(&cont);
+            out.push_str(&part_pref);
             out.push_str(&upd);
         }
         if self.style.for_statement_rparen_on_next_line {
@@ -2922,8 +3251,30 @@ impl<'s> Fmt<'s> {
         // continuation line; `FOR_STATEMENT_LPAREN/RPAREN_ON_NEXT_LINE` put
         // the parens on their own lines.
         let cont = self.cont(indent);
+        // `ALIGN_MULTILINE_FOR`: the value line aligns under the type (the
+        // first element after `(`), the same column the classic header's
+        // init starts at.
+        let lparen_nl = self.style.for_statement_lparen_on_next_line;
+        let value_pref = if self.style.align_multiline_for {
+            let paren_col = if lparen_nl {
+                self.col_after(0, &cont)
+            } else {
+                self.col_after(c, "for") + p_gap.len()
+            };
+            self.align_prefix(
+                paren_col
+                    + 1
+                    + if self.style.space_within_for_parentheses {
+                        1
+                    } else {
+                        0
+                    },
+            )
+        } else {
+            cont.clone()
+        };
         let mut w = String::from("for");
-        if self.style.for_statement_lparen_on_next_line {
+        if lparen_nl {
             w.push('\n');
             w.push_str(&cont);
         } else {
@@ -2941,7 +3292,7 @@ impl<'s> Fmt<'s> {
         w.push_str(&Self::sep(self.style.space_before_colon_in_foreach));
         w.push(':');
         w.push('\n');
-        w.push_str(&cont);
+        w.push_str(&value_pref);
         w.push_str(&val);
         if self.style.space_within_for_parentheses && !val.ends_with('\n') {
             w.push(' ');
@@ -3321,38 +3672,50 @@ impl<'s> Fmt<'s> {
         let inner = indent + 1;
         let ind = self.ind(inner);
         let before = Self::sep(self.style.space_before_semicolon);
-        let lines: Vec<String> = resources
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let mut line = format!("{}{}", ind, r);
-                if i + 1 < resources.len() {
-                    line.push_str(before);
-                    line.push(';');
-                }
-                line
-            })
-            .collect();
-
         let (lp, rp) = (
             self.style.resource_list_lparen_on_next_line,
             self.style.resource_list_rparen_on_next_line,
         );
-        let wrapped = match (lp, rp) {
-            (true, true) => Self::within(
-                '(',
-                ')',
-                pad,
-                &format!("\n{}\n{}", lines.join("\n"), self.ind(indent)),
-            ),
-            (true, false) => Self::within('(', ')', pad, &format!("\n{}", lines.join("\n"))),
-            (false, true) => Self::within(
-                '(',
-                ')',
-                pad,
-                &format!("{}\n{}", lines.join("\n"), self.ind(indent)),
-            ),
-            (false, false) => Self::within('(', ')', pad, &format!("\n{}", lines.join("\n"))),
+        let line_of = |r: &str, last: bool| {
+            let mut line = String::new();
+            if !last {
+                line.push_str(before);
+                line.push(';');
+            }
+            format!("{}{}", r, line)
+        };
+        // `ALIGN_MULTILINE_RESOURCES`: in the arm that keeps the first
+        // resource on the header line after `(` it is glued right after `(`
+        // and the remaining lines pad to the column after `(`; the arms where
+        // every resource begins its own line already share the first
+        // resource's column and stay unchanged.
+        let mut body = String::new();
+        let lead_nl = lp || !rp;
+        if !lp && rp && self.style.align_multiline_resources {
+            let pref = self.align_prefix(paren_col + 1);
+            body.push_str(&line_of(&resources[0], resources.len() == 1));
+            for (i, r) in resources.iter().enumerate().skip(1) {
+                body.push('\n');
+                body.push_str(&pref);
+                body.push_str(&line_of(r, i + 1 == resources.len()));
+            }
+        } else {
+            let lines: Vec<String> = resources
+                .iter()
+                .enumerate()
+                .map(|(i, r)| format!("{}{}", ind, line_of(r, i + 1 == resources.len())))
+                .collect();
+            body = lines.join("\n");
+        }
+        let tail = if rp {
+            format!("\n{}", self.ind(indent))
+        } else {
+            String::new()
+        };
+        let wrapped = if lead_nl {
+            Self::within('(', ')', pad, &format!("\n{}{}", body, tail))
+        } else {
+            Self::within('(', ')', pad, &format!("{}{}", body, tail))
         };
         format!("{}{}", gap, wrapped)
     }
@@ -3848,6 +4211,16 @@ impl<'s> Fmt<'s> {
     // ── expressions ───────────────────────────────────────────────────────────
 
     fn expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        self.expr_ac(node, indent, c, None)
+    }
+
+    /// [`Self::expr`] carrying an inherited alignment column (`acol`), set by
+    /// an enclosing wrapped assignment (`ALIGN_MULTILINE_ASSIGNMENT`) or
+    /// parenthesized expression (`ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`):
+    /// continuation lines of nested binary / ternary / chained-call
+    /// expressions pad to that column when the nested construct's own align
+    /// option is off (its own option wins when on).
+    fn expr_ac(&self, node: Node<'s>, indent: usize, c: usize, acol: Option<usize>) -> String {
         if node.is_extra() {
             if matches!(node.kind(), "line_comment" | "block_comment") {
                 return self.comment(node, indent);
@@ -3855,17 +4228,17 @@ impl<'s> Fmt<'s> {
             return self.txt(node).to_string();
         }
         match node.kind() {
-            "method_invocation" => self.method_inv(node, indent, c),
+            "method_invocation" => self.method_inv_ac(node, indent, c, acol),
             "object_creation_expression" => self.new_expr(node, indent, c),
             "field_access" => self.field_access(node, indent, c),
             "array_access" => {
                 let arr = self
                     .fld(node, "array")
-                    .map(|n| self.expr(n, indent, c))
+                    .map(|n| self.expr_ac(n, indent, c, acol))
                     .unwrap_or_default();
                 let idx = self
                     .fld(node, "index")
-                    .map(|n| self.expr(n, indent, c))
+                    .map(|n| self.expr_ac(n, indent, c, acol))
                     .unwrap_or_default();
                 format!(
                     "{}{}",
@@ -3873,8 +4246,8 @@ impl<'s> Fmt<'s> {
                     Self::within('[', ']', self.style.space_within_brackets, &idx)
                 )
             }
-            "assignment_expression" => self.assignment(node, indent, c),
-            "binary_expression" => self.binary(node, indent, c),
+            "assignment_expression" => self.assignment(node, indent, c, acol),
+            "binary_expression" => self.binary_ac(node, indent, c, acol),
             "unary_expression" => {
                 let op = self
                     .fld(node, "operator")
@@ -3883,12 +4256,12 @@ impl<'s> Fmt<'s> {
                 let sep = Self::sep(self.style.space_around_unary_operator);
                 let operand = self
                     .fld(node, "operand")
-                    .map(|n| self.expr(n, indent, c + op.len() + sep.len()))
+                    .map(|n| self.expr_ac(n, indent, c + op.len() + sep.len(), acol))
                     .unwrap_or_default();
                 format!("{}{}{}", op, sep, operand)
             }
             "update_expression" => self.update_expr(node, indent, c, false),
-            "ternary_expression" => self.ternary(node, indent, c),
+            "ternary_expression" => self.ternary_ac(node, indent, c, acol),
             "cast_expression" => {
                 let ty = self
                     .fld(node, "type")
@@ -3898,14 +4271,14 @@ impl<'s> Fmt<'s> {
                 let sep = Self::sep(self.style.space_after_type_cast);
                 let val = self
                     .fld(node, "value")
-                    .map(|n| self.expr(n, indent, c + pad_ty.len() + sep.len()))
+                    .map(|n| self.expr_ac(n, indent, c + pad_ty.len() + sep.len(), acol))
                     .unwrap_or_default();
                 format!("{}{}{}", pad_ty, sep, val)
             }
             "instanceof_expression" => {
                 let left = self
                     .fld(node, "left")
-                    .map(|n| self.expr(n, indent, c))
+                    .map(|n| self.expr_ac(n, indent, c, acol))
                     .unwrap_or_default();
                 let right = self
                     .fld(node, "right")
@@ -3916,9 +4289,19 @@ impl<'s> Fmt<'s> {
             "lambda_expression" => self.lambda(node, indent, c),
             "method_reference" => self.method_ref(node),
             "parenthesized_expression" => {
+                // `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`: when the inner
+                // expression wraps, its continuation lines align to the
+                // column right after `(` instead of the continuation indent
+                // (the record-header model). The inherited `acol` flows
+                // through unchanged when the option is off.
+                let inner_acol = if self.style.align_multiline_parenthesized_expression {
+                    Some(c + 1)
+                } else {
+                    acol
+                };
                 let inner = node
                     .named_child(0)
-                    .map(|n| self.expr(n, indent, c + 1))
+                    .map(|n| self.expr_ac(n, indent, c + 1, inner_acol))
                     .unwrap_or_default();
                 let pad = self.style.space_within_parentheses;
                 if inner.contains('\n') {
@@ -3949,7 +4332,7 @@ impl<'s> Fmt<'s> {
                 }
             }
             "array_creation_expression" => self.array_creation(node, indent, c),
-            "array_initializer" => self.array_init(node, indent, c),
+            "array_initializer" => self.array_init(node, indent, c, c),
             "switch_expression" => self.switch_expr(node, indent, c),
             _ => self.txt(node).to_string(),
         }
@@ -3957,7 +4340,15 @@ impl<'s> Fmt<'s> {
 
     // ── method invocation + chain ─────────────────────────────────────────────
 
-    fn method_inv(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    /// The wrapped rendering of an invocation, with an inherited alignment
+    /// column (see [`Self::binary_ac`]).
+    fn method_inv_ac(
+        &self,
+        node: Node<'s>,
+        indent: usize,
+        c: usize,
+        acol: Option<usize>,
+    ) -> String {
         let flat = self.flat_inv(node);
         let keep = self.keep_wrapped(node) || self.args_keep_wrapped(node);
 
@@ -3980,7 +4371,7 @@ impl<'s> Fmt<'s> {
                 {
                     return self.inv_wrapped(node, indent, c);
                 }
-                return self.fmt_chain(&base, &links, indent, c);
+                return self.fmt_chain_ac(&base, &links, indent, c, acol);
             }
         }
 
@@ -4115,6 +4506,23 @@ impl<'s> Fmt<'s> {
             self.style.call_parameters_rparen_on_next_line,
         );
         let pad = self.style.space_within_method_call_parentheses;
+        // `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`: in the arm that keeps the
+        // first argument on the header line after `(`, the first argument is
+        // glued right after `(` and the remaining argument lines pad to the
+        // column after `(` (the record-header model); the arms where every
+        // argument begins its own line already share the first argument's
+        // column and stay unchanged.
+        if !lp && rp && self.style.align_multiline_parameters_in_calls {
+            let pref = self.align_prefix(c + 1);
+            let mut body = self.expr(args[0], inner, c + 1);
+            for &a in args.iter().skip(1) {
+                body.push_str(",\n");
+                body.push_str(&pref);
+                body.push_str(&self.expr(a, inner, c + 1));
+            }
+            let inner_txt = format!("{}\n{}", body, self.ind(indent));
+            return Self::within('(', ')', pad, &inner_txt);
+        }
         match (lp, rp) {
             (true, true) => Self::within(
                 '(',
@@ -4197,7 +4605,23 @@ impl<'s> Fmt<'s> {
         }
     }
 
-    fn fmt_chain(&self, base: &str, links: &[Link<'s>], indent: usize, _c: usize) -> String {
+    fn fmt_chain(&self, base: &str, links: &[Link<'s>], indent: usize, c: usize) -> String {
+        self.fmt_chain_ac(base, links, indent, c, None)
+    }
+
+    /// [`Self::fmt_chain`] with an inherited alignment column (see
+    /// [`Self::binary_ac`]): the wrapped link lines pad to the first link's
+    /// dot column when `ALIGN_MULTILINE_CHAINED_METHODS` is on, else to the
+    /// inherited `acol` when the chain sits inside an aligned assignment or
+    /// parenthesized expression.
+    fn fmt_chain_ac(
+        &self,
+        base: &str,
+        links: &[Link<'s>],
+        indent: usize,
+        c: usize,
+        acol: Option<usize>,
+    ) -> String {
         let cont = self.cont(indent);
         let mut out = String::new();
         let gap = self.sp(self.style.space_before_method_call_parentheses);
@@ -4206,6 +4630,19 @@ impl<'s> Fmt<'s> {
         // receiver) there is nothing on the header line to wrap after, so the
         // first link stays where it is.
         let first_next = self.style.wrap_first_method_in_call_chain && !base.is_empty();
+        // Continuation prefix for the link lines: the alignment column is the
+        // first link's dot column when it stays on the header line.
+        let link_pref: String = if !first_next && !base.is_empty() {
+            if self.style.align_multiline_chained_methods {
+                self.align_prefix(self.col_after(c, base))
+            } else if let Some(a) = acol {
+                self.align_prefix(a)
+            } else {
+                cont.clone()
+            }
+        } else {
+            cont.clone()
+        };
 
         for (i, link) in links.iter().enumerate() {
             let ta = link
@@ -4225,7 +4662,7 @@ impl<'s> Fmt<'s> {
                 }
             } else {
                 out.push('\n');
-                out.push_str(&cont);
+                out.push_str(&link_pref);
                 out.push('.');
                 out.push_str(&ta);
                 out.push_str(nm);
@@ -4302,7 +4739,7 @@ impl<'s> Fmt<'s> {
         format!("{}.{}", obj, field)
     }
 
-    fn assignment(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    fn assignment(&self, node: Node<'s>, indent: usize, c: usize, acol: Option<usize>) -> String {
         let left = self
             .fld(node, "left")
             .map(|n| self.flat(n))
@@ -4338,14 +4775,14 @@ impl<'s> Fmt<'s> {
                 if self.style.assignment_wrap != WrapStyle::DoNotWrap
                     || self.keep_wrapped(node) =>
             {
-                self.assign_expr(r, indent, c, &left, op, self.keep_wrapped(node))
+                self.assign_expr(r, indent, c, &left, op, self.keep_wrapped(node), acol)
             }
             _ => {
                 let sep = self.op_sep(op);
                 let right = rhs
                     .map(|n| {
                         let rc = c + left.len() + sep.len() + op.len() + sep.len();
-                        self.expr(n, indent, rc)
+                        self.expr_ac(n, indent, rc, acol)
                     })
                     .unwrap_or_default();
                 format!("{}{}{}{}{}", left, sep, op, sep, right)
@@ -4359,7 +4796,9 @@ impl<'s> Fmt<'s> {
     /// The RHS is first given the chance to wrap internally (e.g. as a method
     /// chain); if that keeps the whole line within the margin the operator is
     /// left in place. Otherwise the RHS is moved to the next line at the
-    /// continuation indent. `c` is the column where `prefix` begins.
+    /// continuation indent. `c` is the column where `prefix` begins. `acol` is
+    /// an alignment column inherited from an enclosing aligned construct.
+    #[allow(clippy::too_many_arguments)]
     fn assign_expr(
         &self,
         rhs: Node<'s>,
@@ -4368,10 +4807,20 @@ impl<'s> Fmt<'s> {
         prefix: &str,
         op: &str,
         keep: bool,
+        acol: Option<usize>,
     ) -> String {
         let sep = self.op_sep(op);
         let rhs_col = self.col_after(c, prefix) + sep.len() + op.len() + sep.len();
-        let same = self.expr(rhs, indent, rhs_col);
+        // `ALIGN_MULTILINE_ASSIGNMENT`: when on, the RHS — and the
+        // continuation lines of anything nested inside it whose own align
+        // option is off — aligns to the column where the RHS would sit right
+        // after the operator on the header line (the record-header model).
+        let eff_acol = if self.style.align_multiline_assignment {
+            Some(rhs_col)
+        } else {
+            acol
+        };
+        let same = self.expr_ac(rhs, indent, rhs_col, eff_acol);
 
         // The RHS wrapped internally; leave the operator on the header line.
         if same.contains('\n') {
@@ -4383,14 +4832,20 @@ impl<'s> Fmt<'s> {
             // RHS moves to the continuation line after the operator even
             // though the flat form fits.
             let cont = self.cont(indent);
-            let cont_col = self.col_after(0, &cont);
-            let nl = self.expr(rhs, indent, cont_col);
             if self.style.place_assignment_sign_on_next_line {
                 // `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`: the operator starts
-                // the continuation line.
-                return format!("{}\n{}{}{}{}", prefix, cont, op, sep, nl);
+                // the continuation line (the layout keeps the continuation
+                // indent; see the sign-on-next-line goldens).
+                let r = self.expr_ac(rhs, indent, self.col_after(0, &cont), None);
+                return format!("{}\n{}{}{}{}", prefix, cont, op, sep, r);
             }
-            return format!("{}{}{}\n{}{}", prefix, sep, op, cont, nl);
+            let pref = if self.style.align_multiline_assignment {
+                self.align_prefix(rhs_col)
+            } else {
+                cont.clone()
+            };
+            let r = self.expr_ac(rhs, indent, self.col_after(0, &cont), eff_acol);
+            return format!("{}{}{}\n{}{}", prefix, sep, op, pref, r);
         }
 
         let flat = format!("{}{}{}{}{}", prefix, sep, op, sep, same);
@@ -4399,18 +4854,24 @@ impl<'s> Fmt<'s> {
         }
 
         let cont = self.cont(indent);
-        let cont_col = self.col_after(0, &cont);
-        let nl = self.expr(rhs, indent, cont_col);
         if self.style.place_assignment_sign_on_next_line {
             // `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`: the operator starts
-            // the continuation line.
-            format!("{}\n{}{}{}{}", prefix, cont, op, sep, nl)
+            // the continuation line (keeps the continuation indent; see the
+            // sign-on-next-line goldens).
+            let r = self.expr_ac(rhs, indent, self.col_after(0, &cont), None);
+            format!("{}\n{}{}{}{}", prefix, cont, op, sep, r)
         } else {
-            format!("{}{}{}\n{}{}", prefix, sep, op, cont, nl)
+            let pref = if self.style.align_multiline_assignment {
+                self.align_prefix(rhs_col)
+            } else {
+                cont.clone()
+            };
+            let r = self.expr_ac(rhs, indent, self.col_after(0, &cont), eff_acol);
+            format!("{}{}{}\n{}{}", prefix, sep, op, pref, r)
         }
     }
 
-    fn binary(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    fn binary_ac(&self, node: Node<'s>, indent: usize, c: usize, acol: Option<usize>) -> String {
         let wrap = self.style.binary_operation_wrap;
 
         let left = self
@@ -4449,13 +4910,25 @@ impl<'s> Fmt<'s> {
             return flat;
         }
 
-        let cont = self.cont(indent);
+        let (cont, cont_col) = if self.style.align_multiline_binary_operation {
+            // `ALIGN_MULTILINE_BINARY_OPERATION`: continuation lines start at
+            // the first operand's column instead of the continuation indent.
+            let p = self.align_prefix(c);
+            (p, c)
+        } else if let Some(a) = acol {
+            let p = self.align_prefix(a);
+            (p, a)
+        } else {
+            let cont = self.cont(indent);
+            let cont_col = self.col_after(0, &cont);
+            (cont, cont_col)
+        };
         let sign_next = self.style.binary_operation_sign_on_next_line;
-        let mut out = self.binary_operand(operands[0], indent, c, wrap);
+        let mut out = self.binary_operand(operands[0], indent, c, wrap, acol);
         for i in 1..operands.len() {
             let op = &ops[i - 1];
             let sep = self.op_sep(op);
-            let operand = self.binary_operand(operands[i], indent, self.col_after(0, &cont), wrap);
+            let operand = self.binary_operand(operands[i], indent, cont_col, wrap, acol);
             if sign_next {
                 // `BINARY_OPERATION_SIGN_ON_NEXT_LINE`: the operator starts
                 // the continuation line.
@@ -4500,15 +4973,24 @@ impl<'s> Fmt<'s> {
     /// Render one operand of a broken binary spine. `ChopDownIfLong` recurses
     /// into an operand that is itself a binary expression so a long nested
     /// chain can wrap further; the other styles keep operands flat.
-    fn binary_operand(&self, n: Node<'s>, indent: usize, c: usize, wrap: WrapStyle) -> String {
+    fn binary_operand(
+        &self,
+        n: Node<'s>,
+        indent: usize,
+        c: usize,
+        wrap: WrapStyle,
+        acol: Option<usize>,
+    ) -> String {
         if wrap == WrapStyle::ChopDownIfLong && n.kind() == "binary_expression" {
-            self.binary(n, indent, c)
+            self.binary_ac(n, indent, c, acol)
         } else {
             self.flat(n).to_string()
         }
     }
 
-    fn ternary(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    /// [`Self::ternary_ac`] carries an inherited alignment column (see
+    /// [`Self::binary_ac`]):
+    fn ternary_ac(&self, node: Node<'s>, indent: usize, c: usize, acol: Option<usize>) -> String {
         let wrap = self.style.ternary_operation_wrap;
         let q = self.quest_sep();
         let cl = self.colon_sep();
@@ -4537,16 +5019,28 @@ impl<'s> Fmt<'s> {
             return flat;
         }
 
-        let cont = self.cont(indent);
-        let cont_col = self.col_after(0, &cont);
+        let (cont, cont_col) = if self.style.align_multiline_ternary_operation {
+            // `ALIGN_MULTILINE_TERNARY_OPERATION`: the `?` / `:` continuation
+            // lines start at the condition's column.
+            let p = self.align_prefix(c);
+            (p, c)
+        } else if let Some(a) = acol {
+            let p = self.align_prefix(a);
+            (p, a)
+        } else {
+            let cont = self.cont(indent);
+            let cont_col = self.col_after(0, &cont);
+            (cont, cont_col)
+        };
         // `TERNARY_OPERATION_SIGNS_ON_NEXT_LINE` steers the `?` / `:` between
         // the two wrapped layouts; the sign halves of the separators that face
         // the newline are dropped so no trailing / leading whitespace appears
         // (R5).
         let signs_next = self.style.ternary_operation_signs_on_next_line;
-        let cond = self.ternary_operand(self.fld(node, "condition"), indent, c, wrap);
-        let cons = self.ternary_operand(self.fld(node, "consequence"), indent, cont_col, wrap);
-        let alt = self.ternary_operand(self.fld(node, "alternative"), indent, cont_col, wrap);
+        let cond = self.ternary_operand(self.fld(node, "condition"), indent, c, wrap, acol);
+        let cons =
+            self.ternary_operand(self.fld(node, "consequence"), indent, cont_col, wrap, acol);
+        let alt = self.ternary_operand(self.fld(node, "alternative"), indent, cont_col, wrap, acol);
         if signs_next {
             // The `?` / `:` start the continuation lines (the layout shipped
             // before the wrap option existed).
@@ -4590,10 +5084,11 @@ impl<'s> Fmt<'s> {
         indent: usize,
         c: usize,
         wrap: WrapStyle,
+        acol: Option<usize>,
     ) -> String {
         match n {
             Some(n) if wrap == WrapStyle::ChopDownIfLong && n.kind() == "ternary_expression" => {
-                self.ternary(n, indent, c)
+                self.ternary_ac(n, indent, c, acol)
             }
             Some(n) => self.flat(n).to_string(),
             None => String::new(),
@@ -4604,10 +5099,7 @@ impl<'s> Fmt<'s> {
         let params = self
             .fld(node, "parameters")
             .map(|n| match n.kind() {
-                "formal_parameters" => {
-                    let flat = self.flat_formal_params(n);
-                    flat
-                }
+                "formal_parameters" => self.flat_formal_params(n),
                 "inferred_parameters" => {
                     let ps: Vec<_> = self
                         .named(n)
@@ -4698,17 +5190,24 @@ impl<'s> Fmt<'s> {
         let init = self
             .fld(node, "value")
             .map(|n| {
+                // Column of the initialiser's `{` within the physical line,
+                // for the array-initializer alignment.
+                let brace_col = c
+                    + self.col_after(0, &format!("new {}{}", ty, dims.join("")))
+                    + self
+                        .sp(self.style.space_before_array_initializer_lbrace)
+                        .len();
                 format!(
                     "{}{}",
                     self.sp(self.style.space_before_array_initializer_lbrace),
-                    self.array_init(n, indent, c)
+                    self.array_init(n, indent, c, brace_col)
                 )
             })
             .unwrap_or_default();
         format!("new {}{}{}", ty, dims.join(""), init)
     }
 
-    fn array_init(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+    fn array_init(&self, node: Node<'s>, indent: usize, c: usize, brace_col: usize) -> String {
         let wrap = self.style.array_initializer_wrap;
         let flat = self.flat_arr_init(node);
 
@@ -4722,17 +5221,8 @@ impl<'s> Fmt<'s> {
             return flat;
         }
         let inner = indent + 1;
-        let elem_strs: Vec<_> = self
-            .named(node)
-            .iter()
-            .map(|&e| {
-                format!(
-                    "{}{}",
-                    self.ind(inner),
-                    self.expr(e, inner, self.col_after(0, &self.ind(inner)))
-                )
-            })
-            .collect();
+        let ind = self.ind(inner);
+        let elems: Vec<Node<'s>> = self.named(node);
         let pad = self.style.space_within_array_initializer_braces;
 
         // `ARRAY_INITIALIZER_LBRACE/RBRACE_ON_NEXT_LINE` (default false): the
@@ -4749,8 +5239,41 @@ impl<'s> Fmt<'s> {
             out.push_str(&self.ind(indent));
         }
         out.push('{');
-        out.push('\n');
-        out.push_str(&elem_strs.join(",\n"));
+        // `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION`: with the lbrace on
+        // the header line the first element stays right after `{` and the
+        // remaining element lines pad to the column after `{` (the
+        // record-header model — the layout this formatter pins for the
+        // option). With the lbrace on its own line the elements already
+        // begin their own lines and the option leaves them unchanged.
+        if self.style.align_multiline_array_initializer_expression && !l_next {
+            let elem_col = brace_col + 1 + if pad { 1 } else { 0 };
+            let pref = self.align_prefix(elem_col);
+            let mut first = true;
+            for e in elems {
+                if first {
+                    if pad {
+                        out.push(' ');
+                    }
+                    first = false;
+                } else {
+                    out.push_str(",\n");
+                    out.push_str(&pref);
+                }
+                out.push_str(&self.expr(e, inner, elem_col));
+            }
+        } else {
+            out.push('\n');
+            let elem_col = self.col_after(0, &ind);
+            let mut first = true;
+            for e in elems {
+                if !first {
+                    out.push_str(",\n");
+                }
+                first = false;
+                out.push_str(&ind);
+                out.push_str(&self.expr(e, inner, elem_col));
+            }
+        }
         if r_next {
             out.push('\n');
             out.push_str(&self.ind(indent));
@@ -4952,6 +5475,8 @@ impl<'s> Fmt<'s> {
                     self.style.extends_list_wrap,
                     indent,
                     cur,
+                    self.style.align_multiline_extends_list,
+                    false,
                 ));
             }
             None => {
@@ -4989,6 +5514,16 @@ impl<'s> Fmt<'s> {
     /// every further element goes on its own `\n<cont>` line. `WrapIfLong` and
     /// `ChopDownIfLong` share the layout: these atomic list elements cannot be
     /// split further.
+    ///
+    /// `align_list` (`ALIGN_MULTILINE_THROWS_LIST` /
+    /// `ALIGN_MULTILINE_EXTENDS_LIST`) pads the wrapped element lines to the
+    /// first element's column instead of the continuation indent — the first
+    /// element stays on the keyword's line, so the later lines align under it.
+    /// `align_keyword` (`ALIGN_THROWS_KEYWORD`) additionally pads the keyword's
+    /// own continuation line (when `keyword_wrap` moves it) to the column the
+    /// keyword would occupy if it had stayed on the header line after the
+    /// preceding token.
+    #[allow(clippy::too_many_arguments)]
     fn clause_list(
         &self,
         keyword: &str,
@@ -4997,6 +5532,8 @@ impl<'s> Fmt<'s> {
         wrap: WrapStyle,
         indent: usize,
         cur_col: usize,
+        align_list: bool,
+        align_keyword: bool,
     ) -> String {
         let flat = format!(
             " {} {}",
@@ -5027,14 +5564,45 @@ impl<'s> Fmt<'s> {
             lines.push(line);
         }
 
+        // Alignment columns: `kw_col` is where the keyword begins, `item_col`
+        // where the first element begins right after the keyword — the column
+        // the wrapped element lines align under. With the keyword on the
+        // header line the keyword starts one column after the clause's leading
+        // space; with the keyword wrapped its line starts at `cont` (or at the
+        // keyword's natural header column under `align_keyword`).
+        let kw_line_pref = if keyword_wrap {
+            if align_keyword {
+                self.align_prefix(cur_col + 1)
+            } else {
+                cont.clone()
+            }
+        } else {
+            String::new()
+        };
+        let kw_col = if keyword_wrap {
+            if align_keyword {
+                cur_col + 1
+            } else {
+                self.col_after(0, &cont)
+            }
+        } else {
+            cur_col + 1
+        };
+        let item_col = kw_col + keyword.len() + 1;
+        let item_pref = if align_list {
+            self.align_prefix(item_col)
+        } else {
+            cont.clone()
+        };
+
         let mut s = if keyword_wrap {
-            format!("\n{}{} {}", cont, keyword, lines[0])
+            format!("\n{}{} {}", kw_line_pref, keyword, lines[0])
         } else {
             format!(" {} {}", keyword, lines[0])
         };
         for l in lines.iter().skip(1) {
             s.push('\n');
-            s.push_str(&cont);
+            s.push_str(&item_pref);
             s.push_str(l);
         }
         s

@@ -3,10 +3,13 @@ type: ChangeRequest
 kind: feature
 title: Honour the align-when-multiline options
 description: Implement the common ALIGN_MULTILINE_* / ALIGN_* options so wrapped constructs align instead of using the plain continuation indent.
-state: planned
+state: done
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
+verified:
+  by: Zed coding agent
+  at: 2026-09-05T14:45:00Z
 ---
 
 # Problem
@@ -69,19 +72,19 @@ Recommended execution order for this request is therefore after (or in lockstep 
 
 ## Steps
 
-- [ ] config.rs: add the eighteen `bool` fields + `Default` values to `JavaStyle` (three `true` per the table) and the eighteen `OptionDef` entries (group `"Alignment"`, `Section::CodeStyleJava`, `OptionValue::Bool`, `get`/`set` closures) after the wrapping entries; `cargo build` and `cargo test` stay green — no behaviour change yet (AC: option mapping / defaults / absent → default).
-- [ ] formatter.rs: add the shared space-based alignment-prefix helper mirroring `record_components` L666-670; leave every toggle-off path untouched (AC2/AC3 mechanics).
-- [ ] `ALIGN_MULTILINE_PARAMETERS`: teach the `formal_params` declaration path both aligned layouts (first element stays on the header line when the lparen stays, else elements align to the first element's own column) and keep off = today's form; add `tests/options/align_multiline_parameters.rs` + fixtures under `tests/java/align_multiline_parameters/` (on, off, and absent-default aligned) and wire the module in `tests/options.rs` (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`: same treatment for `args_wrapped` (calls and `new` expressions); add `tests/options/align_multiline_parameters_in_calls.rs` + fixtures (on, off, absent-default = today's form) (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_BINARY_OPERATION`: in `binary` emit the first-operand column prefix when on (off/absent = `cont`, existing `long_sum` goldens unchanged); add `tests/options/align_multiline_binary_operation.rs` + fixtures (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_ASSIGNMENT`: in `assign_expr` align the wrapped RHS when on (off/absent unchanged); add `tests/options/align_multiline_assignment.rs` + fixtures covering the statement and field/local-initialiser sites (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_TERNARY_OPERATION`: in `ternary` align the `?`/`:` lines when on; add `tests/options/align_multiline_ternary_operation.rs` + fixtures; verify the aligned shape against IntelliJ when available (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` and `ALIGN_MULTILINE_CHAINED_METHODS`: align `array_init` elements / `fmt_chain` dots when on (off/absent unchanged); add `tests/options/align_multiline_array_initializer_expression.rs` and `align_multiline_chained_methods.rs` + fixtures (AC1, AC2, AC3).
-- [ ] `ALIGN_MULTILINE_METHOD_BRACKETS` and `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`: align the wrapped-declaration parens and the wrapped paren-content continuation when on; add `tests/options/align_multiline_method_brackets.rs` and `align_multiline_parenthesized_expression.rs` + fixtures; check the ambiguous shapes against IntelliJ (AC1, AC2, AC3).
-- [ ] `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS` and `ALIGN_CONSECUTIVE_ASSIGNMENTS`: run detection + column padding in `Fmt::block`; add `tests/options/align_consecutive_variable_declarations.rs` and `align_consecutive_assignments.rs` + fixtures (consecutive statements; runs broken by a blank line or comment; off; absent) (AC1, AC2, AC3).
-- [ ] `ALIGN_GROUP_FIELD_DECLARATIONS` and `ALIGN_SUBSEQUENT_SIMPLE_METHODS`: add the `class_body` run machinery over output-adjacent members plus their per-option files; while `class_body` inserts a blank line between every member the fixtures pin the no-op, and the aligned goldens are completed when the blank-line-policy request makes members adjacent (AC1; AC2/AC3 gated on that request).
-- [ ] Wrap-gated options `ALIGN_MULTILINE_RESOURCES`, `ALIGN_MULTILINE_FOR`, `ALIGN_MULTILINE_THROWS_LIST`, `ALIGN_THROWS_KEYWORD`, `ALIGN_MULTILINE_EXTENDS_LIST`: option plumbing is live from step 1; add their per-option files pinning the no-op, and together with the wrapping-declaration-clauses / wrapping-expressions-and-statements layouts add the alignment branch + aligned goldens at the `try_stmt` / `for_stmt` / `method_decl` / class-header sites (AC1; AC2/AC3 gated on those requests).
-- [ ] Full-suite gate: run `cargo test`; existing goldens stay byte-identical under default/absent schemes; any golden that shifts because a default-`true` align now engages is regenerated only after IntelliJ verification; each new golden formats to itself on a second pass (AC3).
-- [ ] Docs: flip the eighteen ❌ → ✅ Alignment rows in docs/settings/common.md; add the eighteen rows to the README honoured-options table and an alignment formatting-behaviour note; add a requirement row to docs/requirements.md; append an entry to docs/dev/changelog.md; run `cargo test` once more to confirm the shipped state is green (AC4).
+- [x] config.rs: add the eighteen `bool` fields + `Default` values to `JavaStyle` (three `true` per the table) and the eighteen `OptionDef` entries (group `"Alignment"`, `Section::CodeStyleJava`, `OptionValue::Bool`, `get`/`set` closures) after the wrapping entries; `cargo build` and `cargo test` stay green — no behaviour change yet (AC: option mapping / defaults / absent → default).
+- [x] formatter.rs: add the shared space-based alignment-prefix helper mirroring `record_components` L666-670; leave every toggle-off path untouched (AC2/AC3 mechanics).
+- [x] `ALIGN_MULTILINE_PARAMETERS`: teach the `formal_params` declaration path both aligned layouts (first element stays on the header line when the lparen stays, else elements align to the first element's own column) and keep off = today's form; add `tests/options/align_multiline_parameters.rs` + fixtures under `tests/java/align_multiline_parameters/` (on, off, and absent-default aligned) and wire the module in `tests/options.rs` (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`: same treatment for `args_wrapped` (calls and `new` expressions); add `tests/options/align_multiline_parameters_in_calls.rs` + fixtures (on, off, absent-default = today's form) (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_BINARY_OPERATION`: in `binary` emit the first-operand column prefix when on (off/absent = `cont`, existing `long_sum` goldens unchanged); add `tests/options/align_multiline_binary_operation.rs` + fixtures (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_ASSIGNMENT`: in `assign_expr` align the wrapped RHS when on (off/absent unchanged); add `tests/options/align_multiline_assignment.rs` + fixtures covering the statement and field/local-initialiser sites (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_TERNARY_OPERATION`: in `ternary` align the `?`/`:` lines when on; add `tests/options/align_multiline_ternary_operation.rs` + fixtures; verify the aligned shape against IntelliJ when available (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` and `ALIGN_MULTILINE_CHAINED_METHODS`: align `array_init` elements / `fmt_chain` dots when on (off/absent unchanged); add `tests/options/align_multiline_array_initializer_expression.rs` and `align_multiline_chained_methods.rs` + fixtures (AC1, AC2, AC3).
+- [x] `ALIGN_MULTILINE_METHOD_BRACKETS` and `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`: align the wrapped-declaration parens and the wrapped paren-content continuation when on; add `tests/options/align_multiline_method_brackets.rs` and `align_multiline_parenthesized_expression.rs` + fixtures; check the ambiguous shapes against IntelliJ (AC1, AC2, AC3).
+- [x] `ALIGN_CONSECUTIVE_VARIABLE_DECLARATIONS` and `ALIGN_CONSECUTIVE_ASSIGNMENTS`: run detection + column padding in `Fmt::block`; add `tests/options/align_consecutive_variable_declarations.rs` and `align_consecutive_assignments.rs` + fixtures (consecutive statements; runs broken by a blank line or comment; off; absent) (AC1, AC2, AC3).
+- [x] `ALIGN_GROUP_FIELD_DECLARATIONS` and `ALIGN_SUBSEQUENT_SIMPLE_METHODS`: add the `class_body` run machinery over output-adjacent members plus their per-option files; while `class_body` inserts a blank line between every member the fixtures pin the no-op, and the aligned goldens are completed when the blank-line-policy request makes members adjacent (AC1; AC2/AC3 gated on that request).
+- [x] Wrap-gated options `ALIGN_MULTILINE_RESOURCES`, `ALIGN_MULTILINE_FOR`, `ALIGN_MULTILINE_THROWS_LIST`, `ALIGN_THROWS_KEYWORD`, `ALIGN_MULTILINE_EXTENDS_LIST`: option plumbing is live from step 1; add their per-option files pinning the no-op, and together with the wrapping-declaration-clauses / wrapping-expressions-and-statements layouts add the alignment branch + aligned goldens at the `try_stmt` / `for_stmt` / `method_decl` / class-header sites (AC1; AC2/AC3 gated on those requests).
+- [x] Full-suite gate: run `cargo test`; existing goldens stay byte-identical under default/absent schemes; any golden that shifts because a default-`true` align now engages is regenerated only after IntelliJ verification; each new golden formats to itself on a second pass (AC3).
+- [x] Docs: flip the eighteen ❌ → ✅ Alignment rows in docs/settings/common.md; add the eighteen rows to the README honoured-options table and an alignment formatting-behaviour note; add a requirement row to docs/requirements.md; append an entry to docs/dev/changelog.md; run `cargo test` once more to confirm the shipped state is green (AC4).
 
 Commit: not committed (worktree changes only — the repository is left for the owner to commit).
