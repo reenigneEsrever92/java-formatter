@@ -42,3 +42,4 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 | proposed | low      | feature     | [Honour the type-argument and type-parameter spacing options](type-argument-spacing-options.md)                                  |
 | proposed | low      | feature     | [Honour the text-block layout and multi-catch wrapping options](text-blocks-and-multi-catch.md)                                  |
 | proposed | low      | feature     | [Honour the deconstruction-pattern layout options (Java 21)](deconstruction-pattern-layout.md)                                   |
+| done     | medium   | feature     | [Set up a GitHub Actions CI pipeline (fmt, clippy, tests on an OS matrix)](github-ci-pipeline.md)                               |

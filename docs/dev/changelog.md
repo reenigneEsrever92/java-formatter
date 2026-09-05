@@ -154,6 +154,20 @@ tags: [dev, changelog]
   available to cross-check the goldens; the layouts follow the request's
   decisions and the existing call-parameter wrap conventions.
 
+- **A GitHub Actions CI pipeline was added (R28, github-ci-pipeline)**:
+  `.github/workflows/ci.yml` runs `cargo fmt --all -- --check` and, on an
+  ubuntu/macos/windows × stable Rust matrix, `cargo clippy --workspace --lib
+  --bins --tests -- -D warnings` and `cargo test --workspace` on every push to
+  `main` and every pull request (plus manual `workflow_dispatch` runs), with
+  per-matrix-cell `Swatinem/rust-cache`. Benches are deliberately not built on
+  CI until the missing `tests/java/kitchen_sink.java` bench fixture is
+  restored. README carries a workflow status badge, and docs/requirements.md
+  gains requirement R28. The pipeline's fmt and clippy gates are expected to
+  go green once the in-flight wrapping work lands (it also cleans the
+  formatting drift in `tests/options/`).
+
+## 2026-09-04
+
 - **The switch / case indentation and wrapping options are honoured (R25,
   switch-case-layout)**: the four layout options — `INDENT_CASE_FROM_SWITCH`
   (default true), `CASE_STATEMENT_ON_NEW_LINE` (default true),

@@ -1,5 +1,6 @@
 # java-formatter
 
+[![CI](https://github.com/reenigneEsrever92/java-formatter/actions/workflows/ci.yml/badge.svg)](https://github.com/reenigneEsrever92/java-formatter/actions/workflows/ci.yml)
 
 A Java source code formatter that applies [IntelliJ IDEA code style](https://www.jetbrains.com/help/idea/code-style.html) rules declared in a `codestyle.xml` scheme (e.g. `.idea/codeStyles/Project.xml`).
 
@@ -572,6 +573,11 @@ the `tests/options.rs` aggregator. Every test is a golden pair: it formats a
 → `..._wrap_if_long.out.java`), so each option's input→output transformation
 is visible at a glance. Fixtures are embedded into the tests at compile time.
 
+A GitHub Actions pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+verifies every push to `main` and every pull request: `cargo fmt --all -- --check`
+and, on an `ubuntu` / `macos` / `windows` × stable Rust matrix,
+`cargo clippy --workspace --lib --bins --tests -- -D warnings` and
+`cargo test --workspace`. Benches are not built on CI.
 
 ## Benchmarking
 
