@@ -14,14 +14,12 @@ const MIXED_DEFAULT_OUT: &str = include_str!(
 );
 const MIXED_SELF: &str =
     include_str!("../java/space_after_closing_angle_bracket_in_type_argument/mixed_self.java");
-const MIXED_SELF_OUT: &str = include_str!(
-    "../java/space_after_closing_angle_bracket_in_type_argument/mixed_self.out.java"
-);
+const MIXED_SELF_OUT: &str =
+    include_str!("../java/space_after_closing_angle_bracket_in_type_argument/mixed_self.out.java");
 const COMPOSED: &str =
     include_str!("../java/space_after_closing_angle_bracket_in_type_argument/composed.java");
-const COMPOSED_OUT: &str = include_str!(
-    "../java/space_after_closing_angle_bracket_in_type_argument/composed.out.java"
-);
+const COMPOSED_OUT: &str =
+    include_str!("../java/space_after_closing_angle_bracket_in_type_argument/composed.out.java");
 
 #[test]
 fn on_spaces_after_closing_angle_bracket() {

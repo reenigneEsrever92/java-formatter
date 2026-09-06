@@ -7,9 +7,8 @@ const EMPTY_CALL: &str =
     include_str!("../java/space_within_empty_method_call_parentheses/empty_call.java");
 const EMPTY_CALL_OUT: &str =
     include_str!("../java/space_within_empty_method_call_parentheses/empty_call.out.java");
-const EMPTY_CALL_DEFAULT_OUT: &str = include_str!(
-    "../java/space_within_empty_method_call_parentheses/empty_call_default.out.java"
-);
+const EMPTY_CALL_DEFAULT_OUT: &str =
+    include_str!("../java/space_within_empty_method_call_parentheses/empty_call_default.out.java");
 
 #[test]
 fn pads_empty_call_parentheses_when_on() {

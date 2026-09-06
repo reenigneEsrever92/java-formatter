@@ -3,10 +3,13 @@
 
 use super::common::*;
 
-const ANN_ARRAY: &str = include_str!("../java/space_before_annotation_array_initializer_lbrace/ann_array.java");
-const ANN_ARRAY_OUT: &str = include_str!("../java/space_before_annotation_array_initializer_lbrace/ann_array.out.java");
-const ANN_ARRAY_DEFAULT_OUT: &str =
-    include_str!("../java/space_before_annotation_array_initializer_lbrace/ann_array_default.out.java");
+const ANN_ARRAY: &str =
+    include_str!("../java/space_before_annotation_array_initializer_lbrace/ann_array.java");
+const ANN_ARRAY_OUT: &str =
+    include_str!("../java/space_before_annotation_array_initializer_lbrace/ann_array.out.java");
+const ANN_ARRAY_DEFAULT_OUT: &str = include_str!(
+    "../java/space_before_annotation_array_initializer_lbrace/ann_array_default.out.java"
+);
 
 #[test]
 fn on_spaces() {

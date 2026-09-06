@@ -40,5 +40,8 @@ fn lparen_stays_attached_when_disabled() {
         s.align_multiline_records = false;
         s.new_line_after_lparen_in_record_header = false;
     });
-    assert_eq!(format_with(COMPONENT_WRAP, &style), COMPONENT_WRAP_LPAREN_OFF_OUT);
+    assert_eq!(
+        format_with(COMPONENT_WRAP, &style),
+        COMPONENT_WRAP_LPAREN_OFF_OUT
+    );
 }

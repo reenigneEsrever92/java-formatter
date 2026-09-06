@@ -4,7 +4,8 @@
 use super::common::*;
 
 const SWITCH_STMT: &str = include_str!("../java/space_before_switch_parentheses/switch_stmt.java");
-const SWITCH_STMT_OUT: &str = include_str!("../java/space_before_switch_parentheses/switch_stmt.out.java");
+const SWITCH_STMT_OUT: &str =
+    include_str!("../java/space_before_switch_parentheses/switch_stmt.out.java");
 const SWITCH_STMT_DEFAULT_OUT: &str =
     include_str!("../java/space_before_switch_parentheses/switch_stmt_default.out.java");
 

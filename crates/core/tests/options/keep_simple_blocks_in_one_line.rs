@@ -4,22 +4,34 @@
 use super::common::*;
 use java_formatter_core::config::{BraceStyle, JavaStyle};
 
-const SIMPLE_IF_COLLAPSE: &str = include_str!("../java/keep_simple_blocks_in_one_line/simple_if_collapse.java");
-const SIMPLE_IF_COLLAPSE_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/simple_if_collapse.out.java");
+const SIMPLE_IF_COLLAPSE: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/simple_if_collapse.java");
+const SIMPLE_IF_COLLAPSE_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/simple_if_collapse.out.java");
 const KEEP_IF: &str = include_str!("../java/keep_simple_blocks_in_one_line/keep_if.java");
 const KEEP_IF_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/keep_if.out.java");
 const ELSE_CHAIN: &str = include_str!("../java/keep_simple_blocks_in_one_line/else_chain.java");
-const ELSE_CHAIN_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/else_chain.out.java");
+const ELSE_CHAIN_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/else_chain.out.java");
 const WHILE_FOR_DO: &str = include_str!("../java/keep_simple_blocks_in_one_line/while_for_do.java");
-const WHILE_FOR_DO_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/while_for_do.out.java");
-const MULTIPLE_STATEMENTS: &str = include_str!("../java/keep_simple_blocks_in_one_line/multiple_statements.java");
-const MULTIPLE_STATEMENTS_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/multiple_statements.out.java");
-const NEXT_LINE_BRACE: &str = include_str!("../java/keep_simple_blocks_in_one_line/next_line_brace.java");
-const NEXT_LINE_BRACE_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/next_line_brace.out.java");
-const TRY_SYNC_ONE_LINE: &str = include_str!("../java/keep_simple_blocks_in_one_line/try_sync_one_line.java");
-const TRY_SYNC_COLLAPSE_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/try_sync_collapse.out.java");
-const TRY_SYNC_DEFAULT_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/try_sync_default.out.java");
-const TRY_SYNC_NEXT_LINE_OUT: &str = include_str!("../java/keep_simple_blocks_in_one_line/try_sync_next_line.out.java");
+const WHILE_FOR_DO_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/while_for_do.out.java");
+const MULTIPLE_STATEMENTS: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/multiple_statements.java");
+const MULTIPLE_STATEMENTS_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/multiple_statements.out.java");
+const NEXT_LINE_BRACE: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/next_line_brace.java");
+const NEXT_LINE_BRACE_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/next_line_brace.out.java");
+const TRY_SYNC_ONE_LINE: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/try_sync_one_line.java");
+const TRY_SYNC_COLLAPSE_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/try_sync_collapse.out.java");
+const TRY_SYNC_DEFAULT_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/try_sync_default.out.java");
+const TRY_SYNC_NEXT_LINE_OUT: &str =
+    include_str!("../java/keep_simple_blocks_in_one_line/try_sync_next_line.out.java");
 
 fn keep_simple() -> JavaStyle {
     // The collapse is exercised with the Java padding toggle on so the

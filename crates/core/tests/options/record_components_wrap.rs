@@ -4,11 +4,9 @@
 use super::common::*;
 use java_formatter_core::config::WrapStyle;
 
-const COMPONENT_WRAP: &str =
-    include_str!("../java/record_components_wrap/component_wrap.java");
-const COMPONENT_WRAP_NEWLINE_LPAREN_OUT: &str = include_str!(
-    "../java/record_components_wrap/component_wrap_newline_lparen.out.java"
-);
+const COMPONENT_WRAP: &str = include_str!("../java/record_components_wrap/component_wrap.java");
+const COMPONENT_WRAP_NEWLINE_LPAREN_OUT: &str =
+    include_str!("../java/record_components_wrap/component_wrap_newline_lparen.out.java");
 const COMPONENT_WRAP_ALIGN_OUT: &str =
     include_str!("../java/record_components_wrap/component_wrap_align.out.java");
 const COMPONENT_WRAP_CONT_OUT: &str =
@@ -17,8 +15,7 @@ const COMPONENTS_FIT: &str = include_str!("../java/record_components_wrap/compon
 const COMPONENTS_FIT_OUT: &str =
     include_str!("../java/record_components_wrap/components_fit.out.java");
 const DO_NOT_WRAP: &str = include_str!("../java/record_components_wrap/do_not_wrap.java");
-const DO_NOT_WRAP_OUT: &str =
-    include_str!("../java/record_components_wrap/do_not_wrap.out.java");
+const DO_NOT_WRAP_OUT: &str = include_str!("../java/record_components_wrap/do_not_wrap.out.java");
 const WRAP_WITH_MEMBERS: &str =
     include_str!("../java/record_components_wrap/wrap_with_members.java");
 const WRAP_WITH_MEMBERS_OUT: &str =
@@ -50,7 +47,10 @@ fn wrap_always_with_align_aligns_components_under_first() {
         s.new_line_after_lparen_in_record_header = false;
         s.align_multiline_records = true;
     });
-    assert_eq!(format_with(COMPONENT_WRAP, &style), COMPONENT_WRAP_ALIGN_OUT);
+    assert_eq!(
+        format_with(COMPONENT_WRAP, &style),
+        COMPONENT_WRAP_ALIGN_OUT
+    );
 }
 
 #[test]
@@ -91,5 +91,8 @@ fn wrapped_header_still_formats_full_body() {
         s.new_line_after_lparen_in_record_header = true;
         s.align_multiline_records = false;
     });
-    assert_eq!(format_with(WRAP_WITH_MEMBERS, &style), WRAP_WITH_MEMBERS_OUT);
+    assert_eq!(
+        format_with(WRAP_WITH_MEMBERS, &style),
+        WRAP_WITH_MEMBERS_OUT
+    );
 }

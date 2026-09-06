@@ -5,7 +5,8 @@ use super::common::*;
 
 const BRACES: &str = include_str!("../java/space_within_braces/braces.java");
 const BRACES_OUT: &str = include_str!("../java/space_within_braces/braces.out.java");
-const BRACES_DEFAULT_OUT: &str = include_str!("../java/space_within_braces/braces_default.out.java");
+const BRACES_DEFAULT_OUT: &str =
+    include_str!("../java/space_within_braces/braces_default.out.java");
 
 #[test]
 fn pads_empty_block_braces_when_on() {

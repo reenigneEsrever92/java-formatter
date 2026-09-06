@@ -4,7 +4,8 @@
 use super::common::*;
 
 const ARRAYS: &str = include_str!("../java/space_before_array_initializer_lbrace/arrays.java");
-const ARRAYS_OUT: &str = include_str!("../java/space_before_array_initializer_lbrace/arrays.out.java");
+const ARRAYS_OUT: &str =
+    include_str!("../java/space_before_array_initializer_lbrace/arrays.out.java");
 const ARRAYS_DEFAULT_OUT: &str =
     include_str!("../java/space_before_array_initializer_lbrace/arrays_default.out.java");
 

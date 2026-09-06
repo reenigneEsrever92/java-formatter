@@ -5,8 +5,7 @@
 use super::common::*;
 
 const MIXED: &str = include_str!("../java/space_after_comma_in_type_arguments/mixed.java");
-const MIXED_OUT: &str =
-    include_str!("../java/space_after_comma_in_type_arguments/mixed.out.java");
+const MIXED_OUT: &str = include_str!("../java/space_after_comma_in_type_arguments/mixed.out.java");
 const MIXED_DEFAULT_OUT: &str =
     include_str!("../java/space_after_comma_in_type_arguments/mixed_default.out.java");
 

@@ -5,8 +5,7 @@ use super::common::*;
 use java_formatter_core::config::BraceStyle;
 
 const METHOD_BRACE: &str = include_str!("../java/method_brace_style/method_brace.java");
-const METHOD_BRACE_OUT: &str =
-    include_str!("../java/method_brace_style/method_brace.out.java");
+const METHOD_BRACE_OUT: &str = include_str!("../java/method_brace_style/method_brace.out.java");
 const METHOD_BRACE_DEFAULT_OUT: &str =
     include_str!("../java/method_brace_style/method_brace_default.out.java");
 

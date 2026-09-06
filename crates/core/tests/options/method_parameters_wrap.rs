@@ -4,8 +4,7 @@
 use super::common::*;
 use java_formatter_core::config::WrapStyle;
 
-const WRAPPED_PARAMS: &str =
-    include_str!("../java/method_parameters_wrap/wrapped_params.java");
+const WRAPPED_PARAMS: &str = include_str!("../java/method_parameters_wrap/wrapped_params.java");
 const WRAPPED_PARAMS_OUT: &str =
     include_str!("../java/method_parameters_wrap/wrapped_params.out.java");
 

@@ -21,9 +21,8 @@ const MIXED_SELF_OUT: &str = include_str!(
 );
 const COMPOSED: &str =
     include_str!("../java/space_before_opening_angle_bracket_in_type_parameter/composed.java");
-const COMPOSED_OUT: &str = include_str!(
-    "../java/space_before_opening_angle_bracket_in_type_parameter/composed.out.java"
-);
+const COMPOSED_OUT: &str =
+    include_str!("../java/space_before_opening_angle_bracket_in_type_parameter/composed.out.java");
 
 #[test]
 fn on_spaces_before_type_parameter_list() {

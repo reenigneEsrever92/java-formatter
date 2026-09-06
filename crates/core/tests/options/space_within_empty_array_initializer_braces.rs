@@ -3,12 +3,10 @@
 
 use super::common::*;
 
-const EMPTY_ARRAY_INIT: &str = include_str!(
-    "../java/space_within_empty_array_initializer_braces/empty_array_init.java"
-);
-const EMPTY_ARRAY_INIT_OUT: &str = include_str!(
-    "../java/space_within_empty_array_initializer_braces/empty_array_init.out.java"
-);
+const EMPTY_ARRAY_INIT: &str =
+    include_str!("../java/space_within_empty_array_initializer_braces/empty_array_init.java");
+const EMPTY_ARRAY_INIT_OUT: &str =
+    include_str!("../java/space_within_empty_array_initializer_braces/empty_array_init.out.java");
 const EMPTY_ARRAY_INIT_DEFAULT_OUT: &str = include_str!(
     "../java/space_within_empty_array_initializer_braces/empty_array_init_default.out.java"
 );

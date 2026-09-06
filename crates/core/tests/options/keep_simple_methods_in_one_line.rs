@@ -42,7 +42,10 @@ fn keep_simple_next_line() -> JavaStyle {
 #[test]
 fn simple_multiline_default() {
     // Without the option method bodies stay multi-line.
-    assert_eq!(format(SIMPLE_MULTILINE_DEFAULT), SIMPLE_MULTILINE_DEFAULT_OUT);
+    assert_eq!(
+        format(SIMPLE_MULTILINE_DEFAULT),
+        SIMPLE_MULTILINE_DEFAULT_OUT
+    );
 }
 
 #[test]

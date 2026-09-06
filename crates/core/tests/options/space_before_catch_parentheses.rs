@@ -4,7 +4,8 @@
 use super::common::*;
 
 const TRY_CATCH: &str = include_str!("../java/space_before_catch_parentheses/try_catch.java");
-const TRY_CATCH_OUT: &str = include_str!("../java/space_before_catch_parentheses/try_catch.out.java");
+const TRY_CATCH_OUT: &str =
+    include_str!("../java/space_before_catch_parentheses/try_catch.out.java");
 const TRY_CATCH_DEFAULT_OUT: &str =
     include_str!("../java/space_before_catch_parentheses/try_catch_default.out.java");
 

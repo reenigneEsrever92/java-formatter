@@ -22,6 +22,18 @@ tree-sitter engine), `crates/cli`, `crates/gui`.
 - Only option-related tests: don't add topic suites (throws, structural
   layout, parse errors, idempotency, kitchen sink, config XML).
 
+## Quality gates (must pass before a change is done)
+
+- `cargo fmt --all -- --check` is clean (run `cargo fmt --all` to fix drift; new
+  code must be rustfmt-formatted — hand-written `assert_eq!` / `include_str!`
+  layouts in test files are no exception).
+- `cargo clippy --workspace --lib --bins --tests -- -D warnings` is clean (no
+  new warnings; fix warnings you introduce rather than allowing them).
+- `cargo test --workspace` is green.
+
+These mirror the CI `check.yml` / `ci.yml` jobs, so a change that fails any of
+them would redden the pipeline.
+
 ## Workflow
 
 - Changes go through `docs/dev/backlog/` change requests; append to

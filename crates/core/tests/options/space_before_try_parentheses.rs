@@ -4,7 +4,8 @@
 use super::common::*;
 
 const TRY_RESOURCES: &str = include_str!("../java/space_before_try_parentheses/try_resources.java");
-const TRY_RESOURCES_OUT: &str = include_str!("../java/space_before_try_parentheses/try_resources.out.java");
+const TRY_RESOURCES_OUT: &str =
+    include_str!("../java/space_before_try_parentheses/try_resources.out.java");
 const TRY_RESOURCES_DEFAULT_OUT: &str =
     include_str!("../java/space_before_try_parentheses/try_resources_default.out.java");
 

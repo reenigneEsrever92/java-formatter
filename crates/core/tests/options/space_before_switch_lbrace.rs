@@ -4,7 +4,8 @@
 use super::common::*;
 
 const SWITCH_BODY: &str = include_str!("../java/space_before_switch_lbrace/switch_body.java");
-const SWITCH_BODY_OUT: &str = include_str!("../java/space_before_switch_lbrace/switch_body.out.java");
+const SWITCH_BODY_OUT: &str =
+    include_str!("../java/space_before_switch_lbrace/switch_body.out.java");
 const SWITCH_BODY_DEFAULT_OUT: &str =
     include_str!("../java/space_before_switch_lbrace/switch_body_default.out.java");
 

@@ -4,7 +4,8 @@
 use super::common::*;
 
 const ANNOS: &str = include_str!("../java/space_before_anotation_parameter_list/annos.java");
-const ANNOS_OUT: &str = include_str!("../java/space_before_anotation_parameter_list/annos.out.java");
+const ANNOS_OUT: &str =
+    include_str!("../java/space_before_anotation_parameter_list/annos.out.java");
 const ANNOS_DEFAULT_OUT: &str =
     include_str!("../java/space_before_anotation_parameter_list/annos_default.out.java");
 

@@ -6,8 +6,7 @@ use super::common::*;
 
 const MIXED: &str = include_str!("../java/space_after_quest/mixed.java");
 const MIXED_OUT: &str = include_str!("../java/space_after_quest/mixed.out.java");
-const MIXED_DEFAULT_OUT: &str =
-    include_str!("../java/space_after_quest/mixed_default.out.java");
+const MIXED_DEFAULT_OUT: &str = include_str!("../java/space_after_quest/mixed_default.out.java");
 
 #[test]
 fn off_glues_question_mark_to_consequence() {

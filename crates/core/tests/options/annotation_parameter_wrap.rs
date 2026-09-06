@@ -10,8 +10,7 @@ use super::common::*;
 use java_formatter_core::config::WrapStyle;
 
 const ANNOTATION: &str = include_str!("../java/annotation_parameter_wrap/annotation.java");
-const ANNOTATION_OUT: &str =
-    include_str!("../java/annotation_parameter_wrap/annotation.out.java");
+const ANNOTATION_OUT: &str = include_str!("../java/annotation_parameter_wrap/annotation.out.java");
 const ANNOTATION_DEFAULT_OUT: &str =
     include_str!("../java/annotation_parameter_wrap/annotation_default.out.java");
 const ANNOTATION_CHOP_DOWN_OUT: &str =

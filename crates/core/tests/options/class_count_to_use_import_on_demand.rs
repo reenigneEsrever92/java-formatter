@@ -6,24 +6,20 @@ use super::common::*;
 
 const MERGES_PAST_THRESHOLD: &str =
     include_str!("../java/class_count_to_use_import_on_demand/merges_past_threshold.java");
-const MERGES_PAST_THRESHOLD_OUT: &str = include_str!(
-    "../java/class_count_to_use_import_on_demand/merges_past_threshold.out.java"
-);
+const MERGES_PAST_THRESHOLD_OUT: &str =
+    include_str!("../java/class_count_to_use_import_on_demand/merges_past_threshold.out.java");
 const RESPECTS_THRESHOLD: &str =
     include_str!("../java/class_count_to_use_import_on_demand/respects_threshold.java");
-const RESPECTS_THRESHOLD_OUT: &str = include_str!(
-    "../java/class_count_to_use_import_on_demand/respects_threshold.out.java"
-);
+const RESPECTS_THRESHOLD_OUT: &str =
+    include_str!("../java/class_count_to_use_import_on_demand/respects_threshold.out.java");
 const WILDCARD_PRESENT: &str =
     include_str!("../java/class_count_to_use_import_on_demand/wildcard_present.java");
-const WILDCARD_PRESENT_OUT: &str = include_str!(
-    "../java/class_count_to_use_import_on_demand/wildcard_present.out.java"
-);
+const WILDCARD_PRESENT_OUT: &str =
+    include_str!("../java/class_count_to_use_import_on_demand/wildcard_present.out.java");
 const CONFLICTING_NAMES: &str =
     include_str!("../java/class_count_to_use_import_on_demand/conflicting_names.java");
-const CONFLICTING_NAMES_OUT: &str = include_str!(
-    "../java/class_count_to_use_import_on_demand/conflicting_names.out.java"
-);
+const CONFLICTING_NAMES_OUT: &str =
+    include_str!("../java/class_count_to_use_import_on_demand/conflicting_names.out.java");
 const LOCAL_CONFLICT: &str =
     include_str!("../java/class_count_to_use_import_on_demand/local_conflict.java");
 const LOCAL_CONFLICT_OUT: &str =
@@ -50,7 +46,10 @@ fn merges_past_threshold() {
 fn respects_threshold() {
     // Exactly threshold imports -> no merge.
     let style = style(|s| s.class_count_to_use_import_on_demand = 3);
-    assert_eq!(format_with(RESPECTS_THRESHOLD, &style), RESPECTS_THRESHOLD_OUT);
+    assert_eq!(
+        format_with(RESPECTS_THRESHOLD, &style),
+        RESPECTS_THRESHOLD_OUT
+    );
 }
 
 #[test]
@@ -66,7 +65,10 @@ fn conflicting_simple_names_disable_merging() {
     // `C` is imported from two packages; collapsing a.one would change which C
     // is bound, so a.one is left untouched.
     let style = style(|s| s.class_count_to_use_import_on_demand = 2);
-    assert_eq!(format_with(CONFLICTING_NAMES, &style), CONFLICTING_NAMES_OUT);
+    assert_eq!(
+        format_with(CONFLICTING_NAMES, &style),
+        CONFLICTING_NAMES_OUT
+    );
 }
 
 #[test]
@@ -74,7 +76,6 @@ fn local_type_with_same_name_disables_merging() {
     let style = style(|s| s.class_count_to_use_import_on_demand = 2);
     assert_eq!(format_with(LOCAL_CONFLICT, &style), LOCAL_CONFLICT_OUT);
 }
-
 
 #[test]
 fn merged_wildcard_keeps_position_and_java_grouping() {

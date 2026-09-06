@@ -4,7 +4,8 @@
 use super::common::*;
 
 const FINALLY_KW: &str = include_str!("../java/space_before_finally_keyword/finally_kw.java");
-const FINALLY_KW_OUT: &str = include_str!("../java/space_before_finally_keyword/finally_kw.out.java");
+const FINALLY_KW_OUT: &str =
+    include_str!("../java/space_before_finally_keyword/finally_kw.out.java");
 const FINALLY_KW_DEFAULT_OUT: &str =
     include_str!("../java/space_before_finally_keyword/finally_kw_default.out.java");
 

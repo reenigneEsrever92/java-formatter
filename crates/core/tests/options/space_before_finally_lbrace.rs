@@ -4,7 +4,8 @@
 use super::common::*;
 
 const FINALLY_BODY: &str = include_str!("../java/space_before_finally_lbrace/finally_body.java");
-const FINALLY_BODY_OUT: &str = include_str!("../java/space_before_finally_lbrace/finally_body.out.java");
+const FINALLY_BODY_OUT: &str =
+    include_str!("../java/space_before_finally_lbrace/finally_body.out.java");
 const FINALLY_BODY_DEFAULT_OUT: &str =
     include_str!("../java/space_before_finally_lbrace/finally_body_default.out.java");
 

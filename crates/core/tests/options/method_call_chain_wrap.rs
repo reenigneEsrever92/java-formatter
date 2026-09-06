@@ -13,8 +13,7 @@ const CHAIN: &str = include_str!("../java/method_call_chain_wrap/chain.java");
 const CHAIN_OUT: &str = include_str!("../java/method_call_chain_wrap/chain.out.java");
 const CHAIN_DO_NOT_WRAP_OUT: &str =
     include_str!("../java/method_call_chain_wrap/chain_do_not_wrap.out.java");
-const CHAIN_SHORT_OUT: &str =
-    include_str!("../java/method_call_chain_wrap/chain_short.out.java");
+const CHAIN_SHORT_OUT: &str = include_str!("../java/method_call_chain_wrap/chain_short.out.java");
 
 fn wrap_style(right_margin: u32, wrap: WrapStyle) -> JavaStyle {
     style(|s| {

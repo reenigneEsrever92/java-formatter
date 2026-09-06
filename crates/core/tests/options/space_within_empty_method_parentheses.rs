@@ -7,9 +7,8 @@ const EMPTY_METHOD: &str =
     include_str!("../java/space_within_empty_method_parentheses/empty_method.java");
 const EMPTY_METHOD_OUT: &str =
     include_str!("../java/space_within_empty_method_parentheses/empty_method.out.java");
-const EMPTY_METHOD_DEFAULT_OUT: &str = include_str!(
-    "../java/space_within_empty_method_parentheses/empty_method_default.out.java"
-);
+const EMPTY_METHOD_DEFAULT_OUT: &str =
+    include_str!("../java/space_within_empty_method_parentheses/empty_method_default.out.java");
 
 #[test]
 fn pads_empty_declaration_parentheses_when_on() {

@@ -4,7 +4,8 @@
 use super::common::*;
 
 const WHILE_LOOPS: &str = include_str!("../java/space_before_while_parentheses/while_loops.java");
-const WHILE_LOOPS_OUT: &str = include_str!("../java/space_before_while_parentheses/while_loops.out.java");
+const WHILE_LOOPS_OUT: &str =
+    include_str!("../java/space_before_while_parentheses/while_loops.out.java");
 const WHILE_LOOPS_DEFAULT_OUT: &str =
     include_str!("../java/space_before_while_parentheses/while_loops_default.out.java");
 

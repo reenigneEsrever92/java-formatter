@@ -5,8 +5,7 @@
 use super::common::*;
 use java_formatter_core::config::BraceStyle;
 
-const CLASS_BRACE_STYLE: &str =
-    include_str!("../java/class_brace_style/class_brace_style.java");
+const CLASS_BRACE_STYLE: &str = include_str!("../java/class_brace_style/class_brace_style.java");
 const CLASS_BRACE_STYLE_OUT: &str =
     include_str!("../java/class_brace_style/class_brace_style.out.java");
 const CLASS_BRACE: &str = include_str!("../java/class_brace_style/class_brace.java");
@@ -17,7 +16,10 @@ const CLASS_BRACE_DEFAULT_OUT: &str =
 #[test]
 fn record_class_brace_style_is_honoured() {
     let style = style(|s| s.class_brace_style = BraceStyle::NextLine);
-    assert_eq!(format_with(CLASS_BRACE_STYLE, &style), CLASS_BRACE_STYLE_OUT);
+    assert_eq!(
+        format_with(CLASS_BRACE_STYLE, &style),
+        CLASS_BRACE_STYLE_OUT
+    );
 }
 
 #[test]

@@ -611,7 +611,7 @@ impl<'s> Fmt<'s> {
     /// / creation expression (the argument-list interior, not the whole call).
     fn args_keep_wrapped(&self, node: Node<'s>) -> bool {
         self.fld(node, "arguments")
-            .map_or(false, |a| self.keep_wrapped(a))
+            .is_some_and(|a| self.keep_wrapped(a))
     }
 
     /// True when the source text of `node`'s inner region — inside its own
@@ -1047,7 +1047,7 @@ impl<'s> Fmt<'s> {
 
     /// True when `node` carries an annotation among its modifiers.
     fn has_annotation(&self, node: Node<'s>) -> bool {
-        self.get_mods(node).map_or(false, |mods| {
+        self.get_mods(node).is_some_and(|mods| {
             self.all_ch(mods)
                 .into_iter()
                 .any(|c| matches!(c.kind(), "annotation" | "marker_annotation"))
@@ -5175,7 +5175,7 @@ impl<'s> Fmt<'s> {
         w.push_str(name);
         // The `:` ends the first header line; the before half of the
         // separator stays, the after half is replaced by the newline (R5).
-        w.push_str(&Self::sep(self.style.space_before_colon_in_foreach));
+        w.push_str(Self::sep(self.style.space_before_colon_in_foreach));
         w.push(':');
         w.push('\n');
         w.push_str(&value_pref);
@@ -6806,14 +6806,16 @@ impl<'s> Fmt<'s> {
         }
 
         // Single argument that is a long chain → wrap the chain inline
-        if !keep && args.len() == 1 && self.style.method_call_chain_wrap != WrapStyle::DoNotWrap {
-            if args[0].kind() == "method_invocation" {
-                let (base, links) = self.collect_chain(args[0]);
-                if links.len() >= 2 {
-                    let chain_str =
-                        self.fmt_chain(&base, &links, indent, c + 1, self.is_builder_chain(&links));
-                    return format!("({})", chain_str);
-                }
+        if !keep
+            && args.len() == 1
+            && self.style.method_call_chain_wrap != WrapStyle::DoNotWrap
+            && args[0].kind() == "method_invocation"
+        {
+            let (base, links) = self.collect_chain(args[0]);
+            if links.len() >= 2 {
+                let chain_str =
+                    self.fmt_chain(&base, &links, indent, c + 1, self.is_builder_chain(&links));
+                return format!("({})", chain_str);
             }
         }
 

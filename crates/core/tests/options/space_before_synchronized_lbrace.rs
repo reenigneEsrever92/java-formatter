@@ -4,7 +4,8 @@
 use super::common::*;
 
 const SYNC_BODY: &str = include_str!("../java/space_before_synchronized_lbrace/sync_body.java");
-const SYNC_BODY_OUT: &str = include_str!("../java/space_before_synchronized_lbrace/sync_body.out.java");
+const SYNC_BODY_OUT: &str =
+    include_str!("../java/space_before_synchronized_lbrace/sync_body.out.java");
 const SYNC_BODY_DEFAULT_OUT: &str =
     include_str!("../java/space_before_synchronized_lbrace/sync_body_default.out.java");
 

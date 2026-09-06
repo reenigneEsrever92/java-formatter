@@ -11,8 +11,7 @@ use super::common::*;
 use java_formatter_core::config::BraceStyle;
 
 const BLOCK_BRACE: &str = include_str!("../java/brace_style/block_brace.java");
-const BLOCK_BRACE_EOL_OUT: &str =
-    include_str!("../java/brace_style/block_brace_eol.out.java");
+const BLOCK_BRACE_EOL_OUT: &str = include_str!("../java/brace_style/block_brace_eol.out.java");
 const BLOCK_BRACE_NEXT_LINE_OUT: &str =
     include_str!("../java/brace_style/block_brace_next_line.out.java");
 const BLOCK_BRACE_DEFAULT_OUT: &str =

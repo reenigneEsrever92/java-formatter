@@ -19,7 +19,10 @@ fn align_true_aligns_components_under_first_component() {
         s.align_multiline_records = true;
         s.new_line_after_lparen_in_record_header = false;
     });
-    assert_eq!(format_with(COMPONENT_WRAP, &style), COMPONENT_WRAP_ALIGN_OUT);
+    assert_eq!(
+        format_with(COMPONENT_WRAP, &style),
+        COMPONENT_WRAP_ALIGN_OUT
+    );
 }
 
 #[test]

@@ -6,8 +6,7 @@ use super::common::*;
 
 const MIXED: &str = include_str!("../java/space_before_colon/mixed.java");
 const MIXED_OUT: &str = include_str!("../java/space_before_colon/mixed.out.java");
-const MIXED_DEFAULT_OUT: &str =
-    include_str!("../java/space_before_colon/mixed_default.out.java");
+const MIXED_DEFAULT_OUT: &str = include_str!("../java/space_before_colon/mixed_default.out.java");
 
 #[test]
 fn off_glues_colon_to_consequence() {
