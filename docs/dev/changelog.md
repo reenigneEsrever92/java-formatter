@@ -166,6 +166,91 @@ tags: [dev, changelog]
   class/interface/record joins only, and `T extends A&B` — recorded as the
   assumed semantics.
 
+- **The text-block and multi-catch options are honoured (R40,
+  text-blocks-and-multi-catch)**: the two Text-blocks options
+  (`ALIGN_MULTILINE_TEXT_BLOCKS`, `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS`)
+  and the two Multi-catch options (`MULTI_CATCH_TYPES_WRAP`,
+  `ALIGN_TYPES_IN_MULTI_CATCH`) of java.md's "Text blocks" and "Multi-catch"
+  tables — previously ignored (R7) and marked ❌ in the settings docs — are
+  now parsed into `JavaStyle` (four fields under a new text-blocks &
+  multi-catch block between the record and import fields, with the table
+  defaults — the two text-block bools `false`, `MULTI_CATCH_TYPES_WRAP`
+  shipped `DoNotWrap` and `ALIGN_TYPES_IN_MULTI_CATCH` `true` — plus four
+  `OptionDef` entries in the `OPTIONS` registry, `Section::JavaCodeStyle`,
+  groups "Text blocks" and "Multi-catch", placed between the records group
+  and the imports banner; `MULTI_CATCH_TYPES_WRAP` carries the same recorded
+  divergence as `RECORD_COMPONENTS_WRAP` — IntelliJ's built-in default is
+  `1`, `JavaStyle::default()` ships `DoNotWrap` so absent schemes keep today's
+  single-line catch layout byte-identical — mirrored by a new divergence note
+  under the Multi-catch table in java.md). The engine now models the
+  constructs instead of echoing them:
+  - Multi-catch: a `catch_formal_parameter` renderer (grammar-confirmed for
+    tree-sitter-java 0.23.5: optional `modifiers`, a `catch_type` whose named
+    children are the union members separated by anonymous `|` tokens, and the
+    parameter name via the `name` field hoisted from the hidden
+    `_variable_declarator_id`) renders the pieces canonically — keyword
+    modifiers + each member through `flat_type` + ` | ` joins + the name —
+    and is used in both the multi-line `try_stmt` catch arm (previously a
+    verbatim `self.txt` echo) and the `try_one_line` collapse (previously
+    `normalise_ws`). `DoNotWrap` (and the absent default) always keep the flat
+    form; `WrapAlways` forces the break for a multi-member list; `WrapIfLong`
+    / `ChopDownIfLong` break when the flat `catch (…)` head exceeds the
+    margin at the paren's column (codes `1` and `5` share the per-member
+    layout, exactly like the record-header and clause-list wraps of these
+    atomic members); a single-type catch never wraps. A wrapped list keeps
+    the first type on the `catch (` line and starts each following member on
+    its own line with the `|` operator leading the continuation line (the
+    binary operator-placement convention), padded to the first type's column
+    with `ALIGN_TYPES_IN_MULTI_CATCH` (default true — the `|`s line up under
+    the first type), else to `cont(indent)`. `try_one_line` abandons the
+    one-line collapse when a type list must wrap, so the multi-line layout
+    wraps it instead of a one-line `catch (…)` contradicting the wrap code.
+    Unmodelled parameter shapes (comments) and single-member catches fall
+    back to the verbatim echo (R4); no token is reordered, so R5 holds.
+  - Text blocks: a text block is a `string_literal` whose text spans lines
+    (no distinct node kind), so explicit `string_literal` arms were added to
+    `expr_ac` and `flat`, routing to a dedicated renderer. The strip option
+    trims every whitespace-only line inside the literal to empty (a blank
+    line's whitespace is never part of the text-block value, so the deviation
+    is value-safe and limited to whitespace-only lines); it applies wherever
+    the literal is rendered, including the flat echo sites. The align option
+    applies on the expression path only (where the statement's indent level
+    is known): every non-opening line carrying visible content — the content
+    lines and the closing-delimiter line — shifts by one uniform delta so the
+    first content line sits at the statement's canonical continuation column
+    (`col_after(0, cont(indent))`); the uniform shift preserves relative
+    indentation and moves the incidental-whitespace minimum with the lines,
+    so the stripped string value is unchanged (R5), whitespace-only lines are
+    left in place, and a shift that would cut into a visible line's own
+    leading whitespace falls back to the verbatim echo. Both options default
+    `false`, so text blocks stay byte-for-byte verbatim echoes (R4) unless a
+    scheme opts in — the strip is the request's recorded, opt-in
+    value-touching deviation. Every new golden re-formats to itself (R6),
+    and the align/strip transforms re-apply as no-ops.
+  Covered by four new per-option golden test files wired alphabetically in
+  `tests/options.rs` — `tests/options/multi_catch_types_wrap.rs` (6 tests:
+  over-margin multi-catch goldens at codes 0/1/2/5 plus the absent-option
+  default, and an idempotency self-golden),
+  `tests/options/align_types_in_multi_catch.rs` (4 tests: aligned under the
+  first type on, continuation-indent off, absent-default-aligned — with a
+  continuation indent of 4 in the styles so the two layouts are distinct —
+  and an idempotency self-golden),
+  `tests/options/align_multiline_text_blocks.rs` (4 tests: misindented block
+  aligned on, verbatim off, verbatim absent-default, and an idempotency
+  self-golden) and
+  `tests/options/strip_whitespace_from_blank_lines_in_text_blocks.rs`
+  (4 tests: whitespace-only lines stripped on, byte-identical off and
+  absent, and an idempotency self-golden) — with fixtures under
+  `tests/java/<option>/`. The suite grew from 763 to 781 tests, all green
+  (`cargo test --workspace`), and every pre-existing golden stays
+  byte-identical (the defaults keep the flat single-line multi-catch and the
+  verbatim text-block echo). No IntelliJ installation was available to
+  cross-check the exact shapes; the goldens pin the conventions recorded
+  above — the `|`-leading continuation at the first type's column under the
+  align default, the continuation-column text-block alignment, and the
+  opt-in blank-line strip — per the plan's mechanisms, and the suite's
+  default/absent goldens hold today's output byte-for-byte.
+
 ## 2026-09-05
 
 - **The javadoc options are honoured (R36, javadoc-formatting)**: the whole

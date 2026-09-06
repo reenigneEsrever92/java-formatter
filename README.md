@@ -183,6 +183,10 @@ The options currently honoured are:
 | `SPACE_WITHIN_RECORD_HEADER`             | Space just inside the parens of a record header (default: none, `record R(String s)`)                                            |
 | `ANNOTATION_NEW_LINE_IN_RECORD_COMPONENT` | Put each annotation of a wrapped own-line record component on its own line                                                     |
 | `ALIGN_MULTILINE_RECORDS`                | Whether wrapped record components align under the first component                                                               |
+| `MULTI_CATCH_TYPES_WRAP`                 | Wrapping of `catch (A \| B e)` type lists (0 never / 1 if long / 2 always / 5 chop down if long)                             |
+| `ALIGN_TYPES_IN_MULTI_CATCH`             | Whether wrapped multi-catch types align under the first type (default on)                                                   |
+| `ALIGN_MULTILINE_TEXT_BLOCKS`            | Align the opening delimiter of multiline text blocks to the statement's continuation column                                   |
+| `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` | Strip trailing whitespace from blank lines inside text blocks (default off)                                       |
 | `ALIGN_MULTILINE_PARAMETERS`             | Align wrapped method / constructor parameter lists under the first parameter (default on)                                      |
 | `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`    | Align wrapped method-call / `new` arguments under the first argument                                                            |
 | `ALIGN_MULTILINE_RESOURCES`              | Align wrapped try-with-resources lists under the first resource (default on)                                                   |
@@ -409,6 +413,33 @@ braces when the body spans multiple lines, `3` = always force braces.
   line, preserving today's output byte-for-byte, and with `PREFER_PARAMETERS_WRAP`
   an overflowing tail call's arguments wrap before its method-call chain
   breaks.
+- Multi-catch type lists wrap per `MULTI_CATCH_TYPES_WRAP` (codes `0` / `1` /
+  `2` / `5`): an overflowing `catch (A | B e)` parameter breaks at the `|`
+  operators on the continuation convention — the first type stays on the
+  `catch (` line and each following type starts its own line with the `|`
+  leading the continuation — padded to the first type's column when
+  `ALIGN_TYPES_IN_MULTI_CATCH` is on (the default), else to the continuation
+  indent; codes `1` and `5` share the layout (the members are atomic types),
+  code `0` (the shipped default — a recorded divergence from IntelliJ's
+  built-in `1`) never wraps, and a single-type catch never wraps under any
+  code. `try` bodies that would collapse to one line are left multi-line when
+  the type list must wrap, so the two layouts never contradict. Only the
+  union type list is laid out — the parameter name, catch body and unmodelled
+  catch shapes keep their verbatim handling, and no token is reordered (R5).
+- Text blocks stay verbatim unless a scheme opts in: a multiline text block
+  is echoed byte-for-byte under the default style (R4).
+  `ALIGN_MULTILINE_TEXT_BLOCKS` realigns a text block used as a statement
+  value by shifting its content and closing-delimiter lines by one uniform
+  delta so the first content line sits at the statement's continuation
+  column — relative indentation and the stripped string value are preserved,
+  and a block whose content whitespace would be cut by the shift is echoed
+  verbatim. `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` is an
+  intentional, opt-in deviation from byte-level preservation: it trims
+  whitespace-only blank lines inside a text block to empty (a blank line's
+  whitespace is never part of the text-block value), leaving visible content
+  untouched; it applies wherever the literal is rendered, including flat
+  contexts. Both options default off, so absent schemes keep today's
+  byte-for-byte echo.
 - Spacing inside generic type-argument lists is normalised rather than copied
   from the source: no space inside the angle brackets, no space before a
   comma, and no stray spaces around nested brackets (`List< String >` and

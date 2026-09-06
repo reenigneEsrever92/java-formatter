@@ -202,8 +202,8 @@ the common block — see [Annotations](common.md#annotations).
 
 | Option                                             | Type | Default | Effect                                                         | Support |
 | -------------------------------------------------- | ---- | ------- | -------------------------------------------------------------- | ------- |
-| `ALIGN_MULTILINE_TEXT_BLOCKS`                      | bool | `false` | Align the opening delimiter of multiline text blocks.          | ❌      |
-| `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` | bool | `false` | Strip trailing whitespace from blank lines inside text blocks. | ❌      |
+| `ALIGN_MULTILINE_TEXT_BLOCKS`                      | bool | `false` | Align the opening delimiter of multiline text blocks.          | ✅      |
+| `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` | bool | `false` | Strip trailing whitespace from blank lines inside text blocks. | ✅      |
 
 ## Deconstruction patterns (Java 21)
 
@@ -220,8 +220,15 @@ the common block — see [Annotations](common.md#annotations).
 
 | Option                       | Type | Default              | Effect                                     | Support |
 | ---------------------------- | ---- | -------------------- | ------------------------------------------ | ------- |
-| `MULTI_CATCH_TYPES_WRAP`     | int  | `1` (wrap as needed) | Wrapping of `catch (A \| B e)` type lists. | ❌      |
-| `ALIGN_TYPES_IN_MULTI_CATCH` | bool | `true`               | Align wrapped multi-catch types.           | ❌      |
+| `MULTI_CATCH_TYPES_WRAP`     | int  | `1` (wrap as needed) | Wrapping of `catch (A \| B e)` type lists. | ✅      |
+| `ALIGN_TYPES_IN_MULTI_CATCH` | bool | `true`               | Align wrapped multi-catch types.           | ✅      |
+
+> **Divergence (recorded, not fixed):** the table lists `MULTI_CATCH_TYPES_WRAP`
+> with IntelliJ's built-in default `1` (wrap as needed), but
+> `JavaStyle::default()` ships `DoNotWrap` (`0`). Changing the default would
+> alter formatting behaviour, so the divergence is recorded here rather than
+> fixed; a scheme that sets `MULTI_CATCH_TYPES_WRAP` explicitly parses
+> identically in both.
 
 ## Miscellaneous spacing & blank lines
 

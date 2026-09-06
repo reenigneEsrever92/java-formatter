@@ -417,6 +417,12 @@ pub struct JavaStyle {
     pub do_not_wrap_after_single_annotation: bool,
     pub do_not_wrap_after_single_annotation_in_parameter: bool,
 
+    // --- text blocks & multi-catch (JavaCodeStyleSettings) ---
+    pub align_multiline_text_blocks: bool,
+    pub strip_whitespace_from_blank_lines_in_text_blocks: bool,
+    pub multi_catch_types_wrap: WrapStyle,
+    pub align_types_in_multi_catch: bool,
+
     // --- imports (JavaCodeStyleSettings) ---
     pub class_count_to_use_import_on_demand: u32,
     /// Static member imports of one owner collapse into
@@ -742,6 +748,10 @@ impl Default for JavaStyle {
             space_around_annotation_eq: true,
             do_not_wrap_after_single_annotation: false,
             do_not_wrap_after_single_annotation_in_parameter: false,
+            align_multiline_text_blocks: false,
+            strip_whitespace_from_blank_lines_in_text_blocks: false,
+            multi_catch_types_wrap: WrapStyle::DoNotWrap,
+            align_types_in_multi_catch: true,
             class_count_to_use_import_on_demand: 5,
             names_count_to_use_import_on_demand: 3,
             packages_to_use_import_on_demand: vec![
@@ -2838,6 +2848,58 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::UInt(n) = v {
                 s.blank_lines_between_record_components = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_TEXT_BLOCKS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Text blocks",
+        description: "Align multiline text blocks to the statement's continuation column.",
+        get: |s| OptionValue::Bool(s.align_multiline_text_blocks),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_text_blocks = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Text blocks",
+        description: "Strip trailing whitespace from blank lines inside text blocks.",
+        get: |s| OptionValue::Bool(s.strip_whitespace_from_blank_lines_in_text_blocks),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.strip_whitespace_from_blank_lines_in_text_blocks = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "MULTI_CATCH_TYPES_WRAP",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Multi-catch",
+        description: "Wrapping of multi-catch type lists.",
+        get: |s| OptionValue::Wrap(s.multi_catch_types_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.multi_catch_types_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_TYPES_IN_MULTI_CATCH",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Multi-catch",
+        description: "Align wrapped multi-catch types under the first type.",
+        get: |s| OptionValue::Bool(s.align_types_in_multi_catch),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_types_in_multi_catch = b;
             }
         },
     },

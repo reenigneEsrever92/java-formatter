@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the text-block layout and multi-catch wrapping options
 description: Implement the text-block alignment/whitespace options and multi-catch type-list wrapping/alignment.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-06T17:45:00Z }
 priority: low
 tags: [dev, formatter]
 owner: maintainer
@@ -193,47 +194,47 @@ convention/verification outcome recorded as the earlier requests did.
 
 ## Steps
 
-- [ ] `crates/core/src/config.rs`: add the four `JavaStyle` fields with the
+- [x] `crates/core/src/config.rs`: add the four `JavaStyle` fields with the
 defaults above (banner comment after the record fields) and the four
 `OptionDef` entries (group `"Text blocks"` / `"Multi-catch"`,
 `Section::JavaCodeStyle`, `get`/`set` closures) between the records group and
 `CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND`; `cargo build` + `cargo test` stay
 green — no behaviour change yet (AC2 absent/default mapping).
-- [ ] `crates/core/src/formatter.rs`: add the `catch_formal_parameter`
+- [x] `crates/core/src/formatter.rs`: add the `catch_formal_parameter`
 renderer (modifiers + `flat_type` per `catch_type` type child + ` | `
 separators + name, flat and wrapped forms) on the `record_components`
 pattern, and use it in the `try_stmt` catch arm (L1723-1737) and as the flat
 form in `try_one_line` (L1671-1682) with the one-line guard (wrap would
 engage → `None`); single-type catches and the `DoNotWrap` default stay
 byte-identical, so existing goldens stay green (AC2).
-- [ ] `crates/core/src/formatter.rs`: add the text-block renderer (strip +
+- [x] `crates/core/src/formatter.rs`: add the text-block renderer (strip +
 uniform realign with verbatim fallback) with explicit `string_literal` arms
 in `expr` (L2059) and `flat` (L2883); options-off output is byte-identical
 to today (AC2).
-- [ ] Add `crates/core/tests/options/multi_catch_types_wrap.rs` + fixtures
+- [x] Add `crates/core/tests/options/multi_catch_types_wrap.rs` + fixtures
 under `tests/java/multi_catch_types_wrap/` (over-margin `catch (A | B | C …
 e)` at a narrow `right_margin`, goldens for codes `0`/`1`/`2`/`5` and an
 absent-option default golden) and wire the module in `tests/options.rs`;
 check the new goldens are idempotent and, if IntelliJ is available, that the
 wrapped shape matches it (AC1, AC2 idempotency).
-- [ ] Add `crates/core/tests/options/align_types_in_multi_catch.rs` +
+- [x] Add `crates/core/tests/options/align_types_in_multi_catch.rs` +
 fixtures under `tests/java/align_types_in_multi_catch/` (wrap engaged:
 aligned-under-first-type on, continuation-indent off, absent-default-aligned)
 and wire it in `tests/options.rs` (AC1).
-- [ ] Add `crates/core/tests/options/align_multiline_text_blocks.rs` +
+- [x] Add `crates/core/tests/options/align_multiline_text_blocks.rs` +
 fixtures under `tests/java/align_multiline_text_blocks/` (misindented
 multiline text block: aligned golden on, verbatim golden off, verbatim
 absent-default golden) and wire it in `tests/options.rs`; verify the aligned
 shape against IntelliJ when available (AC1).
-- [ ] Add `crates/core/tests/options/strip_whitespace_from_blank_lines_in_text_blocks.rs`
+- [x] Add `crates/core/tests/options/strip_whitespace_from_blank_lines_in_text_blocks.rs`
 + fixtures under
 `tests/java/strip_whitespace_from_blank_lines_in_text_blocks/` (blank lines
 with trailing spaces: stripped golden on, byte-identical goldens for false
 and absent) and wire it in `tests/options.rs` (AC1).
-- [ ] Full-suite gate: run `cargo test`; existing goldens stay byte-identical
+- [x] Full-suite gate: run `cargo test`; existing goldens stay byte-identical
 under default/absent schemes (text blocks verbatim, multi-catch single-line)
 and each new golden formats to itself on a second pass (AC2, idempotency).
-- [ ] Docs: flip the four `docs/settings/java.md` rows ❌ → ✅ and add the
+- [x] Docs: flip the four `docs/settings/java.md` rows ❌ → ✅ and add the
 `MULTI_CATCH_TYPES_WRAP` recorded-divergence note under Multi-catch; add the
 four options to the README honoured-options table and a formatting-behaviour
 note covering the opt-in strip deviation and the multi-catch wrap convention;

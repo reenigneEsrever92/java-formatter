@@ -39,12 +39,16 @@ mod align_multiline_records;
 mod align_multiline_resources;
 #[path = "options/align_multiline_ternary_operation.rs"]
 mod align_multiline_ternary_operation;
+#[path = "options/align_multiline_text_blocks.rs"]
+mod align_multiline_text_blocks;
 #[path = "options/align_multiline_throws_list.rs"]
 mod align_multiline_throws_list;
 #[path = "options/align_subsequent_simple_methods.rs"]
 mod align_subsequent_simple_methods;
 #[path = "options/align_throws_keyword.rs"]
 mod align_throws_keyword;
+#[path = "options/align_types_in_multi_catch.rs"]
+mod align_types_in_multi_catch;
 #[path = "options/annotation_new_line_in_record_component.rs"]
 mod annotation_new_line_in_record_component;
 #[path = "options/annotation_parameter_wrap.rs"]
@@ -237,6 +241,8 @@ mod method_parameters_rparen_on_next_line;
 mod method_parameters_wrap;
 #[path = "options/modifier_list_wrap.rs"]
 mod modifier_list_wrap;
+#[path = "options/multi_catch_types_wrap.rs"]
+mod multi_catch_types_wrap;
 #[path = "options/names_count_to_use_import_on_demand.rs"]
 mod names_count_to_use_import_on_demand;
 #[path = "options/new_line_after_lparen_in_annotation.rs"]
@@ -433,6 +439,8 @@ mod spaces_inside_block_braces_when_body_is_present;
 mod spaces_within_angle_brackets;
 #[path = "options/special_else_if_treatment.rs"]
 mod special_else_if_treatment;
+#[path = "options/strip_whitespace_from_blank_lines_in_text_blocks.rs"]
+mod strip_whitespace_from_blank_lines_in_text_blocks;
 #[path = "options/switch_expressions_wrap.rs"]
 mod switch_expressions_wrap;
 #[path = "options/tab_size.rs"]

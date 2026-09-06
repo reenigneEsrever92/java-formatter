@@ -5337,10 +5337,98 @@ impl<'s> Fmt<'s> {
         }
     }
 
+    /// Canonical pieces of a `catch_formal_parameter` node: the keyword
+    /// modifiers (`final`), the catch types (each canonical via
+    /// [`Self::flat_type`]) and the parameter name (the `name` field, hoisted
+    /// from the grammar's hidden `_variable_declarator_id`). `None` when the
+    /// node does not have the expected shape (a comment subtree or a missing
+    /// piece) — callers then fall back to the verbatim echo (R4).
+    fn catch_pieces(&self, node: Node<'s>) -> Option<(String, Vec<String>, String)> {
+        if node.kind() != "catch_formal_parameter" || self.has_comment_subtree(node) {
+            return None;
+        }
+        let mods = self
+            .get_mods(node)
+            .map(|m| self.flat_mods(m))
+            .unwrap_or_default();
+        let catch_type = self
+            .named(node)
+            .into_iter()
+            .find(|c| c.kind() == "catch_type")?;
+        let types: Vec<String> = self
+            .named(catch_type)
+            .iter()
+            .map(|&t| self.flat_type(t))
+            .collect();
+        if types.is_empty() {
+            return None;
+        }
+        let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+        if name.is_empty() {
+            return None;
+        }
+        Some((mods, types, name.to_string()))
+    }
+
+    /// Render a catch clause's parameter head — the `(…)` text that follows
+    /// the `catch` keyword — honouring `MULTI_CATCH_TYPES_WRAP` (codes `0` /
+    /// `1` / `2` / `5`) and `ALIGN_TYPES_IN_MULTI_CATCH` on the
+    /// record-components pattern: the flat `(final A | B e)` head is kept
+    /// unless the wrap code engages — only ever for a multi-type list — when
+    /// the first type stays on the `catch (` line and each following type
+    /// starts its own line with the `|` operator leading the continuation
+    /// (the binary operator-placement convention), padded to the first type's
+    /// column when the align option is on, else to the continuation indent.
+    /// `lparen_col` is the column of the opening paren on its physical line;
+    /// the flat head's margin check is measured from there, covering the
+    /// whole `catch (…)` line. Single-type catches and unmodelled shapes keep
+    /// the flat / verbatim echo (R4); `DoNotWrap` (the absent default) never
+    /// wraps.
+    fn catch_param_head(&self, param: Node<'s>, indent: usize, lparen_col: usize) -> String {
+        let pad = self.style.space_within_catch_parentheses;
+        let Some((mods, types, name)) = self.catch_pieces(param) else {
+            return Self::within('(', ')', pad, self.txt(param));
+        };
+        let mods_pref = if mods.is_empty() {
+            String::new()
+        } else {
+            format!("{} ", mods)
+        };
+        let flat_inner = format!("{}{} {}", mods_pref, types.join(" | "), name);
+        let flat = Self::within('(', ')', pad, &flat_inner);
+        let should_wrap = match self.style.multi_catch_types_wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => types.len() > 1,
+            _ => types.len() > 1 && !self.fits(lparen_col, &flat),
+        };
+        if !should_wrap {
+            return flat;
+        }
+        // The first type's column on the `catch (` line: right of the paren,
+        // past the within-pad and any modifier prefix.
+        let first_col = lparen_col + 1 + if pad { 1 } else { 0 } + mods_pref.len();
+        let pref = if self.style.align_types_in_multi_catch {
+            self.align_prefix(first_col)
+        } else {
+            self.cont(indent)
+        };
+        let mut inner = format!("{}{}", mods_pref, types[0]);
+        for ty in &types[1..] {
+            inner.push('\n');
+            inner.push_str(&pref);
+            inner.push_str("| ");
+            inner.push_str(ty);
+        }
+        inner.push(' ');
+        inner.push_str(&name);
+        Self::within('(', ')', pad, &inner)
+    }
+
     /// Single-line rendering of a `try` statement when the try body and every
     /// catch/finally body is a simple one-statement block; `None` otherwise
-    /// (the caller falls through to the multi-line layout).
-    fn try_one_line(&self, node: Node<'s>, indent: usize) -> Option<String> {
+    /// (the caller falls through to the multi-line layout). `c` is the column
+    /// where the statement starts.
+    fn try_one_line(&self, node: Node<'s>, indent: usize, c: usize) -> Option<String> {
         let resources = if node.kind() == "try_with_resources_statement" {
             // The resource_specification node already includes its parens.
             self.fld(node, "resources")
@@ -5372,13 +5460,47 @@ impl<'s> Fmt<'s> {
                     let param = self
                         .named(ch)
                         .into_iter()
-                        .find(|n| n.kind() == "catch_formal_parameter")
-                        .map(|n| normalise_ws(self.txt(n)))
-                        .unwrap_or_default();
+                        .find(|n| n.kind() == "catch_formal_parameter");
+                    let pad = self.style.space_within_catch_parentheses;
+                    // The canonical flat head — or the whitespace-normalised
+                    // verbatim echo for an unmodelled shape (R4). When the
+                    // flat head would wrap under `MULTI_CATCH_TYPES_WRAP` at
+                    // its one-line column, the whole one-line collapse is
+                    // abandoned so the multi-line layout can wrap the list
+                    // (a one-line `catch (…)` must not contradict the wrap
+                    // code).
+                    let catch_head = match param.and_then(|p| self.catch_pieces(p)) {
+                        Some((mods, types, name)) => {
+                            let mods_pref = if mods.is_empty() {
+                                String::new()
+                            } else {
+                                format!("{} ", mods)
+                            };
+                            let flat_inner = format!("{}{} {}", mods_pref, types.join(" | "), name);
+                            let flat = Self::within('(', ')', pad, &flat_inner);
+                            // The head's `(` sits after the keyword and its
+                            // two gaps on the running one-line text.
+                            let lparen_col = self.col_after(c, &out)
+                                + self.sp(self.style.space_before_catch_keyword).len()
+                                + 5
+                                + self.sp(self.style.space_before_catch_parentheses).len();
+                            let should_wrap = match self.style.multi_catch_types_wrap {
+                                WrapStyle::DoNotWrap => false,
+                                WrapStyle::WrapAlways => types.len() > 1,
+                                _ => types.len() > 1 && !self.fits(lparen_col, &flat),
+                            };
+                            if should_wrap {
+                                return None;
+                            }
+                            flat
+                        }
+                        None => match param {
+                            Some(p) => Self::within('(', ')', pad, &normalise_ws(self.txt(p))),
+                            None => Self::within('(', ')', pad, ""),
+                        },
+                    };
                     let cbody = self.fld(ch, "body")?;
                     let cbody_txt = self.one_line_body(cbody, indent)?;
-                    let catch_head =
-                        Self::within('(', ')', self.style.space_within_catch_parentheses, &param);
                     out.push_str(self.sp(self.style.space_before_catch_keyword));
                     out.push_str("catch");
                     out.push_str(self.sp(self.style.space_before_catch_parentheses));
@@ -5411,7 +5533,7 @@ impl<'s> Fmt<'s> {
             && !self.style.catch_on_new_line
             && !self.style.finally_on_new_line
         {
-            if let Some(one) = self.try_one_line(node, indent) {
+            if let Some(one) = self.try_one_line(node, indent, c) {
                 if self.fits_lines(c, &one) {
                     return one;
                 }
@@ -5459,15 +5581,29 @@ impl<'s> Fmt<'s> {
                     let param = self
                         .named(ch)
                         .into_iter()
-                        .find(|n| n.kind() == "catch_formal_parameter")
-                        .map(|n| self.txt(n).to_string())
-                        .unwrap_or_default();
+                        .find(|n| n.kind() == "catch_formal_parameter");
+                    // Column of the clause's `(` on its physical line: the
+                    // keyword starts at the statement indent on its own line
+                    // (`CATCH_ON_NEW_LINE`) or right after the previous
+                    // body's `}` — which sits at `ind(indent)` — plus the
+                    // keyword gap.
+                    let indent_col = self.col_after(0, &self.ind(indent));
+                    let catch_col = if self.style.catch_on_new_line {
+                        indent_col
+                    } else {
+                        indent_col + 1 + self.sp(self.style.space_before_catch_keyword).len()
+                    };
+                    let lparen_col =
+                        catch_col + 5 + self.sp(self.style.space_before_catch_parentheses).len();
+                    let pad = self.style.space_within_catch_parentheses;
                     let cbody = self
                         .fld(ch, "body")
                         .map(|n| self.block(n, indent, c, 0))
                         .unwrap_or_default();
-                    let catch_head =
-                        Self::within('(', ')', self.style.space_within_catch_parentheses, &param);
+                    let catch_head = match param {
+                        Some(p) => self.catch_param_head(p, indent, lparen_col),
+                        None => Self::within('(', ')', pad, ""),
+                    };
                     // The previous body's `}` sits at `ind(indent)`, so the
                     // newline + indent is all the fresh line needs.
                     if self.style.catch_on_new_line {
@@ -6096,6 +6232,94 @@ impl<'s> Fmt<'s> {
 
     // ── expressions ───────────────────────────────────────────────────────────
 
+    /// Render a `string_literal` node, honouring the Text-block options of
+    /// java.md. A text block is a `string_literal` whose text spans lines
+    /// (tree-sitter-java gives no separate node kind); only those are
+    /// touched — ordinary strings and single-line text blocks are echoed
+    /// verbatim (R4).
+    ///
+    /// `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` trims every
+    /// whitespace-only line inside the literal to empty; a blank line's
+    /// whitespace is never part of the text-block value (the incidental-
+    /// whitespace algorithm excludes blank lines), so the deviation is
+    /// value-safe and limited to layout. It applies wherever the literal is
+    /// rendered.
+    ///
+    /// `ALIGN_MULTILINE_TEXT_BLOCKS` applies on the expression path only
+    /// (`align` true), where the statement's indent level is known: every
+    /// non-opening line that carries visible content — the content lines and
+    /// the closing-delimiter line — shifts by one uniform delta so the first
+    /// content line sits at the canonical continuation column
+    /// (`col_after(0, cont(indent))`, the column the formatter's own
+    /// continuation lines use). A uniform shift preserves relative
+    /// indentation and moves the incidental-whitespace minimum with the
+    /// lines, so the stripped string value is unchanged (R5); whitespace-only
+    /// lines are left in place, and when a shift left would cut into a
+    /// visible line's own leading whitespace (fewer spaces than the delta,
+    /// or a tab in the leading run) the renderer falls back to the verbatim
+    /// echo rather than alter the value. Both options default `false`, so
+    /// absent schemes keep today's byte-for-byte echo; each transform
+    /// re-applies to its own output as a no-op (R6).
+    fn string_literal(&self, node: Node<'s>, indent: usize, align: bool) -> String {
+        let t = self.txt(node);
+        let strip = self.style.strip_whitespace_from_blank_lines_in_text_blocks;
+        let do_align = align && self.style.align_multiline_text_blocks;
+        if !t.contains('\n') || (!strip && !do_align) {
+            return t.to_string();
+        }
+        // A trailing `\r` per line is CRLF line-ending noise that the
+        // finalisation pass collapses anyway; drop it so blank-line
+        // detection and column arithmetic see plain `\n` lines.
+        let mut lines: Vec<String> = t
+            .split('\n')
+            .map(|l| l.trim_end_matches('\r').to_string())
+            .collect();
+        if strip {
+            for l in &mut lines {
+                if l.trim().is_empty() {
+                    l.clear();
+                }
+            }
+        }
+        if do_align {
+            // The canonical continuation column: the block's content lines
+            // sit where the formatter's own continuation lines would.
+            let target = self.col_after(0, &self.cont(indent));
+            // Line 0 holds the opening delimiter (it is glued onto the
+            // statement's line and never shifts); every later line that
+            // carries visible content shifts with the same delta.
+            let visible: Vec<usize> = (1..lines.len())
+                .filter(|&i| !lines[i].trim().is_empty())
+                .collect();
+            let Some(&anchor) = visible.first() else {
+                return lines.join("\n");
+            };
+            let anchor_col = lines[anchor].chars().take_while(|&c| c == ' ').count();
+            let delta = target as i64 - anchor_col as i64;
+            if delta > 0 {
+                let pad = " ".repeat(delta as usize);
+                for &i in &visible {
+                    lines[i] = format!("{}{}", pad, lines[i]);
+                }
+            } else if delta < 0 {
+                let cut = (-delta) as usize;
+                for &i in &visible {
+                    let lead = lines[i].chars().take_while(|&c| c == ' ').count();
+                    // Cutting past a visible line's own leading whitespace —
+                    // or into a tab run — would alter the literal's value:
+                    // fall back to the verbatim echo.
+                    if lead < cut || lines[i].as_bytes().get(lead) == Some(&b'\t') {
+                        return t.to_string();
+                    }
+                }
+                for &i in &visible {
+                    lines[i] = lines[i][cut..].to_string();
+                }
+            }
+        }
+        lines.join("\n")
+    }
+
     fn expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         self.expr_ac(node, indent, c, None)
     }
@@ -6220,6 +6444,7 @@ impl<'s> Fmt<'s> {
             "array_creation_expression" => self.array_creation(node, indent, c),
             "array_initializer" => self.array_init(node, indent, c, c),
             "switch_expression" => self.switch_expr(node, indent, c),
+            "string_literal" => self.string_literal(node, indent, true),
             _ => self.txt(node).to_string(),
         }
     }
@@ -7853,6 +8078,7 @@ impl<'s> Fmt<'s> {
                 self.ann_eq(k, &v)
             }
             "method_reference" => self.method_ref(node),
+            "string_literal" => self.string_literal(node, 0, false),
             _ => self.txt(node).to_string(),
         }
     }
