@@ -491,6 +491,12 @@ pub struct JavaStyle {
     pub space_before_type_parameter_list: bool,
     pub space_before_colon_in_foreach: bool,
 
+    // --- generic type spacing ---
+    pub spaces_within_angle_brackets: bool,
+    pub space_after_closing_angle_bracket_in_type_argument: bool,
+    pub space_before_opening_angle_bracket_in_type_parameter: bool,
+    pub space_around_type_bounds_in_type_parameters: bool,
+
     // --- spacing within parens / brackets / braces ---
     pub space_within_parentheses: bool,
     pub space_within_method_call_parentheses: bool,
@@ -791,6 +797,10 @@ impl Default for JavaStyle {
             space_after_colon: true,
             space_before_type_parameter_list: false,
             space_before_colon_in_foreach: true,
+            spaces_within_angle_brackets: false,
+            space_after_closing_angle_bracket_in_type_argument: false,
+            space_before_opening_angle_bracket_in_type_parameter: false,
+            space_around_type_bounds_in_type_parameters: true,
             space_within_parentheses: false,
             space_within_method_call_parentheses: false,
             space_within_empty_method_call_parentheses: false,
@@ -3510,6 +3520,58 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.space_before_type_parameter_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACES_WITHIN_ANGLE_BRACKETS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Spaces inside the angle brackets of type arguments and type parameters.",
+        get: |s| OptionValue::Bool(s.spaces_within_angle_brackets),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.spaces_within_angle_brackets = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space after a closing angle bracket in an explicit type-argument list.",
+        get: |s| OptionValue::Bool(s.space_after_closing_angle_bracket_in_type_argument),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_after_closing_angle_bracket_in_type_argument = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Spaces",
+        description: "Space between a class / interface / record name and its type-parameter list.",
+        get: |s| OptionValue::Bool(s.space_before_opening_angle_bracket_in_type_parameter),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_opening_angle_bracket_in_type_parameter = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Spaces",
+        description: "Spaces around the `&`-joined bounds of a type parameter.",
+        get: |s| OptionValue::Bool(s.space_around_type_bounds_in_type_parameters),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_around_type_bounds_in_type_parameters = b;
             }
         },
     },

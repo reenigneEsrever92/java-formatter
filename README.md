@@ -260,6 +260,10 @@ The options currently honoured are:
 | `SPACE_AFTER_TYPE_CAST`                  | Space between `(Type)` and the cast value (default: spaced, `(int) x`)                                                          |
 | `SPACE_AFTER_COMMA`                      | Space after `,` in declarations, calls, arrays, annotations, record components, lambda parameters and type lists                |
 | `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS`    | Space after `,` in generic type arguments (default: spaced, `Map<String, Integer>`)                                             |
+| `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT` | Space after the closing `>` of an explicit type-argument list before the following token (default: none, `a.<T>b()`)             |
+| `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS` | Spaces around the `&` between a type parameter's bounds (default: spaced, `T extends A & B`)                             |
+| `SPACES_WITHIN_ANGLE_BRACKETS`           | Space inside the angle brackets of type arguments and parameters (default: none, `<T>` → `< T >`)                               |
+| `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` | Space between a class / interface / record name and its type-parameter list (default: none, `class Foo<T>`; composes with `SPACE_BEFORE_TYPE_PARAMETER_LIST`) |
 | `SPACE_BEFORE_COMMA`                     | Space before `,` (default: none, `f(a, b)`)                                                                                    |
 | `SPACE_AFTER_SEMICOLON`                  | Space after `;` inside a `for` header (default: spaced)                                                                        |
 | `SPACE_BEFORE_SEMICOLON`                 | Space before `;` inside a `for` header (default: none)                                                                         |
@@ -411,7 +415,18 @@ braces when the body spans multiple lines, `3` = always force braces.
   `Map<String ,Integer>` become `List<String>` and `Map<String, Integer>`,
   nested `Foo<Bar<Baz > >` becomes `Foo<Bar<Baz>>`). The space after each
   comma follows `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` (default: one space;
-  off renders `Map<String,Integer>`).
+  off renders `Map<String,Integer>`), and the whole canonical shape is
+  configurable per the four generic-spacing options: `SPACES_WITHIN_ANGLE_BRACKETS`
+  pads inside the angle brackets (`< T >`, nested generics padded at every
+  level), `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT` inserts a
+  space after the closing `>` of an explicit type-argument list that abuts a
+  following token (`a.<T> b()`, `new <T> Type()`, chain links),
+  `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` separates a class /
+  interface / record name from its type-parameter list (`class Foo <T>`,
+  composing with `SPACE_BEFORE_TYPE_PARAMETER_LIST` at the same join — either
+  on inserts the single space), and `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS`
+  (default on) spaces the `&` between a type parameter's bounds (`T extends A & B`;
+  off renders `T extends A&B` while the mandatory space around `extends` stays).
   The same canonical spacing is applied to declaration type-parameter lists
   (`<T extends Number & Serializable, U>`), wildcards (`? extends T` /
   `? super T`), and array dimensions; already canonical input is unchanged.

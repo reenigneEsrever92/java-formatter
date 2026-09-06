@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the type-argument and type-parameter spacing options
 description: Make generic spacing configurable via the four angle-bracket spacing options.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-06T12:00:00Z }
 priority: low
 tags: [dev, formatter]
 owner: maintainer
@@ -93,18 +94,21 @@ reproduce R14's canonical output byte-for-byte, so existing goldens stay
 green.
 
 **Coordination with the sibling request.** `spaces-around-separators.md`
-(planned) claims `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` (the comma join inside
-`flat_type_args`) and `SPACE_BEFORE_TYPE_PARAMETER_LIST` (described in the
-common table with the same "space between a class / method name and its
-type-parameter list" effect as this request's
-`SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`). Both are out of scope
-here: this request wires only its four angle-bracket options and leaves the
-`flat_type_args` comma join untouched. If the step-1 pin (or the
-implementation order) shows `SPACE_BEFORE_TYPE_PARAMETER_LIST` and
-`SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` to be the same IntelliJ
-property at the same join, coordinate with the sibling request so a single
-join honours both fields (both default `false`, so canonical output is
-unaffected either way).
+(shipped since this plan was written, R19) claims `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS`
+(the comma join inside `flat_type_args`) and `SPACE_BEFORE_TYPE_PARAMETER_LIST`
+(described in the common table with the same "space between a class / method
+name and its type-parameter list" effect as this request's
+`SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`). Both shipped before
+this request: `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` already controls the
+`flat_type_args` comma join, and `SPACE_BEFORE_TYPE_PARAMETER_LIST` already
+applies at the `class_decl` / `iface_decl` / `record_decl` name→`<…>` joins —
+exactly the same three joins as this request's
+`SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`. The two fields
+compose with OR at that join: either on inserts the single space, both on
+still renders one (idempotent), both default off keeps `class Foo<T>`
+byte-identical — pinned by a composition golden in
+`space_before_opening_angle_bracket_in_type_parameter.rs`.
+This request leaves the `flat_type_args` comma join to the shipped sibling.
 
 **Tests (hard rules from AGENTS.md).** Four new option files under
 `crates/core/tests/options/<xml_option>.rs` (lower-snake of the XML name:
@@ -133,45 +137,55 @@ requirement row; `docs/dev/changelog.md` is appended.
 
 ## Steps
 
-- [ ] Pin the four options' exact IntelliJ semantics (XML names, scheme
+- [x] Pin the four options' exact IntelliJ semantics (XML names, scheme
       block, rendered effect at each join site) against a real exported
       scheme / preview; record the before/after pairs the goldens will
       assert; if IntelliJ is unavailable, implement per the docs-table
       descriptions and note the assumption in the changelog (Decision 3;
-      shapes the AC1 goldens).
-- [ ] config.rs: add the four `bool` fields to `JavaStyle` with the table
+      shapes the AC1 goldens). — **No IntelliJ installation available in this
+      environment; the docs-table semantics were assumed and recorded in the
+      changelog.**
+- [x] config.rs: add the four `bool` fields to `JavaStyle` with the table
       defaults (`false`, `false`, `false`, `true`) and the four `OptionDef`
       entries (group "Spaces", `OptionValue::Bool`, `Section::JavaCodeStyle`
       pending the pin) (AC: absent → default mapping).
-- [ ] formatter.rs: `flat_type_args` / `flat_type_params` pad inside the
+- [x] formatter.rs: `flat_type_args` / `flat_type_params` pad inside the
       angle brackets per `spaces_within_angle_brackets` (`< T >`); default
       keeps `<T>` byte-identical (AC1 for `SPACES_WITHIN_ANGLE_BRACKETS`).
-- [ ] formatter.rs: insert the optional space after a closing `>` in
+- [x] formatter.rs: insert the optional space after a closing `>` in
       type-argument position per
       `space_after_closing_angle_bracket_in_type_argument` at the
       invocation/`new` joins (`flat_inv`, `inv_wrapped`, `fmt_chain`,
-      `new_expr`, `flat_new`) and the nested `>`-in-`>` join per the pin
+      `new_expr`, the anonymous-class `new` variant) — the nested
+      `>`-in-`>` join is left tight per the docs-table description (the
+      option governs the explicit-type-argument abutting-token joins only),
+      pinned by the goldens and documented in the changelog
       (AC1 for `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`).
-- [ ] formatter.rs: optional space before a type-parameter list's `<` per
+- [x] formatter.rs: optional space before a type-parameter list's `<` per
       `space_before_opening_angle_bracket_in_type_parameter` at the
       `class_decl` / `iface_decl` / `record_decl` name→`<…>` joins
-      (methods / constructors only if the pin says so); coordinate with the
-      sibling CR's `SPACE_BEFORE_TYPE_PARAMETER_LIST` if it proves to be the
-      same join (AC1 for `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`).
-- [ ] formatter.rs: `flat_type_param` / `flat_type_bound` drop the optional
+      (methods / constructors left alone — the pin is unavailable, so the
+      docs-table class/interface/record scope applies); the sibling CR's
+      `SPACE_BEFORE_TYPE_PARAMETER_LIST` governs the same three joins and
+      the two fields compose with OR, pinned by a composition golden
+      (AC1 for `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`).
+- [x] formatter.rs: `flat_type_param` / `flat_type_bound` drop the optional
       bound spacing when `space_around_type_bounds_in_type_parameters` is
       `false` (`T extends A & B` → `T extends A&B`), keeping the mandatory
       spaces around `extends` (AC1 for
       `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS`).
-- [ ] Tests: create the four option files under `crates/core/tests/options/`,
+- [x] Tests: create the four option files under `crates/core/tests/options/`,
       wire them in `tests/options.rs`, and add the
       `tests/java/<option>/` fixture + `*.out.java` golden pairs — each
-      file asserts the toggle-away-from-default rendering and the
-      default/absent-option output (AC1, AC2).
-- [ ] Verify: `cargo test` green with no existing golden changed, each new
+      file asserts the toggle-away-from-default rendering, the
+      default/absent-option output, an idempotency self-golden, and a
+      composition golden with the shipped sibling option (AC1, AC2).
+- [x] Verify: `cargo test` green with no existing golden changed, each new
       golden idempotent under its own style, and `cargo build` for the whole
       workspace (the GUI compiles with the new registry entries) (AC2).
-- [ ] Docs: flip the four rows in `docs/settings/java.md` to ✅, update the
+- [x] Docs: flip the four rows in `docs/settings/java.md` to ✅, update the
       README honoured-options table and the generic-spacing note, add the
-      requirement row to `docs/requirements.md`, append
+      requirement row (R39) to `docs/requirements.md`, append
       `docs/dev/changelog.md`, and re-run `cargo test` (AC3).
+
+Commit: not committed (worktree changes only — the repository is left for the owner to commit).

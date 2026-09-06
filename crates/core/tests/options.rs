@@ -277,6 +277,8 @@ mod rparen_on_new_line_in_record_header;
 mod smart_tabs;
 #[path = "options/soft_margins.rs"]
 mod soft_margins;
+#[path = "options/space_after_closing_angle_bracket_in_type_argument.rs"]
+mod space_after_closing_angle_bracket_in_type_argument;
 #[path = "options/space_after_colon.rs"]
 mod space_after_colon;
 #[path = "options/space_after_comma.rs"]
@@ -311,6 +313,8 @@ mod space_around_multiplicative_operators;
 mod space_around_relational_operators;
 #[path = "options/space_around_shift_operators.rs"]
 mod space_around_shift_operators;
+#[path = "options/space_around_type_bounds_in_type_parameters.rs"]
+mod space_around_type_bounds_in_type_parameters;
 #[path = "options/space_around_unary_operator.rs"]
 mod space_around_unary_operator;
 #[path = "options/space_before_annotation_array_initializer_lbrace.rs"]
@@ -357,6 +361,8 @@ mod space_before_method_call_parentheses;
 mod space_before_method_lbrace;
 #[path = "options/space_before_method_parentheses.rs"]
 mod space_before_method_parentheses;
+#[path = "options/space_before_opening_angle_bracket_in_type_parameter.rs"]
+mod space_before_opening_angle_bracket_in_type_parameter;
 #[path = "options/space_before_quest.rs"]
 mod space_before_quest;
 #[path = "options/space_before_semicolon.rs"]
@@ -423,6 +429,8 @@ mod space_within_try_parentheses;
 mod space_within_while_parentheses;
 #[path = "options/spaces_inside_block_braces_when_body_is_present.rs"]
 mod spaces_inside_block_braces_when_body_is_present;
+#[path = "options/spaces_within_angle_brackets.rs"]
+mod spaces_within_angle_brackets;
 #[path = "options/special_else_if_treatment.rs"]
 mod special_else_if_treatment;
 #[path = "options/switch_expressions_wrap.rs"]

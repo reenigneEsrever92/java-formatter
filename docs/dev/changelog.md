@@ -106,6 +106,66 @@ tags: [dev, changelog]
   per the plan (break after the receiver, fixed indent strings, no column
   alignment).
 
+- **The type-argument and type-parameter spacing options are honoured (R39,
+  type-argument-spacing-options)**: the four angle-bracket spacing options of
+  the java.md "Type arguments and parameters" table — `SPACES_WITHIN_ANGLE_BRACKETS`,
+  `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`,
+  `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` and
+  `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS` — previously ignored (R7) and
+  marked ❌ in the settings docs, are now parsed into `JavaStyle` (four `bool`
+  fields in a new generic-type-spacing block with the IntelliJ built-in
+  defaults from the table — `false`, `false`, `false`, `true` — plus four
+  `OptionDef` entries in the `OPTIONS` registry, `Section::JavaCodeStyle`,
+  group "Spaces") and applied in the engine as flags on the R14 canonical
+  type renderers. `flat_type_args` / `flat_type_params` pad inside the angle
+  brackets when `SPACES_WITHIN_ANGLE_BRACKETS` is set (`< T >`; nested
+  generics pad at every level through the `flat_type` recursion, the empty
+  diamond `<>` is never padded). `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`
+  inserts one space after the closing `>` of an explicit type-argument list
+  where it directly abuts a following token, via a `type_args_gap(ta,
+  following)` helper that returns a single space only when the toggle is on
+  and both sides are non-empty (never at line ends): the explicit method
+  invocation joins (`flat_inv`, `inv_wrapped`, the wrap-fit check), every
+  chained-call link that carries type arguments in `fmt_chain` (both
+  wrap layouts), and the `new` joins (`new_expr`, the anonymous-class
+  variant) — `a.<T>b()` → `a.<T> b()`, `new <T>Foo()` → `new <T> Foo()`; the
+  nested `>`-in-`>` join of a plain generic type (`List<List<String>>`) is
+  left tight, since the option's docs-table description covers the
+  abutting-token case of an explicit type-argument list only.
+  `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` separates a class /
+  interface / record name from its type-parameter list (`class Foo <T>`) at
+  the same three joins (`class_decl` / `iface_decl` / `record_decl`) where the
+  shipped `SPACE_BEFORE_TYPE_PARAMETER_LIST` already applies; the two fields
+  compose with OR — either on inserts the single space, both on still renders
+  one (idempotent), both default off keeps `class Foo<T>` byte-identical —
+  pinned by a composition golden. `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS`
+  (default `true`) selects the `&` separator in `flat_type_bound`: off renders
+  `T extends A&B` while the mandatory separating space around `extends` (applied
+  at the `flat_type_param` join, never in the bound renderer) stays, and
+  wildcard bound spacing (`? super T`) is untouched. The change is
+  whitespace-only (R5), inserting/removing a single space is idempotent (R6),
+  unmodelled shapes are echoed verbatim (R4), and all four options default to
+  R14's canonical output (`<T>`, `T extends A & B`), so every pre-existing
+  golden stays byte-identical. Covered by four new per-option golden test
+  files wired alphabetically in `tests/options.rs` —
+  `tests/options/spaces_within_angle_brackets.rs` (4 tests),
+  `tests/options/space_after_closing_angle_bracket_in_type_argument.rs`
+  (4 tests), `tests/options/space_before_opening_angle_bracket_in_type_parameter.rs`
+  (4 tests) and `tests/options/space_around_type_bounds_in_type_parameters.rs`
+  (4 tests) — each asserting the toggle away from the default, the
+  default/absent output, an idempotency self-golden, and a composition golden
+  with the shipped sibling option (`SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` for
+  the within-brackets and after-`>` options, `SPACE_BEFORE_TYPE_PARAMETER_LIST`
+  for the before-`<` option, the wildcard bound shape for the bounds option),
+  with fixtures under `tests/java/<option>/`. The suite grew from 747 to 763
+  tests, all green (`cargo test --workspace`). No IntelliJ installation was
+  available in this environment to pin the exact preview semantics (the plan's
+  step-1 pin); the goldens implement the docs-table descriptions directly —
+  `< T >`, the after-`>` space at the explicit-type-argument abutting-token
+  joins (nested `>`-in-`>` joins left tight), `class Foo <T>` at the
+  class/interface/record joins only, and `T extends A&B` — recorded as the
+  assumed semantics.
+
 ## 2026-09-05
 
 - **The javadoc options are honoured (R36, javadoc-formatting)**: the whole

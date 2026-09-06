@@ -193,10 +193,10 @@ the common block — see [Annotations](common.md#annotations).
 
 | Option                                                 | Type | Default | Effect                                                   | Support |
 | ------------------------------------------------------ | ---- | ------- | -------------------------------------------------------- | ------- |
-| `SPACES_WITHIN_ANGLE_BRACKETS`                         | bool | `false` | `< T >` vs `<T>`.                                        | ❌      |
-| `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`   | bool | `false` | Space after `>` in type arguments.                       | ❌      |
-| `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` | bool | `false` | Space before `<` in type parameters.                     | ❌      |
-| `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS`          | bool | `true`  | Spaces around `extends` / `&` bounds in type parameters. | ❌      |
+| `SPACES_WITHIN_ANGLE_BRACKETS`                         | bool | `false` | `< T >` vs `<T>`.                                        | ✅      |
+| `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`   | bool | `false` | Space after `>` in type arguments.                       | ✅      |
+| `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER` | bool | `false` | Space before `<` in type parameters.                     | ✅      |
+| `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS`          | bool | `true`  | Spaces around `extends` / `&` bounds in type parameters. | ✅      |
 
 ## Text blocks
 

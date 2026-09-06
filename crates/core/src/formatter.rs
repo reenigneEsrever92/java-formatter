@@ -2221,7 +2221,15 @@ impl<'s> Fmt<'s> {
             header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
             if let Some(tp) = self.fld(node, "type_parameters") {
-                if self.style.space_before_type_parameter_list {
+                // The name→`<` gap follows either the shipped
+                // `SPACE_BEFORE_TYPE_PARAMETER_LIST` or
+                // `SPACE_BEFORE_OPENING_ANGLE_BRACKET_IN_TYPE_PARAMETER`;
+                // both default off, either on inserts the single space.
+                if self.style.space_before_type_parameter_list
+                    || self
+                        .style
+                        .space_before_opening_angle_bracket_in_type_parameter
+                {
                     header.push(' ');
                 }
                 header.push_str(&self.flat_type_params(tp));
@@ -2291,7 +2299,11 @@ impl<'s> Fmt<'s> {
             header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
             if let Some(tp) = self.fld(node, "type_parameters") {
-                if self.style.space_before_type_parameter_list {
+                if self.style.space_before_type_parameter_list
+                    || self
+                        .style
+                        .space_before_opening_angle_bracket_in_type_parameter
+                {
                     header.push(' ');
                 }
                 header.push_str(&self.flat_type_params(tp));
@@ -2574,7 +2586,11 @@ impl<'s> Fmt<'s> {
             header.push_str(self.fld(node, "name").map(|n| self.txt(n)).unwrap_or(""));
 
             if let Some(tp) = self.fld(node, "type_parameters") {
-                if self.style.space_before_type_parameter_list {
+                if self.style.space_before_type_parameter_list
+                    || self
+                        .style
+                        .space_before_opening_angle_bracket_in_type_parameter
+                {
                     header.push(' ');
                 }
                 header.push_str(&self.flat_type_params(tp));
@@ -6279,9 +6295,10 @@ impl<'s> Fmt<'s> {
                 )
             });
         format!(
-            "{}{}{}{}{}",
+            "{}{}{}{}{}{}",
             obj,
             ta,
+            self.type_args_gap(&ta, name),
             name,
             self.sp(self.style.space_before_method_call_parentheses),
             args
@@ -6315,7 +6332,14 @@ impl<'s> Fmt<'s> {
             .unwrap_or_default();
         let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
         let gap = self.sp(self.style.space_before_method_call_parentheses);
-        let prefix = format!("{}{}{}{}", obj, ta, name, gap);
+        let prefix = format!(
+            "{}{}{}{}{}",
+            obj,
+            ta,
+            self.type_args_gap(&ta, name),
+            name,
+            gap
+        );
         let args_col = self.col_after(c, &prefix);
 
         let args_str = self
@@ -6439,7 +6463,14 @@ impl<'s> Fmt<'s> {
             .unwrap_or_default();
         let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
         let gap = self.sp(self.style.space_before_method_call_parentheses);
-        let prefix = format!("{}{}{}{}", obj, ta, name, gap);
+        let prefix = format!(
+            "{}{}{}{}{}",
+            obj,
+            ta,
+            self.type_args_gap(&ta, name),
+            name,
+            gap
+        );
         let args_col = self.col_after(c, &prefix);
         !self.fits(args_col, &self.flat_args(a))
     }
@@ -6555,15 +6586,32 @@ impl<'s> Fmt<'s> {
                     // as the generic layout does; otherwise the base ends its
                     // own line and the first call starts the builder lines.
                     if base.is_empty() {
-                        out = format!("{}{}{}{}", ta, nm, gap, flat_a);
+                        out = format!(
+                            "{}{}{}{}{}",
+                            ta,
+                            self.type_args_gap(&ta, nm),
+                            nm,
+                            gap,
+                            flat_a
+                        );
                     } else {
-                        out = format!("{}\n{}.{}{}{}{}", base, link_ind, ta, nm, gap, flat_a);
+                        out = format!(
+                            "{}\n{}.{}{}{}{}{}",
+                            base,
+                            link_ind,
+                            ta,
+                            self.type_args_gap(&ta, nm),
+                            nm,
+                            gap,
+                            flat_a
+                        );
                     }
                 } else {
                     out.push('\n');
                     out.push_str(&link_ind);
                     out.push('.');
                     out.push_str(&ta);
+                    out.push_str(self.type_args_gap(&ta, nm));
                     out.push_str(nm);
                     out.push_str(gap);
                     out.push_str(&flat_a);
@@ -6601,17 +6649,42 @@ impl<'s> Fmt<'s> {
 
             if i == 0 {
                 if base.is_empty() {
-                    out = format!("{}{}{}{}", ta, nm, gap, flat_a);
+                    out = format!(
+                        "{}{}{}{}{}",
+                        ta,
+                        self.type_args_gap(&ta, nm),
+                        nm,
+                        gap,
+                        flat_a
+                    );
                 } else if first_next {
-                    out = format!("{}\n{}.{}{}{}{}", base, cont, ta, nm, gap, flat_a);
+                    out = format!(
+                        "{}\n{}.{}{}{}{}{}",
+                        base,
+                        cont,
+                        ta,
+                        self.type_args_gap(&ta, nm),
+                        nm,
+                        gap,
+                        flat_a
+                    );
                 } else {
-                    out = format!("{}.{}{}{}{}", base, ta, nm, gap, flat_a);
+                    out = format!(
+                        "{}.{}{}{}{}{}",
+                        base,
+                        ta,
+                        self.type_args_gap(&ta, nm),
+                        nm,
+                        gap,
+                        flat_a
+                    );
                 }
             } else {
                 out.push('\n');
                 out.push_str(&link_pref);
                 out.push('.');
                 out.push_str(&ta);
+                out.push_str(self.type_args_gap(&ta, nm));
                 out.push_str(nm);
                 out.push_str(gap);
                 out.push_str(&flat_a);
@@ -6632,7 +6705,7 @@ impl<'s> Fmt<'s> {
             .fld(node, "type")
             .map(|n| self.flat_type(n))
             .unwrap_or_default();
-        let prefix = format!("new {}{}", ta, ty);
+        let prefix = format!("new {}{}{}", ta, self.type_args_gap(&ta, &ty), ty);
         // The gap between the type and the constructor-call parentheses follows
         // SPACE_BEFORE_METHOD_CALL_PARENTHESES (constructor calls share the
         // method-call toggle).
@@ -7340,16 +7413,41 @@ impl<'s> Fmt<'s> {
     /// Render a `type_arguments` node canonically: `<A, B>` with no space
     /// inside the angle brackets and a comma separated per
     /// `SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS` (default: one space after).
+    /// `SPACES_WITHIN_ANGLE_BRACKETS` pads inside the brackets (`< A, B >`,
+    /// nested generics at every level via recursion); the empty diamond `<>`
+    /// is never padded.
     fn flat_type_args(&self, node: Node<'s>) -> String {
         let inner: Vec<_> = self
             .named(node)
             .iter()
             .map(|n| self.flat_type(*n))
             .collect();
-        format!(
-            "<{}>",
-            inner.join(self.comma_sep(self.style.space_after_comma_in_type_arguments))
-        )
+        let body = inner.join(self.comma_sep(self.style.space_after_comma_in_type_arguments));
+        if body.is_empty() {
+            "<>".to_string()
+        } else if self.style.spaces_within_angle_brackets {
+            format!("< {} >", body)
+        } else {
+            format!("<{}>", body)
+        }
+    }
+
+    /// The gap emitted after a rendered explicit type-argument list `<…>` at
+    /// a join where the closing `>` directly abuts a following token: one
+    /// space when `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT` is on
+    /// and both sides are non-empty, nothing otherwise (the default keeps
+    /// `a.<T>b()` byte-identical).
+    fn type_args_gap(&self, ta: &str, following: &str) -> &'static str {
+        if self
+            .style
+            .space_after_closing_angle_bracket_in_type_argument
+            && !ta.is_empty()
+            && !following.is_empty()
+        {
+            " "
+        } else {
+            ""
+        }
     }
 
     /// Rebuild a `dimensions` node (e.g. `[]`, `[][]`, `@A []`) canonically:
@@ -7372,13 +7470,19 @@ impl<'s> Fmt<'s> {
 
     /// Render a declaration `type_parameters` node canonically: `<T, U>` with
     /// no space inside the angle brackets and one space after each comma.
+    /// `SPACES_WITHIN_ANGLE_BRACKETS` pads inside the brackets (`< T, U >`).
     fn flat_type_params(&self, node: Node<'s>) -> String {
         let inner: Vec<_> = self
             .named(node)
             .iter()
             .map(|n| self.flat_type_param(*n))
             .collect();
-        format!("<{}>", inner.join(", "))
+        let body = inner.join(", ");
+        if self.style.spaces_within_angle_brackets && !body.is_empty() {
+            format!("< {} >", body)
+        } else {
+            format!("<{}>", body)
+        }
     }
 
     /// Render one `type_parameter`, e.g. `T extends Number & Serializable`.
@@ -7396,13 +7500,22 @@ impl<'s> Fmt<'s> {
     }
 
     /// Render a `type_bound` (the `extends A & B` part of a type parameter).
+    /// The `&` join keeps its spaces per
+    /// `SPACE_AROUND_TYPE_BOUNDS_IN_TYPE_PARAMETERS` (default: `A & B`; off
+    /// renders `A&B`). The mandatory space after `extends` is applied at the
+    /// `flat_type_param` join, never here.
     fn flat_type_bound(&self, node: Node<'s>) -> String {
         let inner: Vec<_> = self
             .named(node)
             .iter()
             .map(|n| self.flat_type(*n))
             .collect();
-        inner.join(" & ")
+        let sep = if self.style.space_around_type_bounds_in_type_parameters {
+            " & "
+        } else {
+            "&"
+        };
+        inner.join(sep)
     }
 
     /// Render the type list of an `extends_interfaces` / `super_interfaces`
@@ -7787,8 +7900,9 @@ impl<'s> Fmt<'s> {
             .map(|_| format!("{}{{ ... }}", self.sp(self.style.space_before_class_lbrace)))
             .unwrap_or_default();
         format!(
-            "new {}{}{}{}{}",
+            "new {}{}{}{}{}{}",
             ta,
+            self.type_args_gap(&ta, &ty),
             ty,
             self.sp(self.style.space_before_method_call_parentheses),
             args,
