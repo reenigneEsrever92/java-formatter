@@ -1099,6 +1099,13 @@ impl<'s> Fmt<'s> {
         }
         let is_line = node.kind() == "line_comment";
 
+        // A CRLF source leaves a trailing `\r` inside the comment token text
+        // (tree-sitter's `//[^\n]*` matches the `\r`), which would defeat the
+        // single-line checks below — drop it, matching the javadoc and
+        // string-literal renderers; `finalise_line_endings` re-applies the
+        // configured separator at the end.
+        let text = text.trim_end_matches('\r');
+
         // 1. Column placement: a first-column source comment is kept there by
         //    KEEP_FIRST_COLUMN_COMMENT, and the per-kind *_AT_FIRST_COLUMN
         //    toggle pins the comment to column 1; otherwise the contextual
