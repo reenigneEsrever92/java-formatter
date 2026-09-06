@@ -2,8 +2,7 @@
 //!
 //! Benchmarks formatting throughput on a small realistic fixture and on
 //! synthetically generated source files of growing size, with both the default
-//! style and the project's `codestyle.xml`. Also benchmarks the XML scheme
-//! parser.
+//! style and the project's `codestyle.xml`.
 //!
 //! Run with:
 //!
@@ -43,9 +42,63 @@ fn codestyle() -> &'static JavaStyle {
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A small, realistic file: imports, class, methods, `throws`, a record, an
-/// enum and an interface.
-const KITCHEN_SINK: &str = include_str!("../tests/java/kitchen_sink.java");
+/// A small, realistic file: package + imports, a class with methods and
+/// `throws`, a record, an enum and an interface.
+const KITCHEN_SINK: &str = r#"package demo;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class KitchenSink {
+    private final String name;
+
+    public KitchenSink(String name) {
+        this.name = name;
+    }
+
+    public String describe(int offset) throws java.io.IOException {
+        if (name == null) {
+            throw new java.io.IOException("no name");
+        }
+        int total = offset * 2 - 1;
+        List<String> parts = new ArrayList<>();
+        parts.add(name);
+        parts.add(String.valueOf(total));
+        return String.join("-", parts);
+    }
+
+    public static int compute(int a, int b, int c, int d, int e) {
+        int x = (a + b) * (c - d);
+        int y = e == 0 ? 1 : e;
+        return x + y;
+    }
+}
+
+record Pair(int left, int right) {
+    public Pair {
+        if (left > right) {
+            throw new IllegalArgumentException("left > right");
+        }
+    }
+
+    int sum() {
+        return left + right;
+    }
+}
+
+interface Worker {
+    void run() throws java.io.IOException;
+}
+
+enum Level {
+    LOW,
+    HIGH;
+
+    boolean isHigh() {
+        return this == HIGH;
+    }
+}
+"#;
 
 /// Synthetically generated source: `count` package-private classes, each with a
 /// constructor, fields, control flow, `throws`, generics and a chained builder
@@ -164,17 +217,9 @@ fn bench_format_generated(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_parse_codestyle(c: &mut Criterion) {
-    let xml = include_str!("../../../codestyle.xml");
-
-    c.bench_function("parse/codestyle", |b| {
-        b.iter(|| black_box(parse_codestyle(black_box(xml)).expect("codestyle.xml must parse")))
-    });
-}
-
 criterion_group! {
     name = format_benches;
     config = bench_config();
-    targets = bench_format_realistic, bench_format_generated, bench_parse_codestyle
+    targets = bench_format_realistic, bench_format_generated
 }
 criterion_main!(format_benches);
