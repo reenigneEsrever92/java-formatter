@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Format Javadoc per the JD_* javadoc options
 description: Implement the javadoc formatting options so doc comments are laid out per the scheme.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-06 }
 priority: medium
 tags: [dev, formatter]
 owner: maintainer
@@ -161,35 +162,35 @@ to docs/dev/changelog.md.
 
 ## Steps
 
-- [ ] config.rs: add the nineteen javadoc fields + `Default` values to
+- [x] config.rs: add the nineteen javadoc fields + `Default` values to
       `JavaStyle` (gate `false` per the divergence decision, the seventeen
       `JD_*` and `CLASS_NAMES_IN_JAVADOC` per the table) and register the
       nineteen `OptionDef`s in `OPTIONS` (`Section::JavaCodeStyle`,
       `group: "Javadoc"`, `OptionValue::Bool` except `CLASS_NAMES_IN_JAVADOC`
       as `OptionValue::UInt`) — AC1/AC2 config mapping; `cargo test` stays
       green (existing goldens untouched).
-- [ ] formatter.rs: add the `javadoc` helper with the parse + clean check
+- [x] formatter.rs: add the `javadoc` helper with the parse + clean check
       (delimiter stripping, per-line `*` prefix validation, tag-shape
       validation) returning `None` for non-javadoc / gate-off / unparseable
       nodes — AC1 messy-verbatim, AC2 gate-off byte-identical.
-- [ ] formatter.rs: implement the layout phase — description handling per
+- [x] formatter.rs: implement the layout phase — description handling per
       `JD_PRESERVE_LINE_FEEDS` / `JD_KEEP_EMPTY_LINES` / `JD_P_AT_EMPTY_LINES`
       / `JD_ADD_BLANK_AFTER_DESCRIPTION`, tag layout per the `JD_ALIGN_*` /
       `JD_ADD_BLANK_AFTER_*` / `JD_KEEP_*` / `JD_USE_THROWS_NOT_EXCEPTION` /
       `JD_PARAM_DESCRIPTION_ON_NEW_LINE` / `JD_INDENT_ON_CONTINUATION`
       options, the leading `*` per `JD_LEADING_ASTERISKS_ARE_ENABLED`, and the
       one-line form per `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS` — AC1.
-- [ ] formatter.rs: route all six emit sites (program L267-269, class_member
+- [x] formatter.rs: route all six emit sites (program L267-269, class_member
       L760, block L1269-1270, stmt L1423, switch stray L1837-1838, expr extra
       L1993) through the helper, skipping the call-site `self.ind(...)` prefix
       for the javadoc branch at class_body L722 / block L1267 / switch_stmt
       L1837 — AC1, AC2.
-- [ ] tests: `javadoc_formatting.rs` + fixtures under
+- [x] tests: `javadoc_formatting.rs` + fixtures under
       `tests/java/javadoc_formatting/`: the clean multi-tag fixture laid out
       at the engine defaults (golden), byte-identical with the gate absent
       (`format` on the default style) and with the gate explicitly `false`,
       and engaged with the gate `true` — AC1, AC2.
-- [ ] tests: the per-knob scenarios on the same fixture family —
+- [x] tests: the per-knob scenarios on the same fixture family —
       `JD_ALIGN_PARAM_COMMENTS` / `JD_ALIGN_EXCEPTION_COMMENTS` off (no column
       alignment), `JD_ADD_BLANK_AFTER_PARM_COMMENTS` /
       `JD_ADD_BLANK_AFTER_RETURN` on (blank lines),
@@ -203,12 +204,12 @@ to docs/dev/changelog.md.
       `JD_PRESERVE_LINE_FEEDS` on, and a one-line javadoc under
       `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS` true (kept one line) and false
       (expanded) — AC1.
-- [ ] tests: the messy fixture (irregular `*` prefixes / malformed tag)
+- [x] tests: the messy fixture (irregular `*` prefixes / malformed tag)
       asserting byte-for-byte verbatim echo with the gate on — AC1.
-- [ ] Register the file in `tests/options.rs` and run `cargo test`: the full
+- [x] Register the file in `tests/options.rs` and run `cargo test`: the full
       suite stays green, no existing golden changes, and each new golden is
       idempotent (formatting it again is a no-op) — AC3.
-- [ ] Docs: flip the applied rows in docs/settings/java.md to ✅ (gate +
+- [x] Docs: flip the applied rows in docs/settings/java.md to ✅ (gate +
       seventeen `JD_*`) with the gate-divergence note, keep
       `CLASS_NAMES_IN_JAVADOC` at ❌ with a parsed-not-applied note; add the
       options to the README honoured-options table, update the
@@ -216,7 +217,33 @@ to docs/dev/changelog.md.
       the requirement row to docs/requirements.md (R16 claimed by
       comment-layout → R17 unless landed); append the changelog entry; then
       run `cargo test` once more for a final green suite — AC4, AC3.
-- [ ] If an IntelliJ installation is available, format a representative
+- [x] If an IntelliJ installation is available, format a representative
       javadoc fixture there and align the goldens (alignment column,
       blank-line / `<p>` placement, one-line expansion, continuation indent);
       record the outcome in the changelog.
+
+# Verification
+
+Shipped 2026-09-06 (see the changelog entry dated 2026-09-05).
+
+- All plan steps above are complete. Two implementation notes that supersede
+  stale plan details:
+  - The sibling `comment-layout` CR landed first (R23), so the six emit sites
+    already route through the shared `Fmt::comment` helper — the javadoc
+    branch slots in at the top of `comment()` (before column placement), and
+    the call sites' own indent-prefix concern is moot because `comment()`
+    already renders whole lines. One extra site beyond the plan's six was
+    routed: `program`'s top-level node loop, so a javadoc between the
+    package/import section and a top-level type is laid out too (gate off
+    keeps its verbatim echo). Javadoc detection requires the comment to stand
+    alone on its source line, which protects comments embedded in code lines.
+  - `blank_lines_between` now skips lines inside block comments when counting
+    blank lines (matching its own "comment text is content" doc): the javadoc
+    layouts that emit blank lines without a `*`
+    (`JD_LEADING_ASTERISKS_ARE_ENABLED` off) would otherwise be miscounted as
+    member gaps on re-format, breaking idempotency (R6). No existing golden
+    changed.
+- No IntelliJ installation was available; the goldens pin the layout shapes
+  and the outcome is recorded in the changelog.
+- `cargo test --workspace` green (725 tests, 0 failed); no pre-existing
+  golden changed; every new golden is self-idempotent.

@@ -390,6 +390,37 @@ fn pad_column_runs(lines: &mut [BodyLine]) {
     }
 }
 
+// ── javadoc ─────────────────────────────────────────────────────────────────
+
+/// Which javadoc tag a tag block carries; drives the shape validation and the
+/// rendering (name required, `@exception` normalisation, alignment group).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JavadocTagKind {
+    Param,
+    Throws,
+    Exception,
+    Return,
+    /// Any other `@tag` (`@see`, `@since`, `@author`, …) — free text.
+    Other,
+}
+
+/// One javadoc tag block: the tag head plus its description lines (the first
+/// description line and any continuation lines, `*`-stripped).
+struct JavadocTag {
+    kind: JavadocTagKind,
+    /// The `@param` name / `@throws`-`@exception` type / unknown tag name
+    /// (`""` for `@return`).
+    name: String,
+    desc: Vec<String>,
+}
+
+/// Parsed javadoc content: the description lines (an empty string marks an
+/// empty line) followed by the ordered tag blocks.
+struct JavadocDoc {
+    description: Vec<String>,
+    tags: Vec<JavadocTag>,
+}
+
 /// The layout-relevant classification of one import line's text: whether it is
 /// a static import, whether it is an on-demand (`.*`) import, and its package
 /// part (`pkg.Owner` for a static member import, `pkg` for a type import,
@@ -913,7 +944,11 @@ impl<'s> Fmt<'s> {
 
     /// Number of blank lines in the source byte range `[prev_end, next_start)`:
     /// whitespace-only lines strictly between the two constructs. Comment text
-    /// is content, so a comment line is never counted as blank.
+    /// is content, so a comment line is never counted as blank — including
+    /// whitespace-only lines inside a block comment, which a naive
+    /// whitespace-only line test would miscount (and re-count on every
+    /// reformat, breaking idempotency for the javadoc layouts that emit
+    /// blank lines without a `*`).
     fn blank_lines_between(&self, prev_end: usize, next_start: usize) -> usize {
         if prev_end >= next_start {
             return 0;
@@ -925,12 +960,40 @@ impl<'s> Fmt<'s> {
         // the head (indentation) of the next line; only the full lines between
         // them can be blank.
         let mut blanks = 0;
+        let mut in_block = false;
         for seg in segments
             .iter()
             .take(segments.len().saturating_sub(1))
             .skip(1)
         {
-            if seg.trim().is_empty() {
+            let in_block_at_start = in_block;
+            let chars: Vec<char> = seg.chars().collect();
+            let mut blank = true;
+            let mut i = 0;
+            while i < chars.len() {
+                if in_block {
+                    if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
+                        in_block = false;
+                        blank = false;
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                } else if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
+                    in_block = true;
+                    blank = false;
+                    i += 2;
+                } else if chars[i] == '/' && chars.get(i + 1) == Some(&'/') {
+                    blank = false;
+                    break;
+                } else {
+                    if !chars[i].is_whitespace() {
+                        blank = false;
+                    }
+                    i += 1;
+                }
+            }
+            if blank && !in_block_at_start {
                 blanks += 1;
             }
         }
@@ -1022,6 +1085,14 @@ impl<'s> Fmt<'s> {
     /// interior verbatim (R4). Stray non-comment extras keep the historical
     /// indented echo so call sites can route any extra through here.
     fn comment(&self, node: Node<'s>, indent: usize) -> String {
+        // Javadoc detection takes precedence over the generic block-comment
+        // handling: a standalone `/** … */` under `ENABLE_JAVADOC_FORMATTING`
+        // is laid out by the javadoc engine (at the passed indent, every line
+        // self-prefixed), everything else keeps the column / space / wrap
+        // behaviour below.
+        if let Some(rendered) = self.javadoc(node, indent) {
+            return rendered;
+        }
         let text = self.txt(node);
         if !matches!(node.kind(), "line_comment" | "block_comment") {
             return format!("{}{}", self.ind(indent), text);
@@ -1158,6 +1229,383 @@ impl<'s> Fmt<'s> {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    // ── javadoc ────────────────────────────────────────────────────────────
+
+    /// Javadoc layout engine (`ENABLE_JAVADOC_FORMATTING` + the `JD_*`
+    /// options). Returns the fully rendered comment — every line prefixed
+    /// with `ind(indent)` — when `node` is a standalone `/** … */` block
+    /// comment whose text parses cleanly and the gate is on, and `None`
+    /// otherwise (the caller keeps the verbatim echo, R4). Callers that
+    /// normally add their own indent prefix route through [`Fmt::comment`]
+    /// with `indented: false`, so the per-line indent is never doubled.
+    ///
+    /// The rewrite is whitespace/layout only (R5): prose and tag text are
+    /// preserved and never reordered (only the option-driven empty/unknown
+    /// drops apply), and the layout is a pure function of the parsed content,
+    /// so formatting the output again reproduces it (R6).
+    fn javadoc(&self, node: Node<'s>, indent: usize) -> Option<String> {
+        if !self.style.enable_javadoc_formatting || node.kind() != "block_comment" {
+            return None;
+        }
+        let text = self.txt(node);
+        if !text.starts_with("/**") || text == "/**/" || !self.comment_alone_on_line(node) {
+            return None;
+        }
+        let ind = self.ind(indent);
+
+        // One-line javadoc: kept verbatim under `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS`,
+        // expanded to the multi-line form otherwise.
+        if !text.contains('\n') {
+            if self.style.jd_do_not_wrap_one_line_comments {
+                return Some(format!("{}{}", ind, text));
+            }
+            let inner = text[3..text.len() - 2].trim();
+            let doc = self.parse_javadoc_body(&[inner.to_string()])?;
+            return Some(self.render_javadoc(&doc, &ind));
+        }
+
+        // Multi-line: the `*/` terminator must be alone on the final line.
+        let tail = &text[text.rfind('\n').map_or(0, |i| i + 1)..];
+        if tail.trim() != "*/" {
+            return None;
+        }
+        let body = &text[3..text.len() - 2];
+        let mut content: Vec<String> = Vec::new();
+        for (i, raw) in body.split('\n').enumerate() {
+            let raw = raw.strip_suffix('\r').unwrap_or(raw);
+            if i == 0 {
+                // The remainder of the `/**` line is a description line when
+                // non-blank (no `*` prefix precedes it).
+                let rest = raw.trim();
+                if !rest.is_empty() {
+                    content.push(rest.to_string());
+                }
+                continue;
+            }
+            let stripped = raw.trim_start();
+            if stripped.is_empty() {
+                content.push(String::new());
+            } else if let Some(rest) = stripped.strip_prefix('*') {
+                content.push(
+                    rest.strip_prefix(' ')
+                        .unwrap_or(rest)
+                        .trim_end()
+                        .to_string(),
+                );
+            } else if !self.style.jd_leading_asterisks_are_enabled {
+                // `JD_LEADING_ASTERISKS_ARE_ENABLED` off: the per-line `*` is
+                // optional (the rendered form carries none, R6).
+                content.push(stripped.trim_end().to_string());
+            } else {
+                // A non-blank line without the `*` prefix: not cleanly
+                // parseable — verbatim echo (R4).
+                return None;
+            }
+        }
+        let doc = self.parse_javadoc_body(&content)?;
+        Some(self.render_javadoc(&doc, &ind))
+    }
+
+    /// Whether the comment node is the only content on its source line:
+    /// whitespace from the line start to the comment and whitespace from the
+    /// comment to the line end. Guards the javadoc pass against comments
+    /// embedded in a code line, which a multi-line render would corrupt.
+    fn comment_alone_on_line(&self, node: Node<'s>) -> bool {
+        let src = std::str::from_utf8(self.src).unwrap_or("");
+        let start = node.start_byte();
+        let end = node.end_byte();
+        let before = &src[..start];
+        let before_ok = match before.rfind('\n') {
+            Some(i) => before[i + 1..].chars().all(char::is_whitespace),
+            None => before.chars().all(char::is_whitespace),
+        };
+        before_ok
+            && src[end..]
+                .split('\n')
+                .next()
+                .unwrap_or("")
+                .chars()
+                .all(char::is_whitespace)
+    }
+
+    /// Phases 1+2: split the `*`-stripped content lines (an empty string
+    /// marks an empty line) into the description block and the ordered tag
+    /// blocks. Returns `None` when a tag line is malformed (`@param` /
+    /// `@throws` / `@exception` without a name, a bare `@`), which keeps the
+    /// comment verbatim (R4).
+    fn parse_javadoc_body(&self, content: &[String]) -> Option<JavadocDoc> {
+        let mut description: Vec<String> = Vec::new();
+        let mut tags: Vec<JavadocTag> = Vec::new();
+        let mut in_tags = false;
+        for line in content {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('@') {
+                let (kind, name, rest) = self.parse_javadoc_tag(trimmed)?;
+                in_tags = true;
+                let mut tag = JavadocTag {
+                    kind,
+                    name,
+                    desc: Vec::new(),
+                };
+                if !rest.is_empty() {
+                    tag.desc.push(rest);
+                }
+                tags.push(tag);
+            } else if in_tags {
+                if trimmed.is_empty() {
+                    // Blank lines inside the tag region are layout-only.
+                    continue;
+                }
+                match tags.last_mut() {
+                    Some(t) => t.desc.push(line.clone()),
+                    None => description.push(line.clone()),
+                }
+            } else {
+                description.push(line.clone());
+            }
+        }
+        // A `<p>` standing alone is IntelliJ's paragraph break: treat it as
+        // an empty line so the options shape it and the rendered form
+        // re-parses to the same structure (R6).
+        for d in &mut description {
+            if d.trim() == "<p>" {
+                *d = String::new();
+            }
+        }
+        // Leading and trailing empty lines are dropped; interior ones are the
+        // `JD_KEEP_EMPTY_LINES` / `JD_P_AT_EMPTY_LINES` concern.
+        while description.first().is_some_and(|l| l.is_empty()) {
+            description.remove(0);
+        }
+        while description.last().is_some_and(|l| l.is_empty()) {
+            description.pop();
+        }
+        Some(JavadocDoc { description, tags })
+    }
+
+    /// Shape-check one `@tag …` line: `@param` / `@throws` / `@exception`
+    /// require a name, `@return` is bare, any other `@tag` is free text.
+    /// Returns the kind, the name and the remaining description text.
+    fn parse_javadoc_tag(&self, line: &str) -> Option<(JavadocTagKind, String, String)> {
+        let tag_end = line[1..]
+            .find(char::is_whitespace)
+            .map_or(line.len(), |i| i + 1);
+        let tag = &line[1..tag_end];
+        let rest = line[tag_end..].trim_start();
+        let (name, d) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+        match tag {
+            "param" if !name.is_empty() => Some((
+                JavadocTagKind::Param,
+                name.to_string(),
+                d.trim_start().to_string(),
+            )),
+            "throws" if !name.is_empty() => Some((
+                JavadocTagKind::Throws,
+                name.to_string(),
+                d.trim_start().to_string(),
+            )),
+            "exception" if !name.is_empty() => Some((
+                JavadocTagKind::Exception,
+                name.to_string(),
+                d.trim_start().to_string(),
+            )),
+            "return" => Some((JavadocTagKind::Return, String::new(), rest.to_string())),
+            _ if !tag.is_empty() => {
+                Some((JavadocTagKind::Other, tag.to_string(), rest.to_string()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Phase 3: lay the parsed structure out per the `JD_*` options, every
+    /// line prefixed with the caller's indent. A pure function of the parsed
+    /// content, so the output re-parses to the same layout (R6).
+    fn render_javadoc(&self, doc: &JavadocDoc, ind: &str) -> String {
+        let s = self.style;
+        let mut lines: Vec<String> = Vec::new();
+
+        // Description: line breaks kept per `JD_PRESERVE_LINE_FEEDS` or merged
+        // per paragraph; empty lines kept per `JD_KEEP_EMPTY_LINES` and
+        // rendered as `<p>` per `JD_P_AT_EMPTY_LINES`.
+        let blank = || {
+            if s.jd_p_at_empty_lines {
+                "<p>".to_string()
+            } else {
+                String::new()
+            }
+        };
+        let mut desc: Vec<String> = Vec::new();
+        if s.jd_preserve_line_feeds {
+            for l in &doc.description {
+                if l.is_empty() {
+                    if s.jd_keep_empty_lines {
+                        desc.push(blank());
+                    }
+                } else {
+                    desc.push(l.clone());
+                }
+            }
+        } else {
+            let mut para = String::new();
+            for l in &doc.description {
+                if l.is_empty() {
+                    // With `JD_KEEP_EMPTY_LINES` on, the empty line breaks the
+                    // paragraph and renders as `<p>` / blank; with it off the
+                    // empty line vanishes and the surrounding text re-flows
+                    // together (so the output re-parses identically, R6).
+                    if s.jd_keep_empty_lines {
+                        if !para.is_empty() {
+                            desc.push(std::mem::take(&mut para));
+                        }
+                        desc.push(blank());
+                    }
+                } else if para.is_empty() {
+                    para.push_str(l.trim_start());
+                } else {
+                    para.push(' ');
+                    para.push_str(l.trim_start());
+                }
+            }
+            if !para.is_empty() {
+                desc.push(para);
+            }
+        }
+        lines.extend(desc);
+        if !lines.is_empty() && !doc.tags.is_empty() && s.jd_add_blank_after_description {
+            lines.push(String::new());
+        }
+
+        // Tags in source order (R5); empty / unknown tags dropped per the
+        // `JD_KEEP_*` options. Alignment columns are computed over the kept
+        // tags of one group so the layout stays content-only (R6).
+        let kept: Vec<&JavadocTag> = doc
+            .tags
+            .iter()
+            .filter(|t| match t.kind {
+                JavadocTagKind::Other => s.jd_keep_invalid_tags,
+                JavadocTagKind::Param => s.jd_keep_empty_parameter || !t.desc.is_empty(),
+                JavadocTagKind::Return => s.jd_keep_empty_return || !t.desc.is_empty(),
+                JavadocTagKind::Throws | JavadocTagKind::Exception => {
+                    s.jd_keep_empty_exception || !t.desc.is_empty()
+                }
+            })
+            .collect();
+        let header = |t: &JavadocTag| -> String {
+            match t.kind {
+                JavadocTagKind::Param => format!("@param {}", t.name),
+                JavadocTagKind::Return => "@return".to_string(),
+                JavadocTagKind::Throws => format!("@throws {}", t.name),
+                JavadocTagKind::Exception if s.jd_use_throws_not_exception => {
+                    format!("@throws {}", t.name)
+                }
+                JavadocTagKind::Exception => format!("@exception {}", t.name),
+                JavadocTagKind::Other => format!("@{}", t.name),
+            }
+        };
+        let param_col = if s.jd_align_param_comments {
+            kept.iter()
+                .filter(|t| t.kind == JavadocTagKind::Param)
+                .map(|t| header(t).len())
+                .max()
+                .map(|m| m + 1)
+        } else {
+            None
+        };
+        let exc_col = if s.jd_align_exception_comments {
+            kept.iter()
+                .filter(|t| matches!(t.kind, JavadocTagKind::Throws | JavadocTagKind::Exception))
+                .map(|t| header(t).len())
+                .max()
+                .map(|m| m + 1)
+        } else {
+            None
+        };
+
+        for (i, t) in kept.iter().enumerate() {
+            let h = header(t);
+            let col = match t.kind {
+                JavadocTagKind::Param => param_col,
+                JavadocTagKind::Throws | JavadocTagKind::Exception => exc_col,
+                _ => None,
+            };
+            if t.desc.is_empty() {
+                lines.push(h);
+            } else if t.kind == JavadocTagKind::Param && s.jd_param_description_on_new_line {
+                // `JD_PARAM_DESCRIPTION_ON_NEW_LINE`: the description starts
+                // on its own line, indented to the description column.
+                lines.push(h.clone());
+                let c = col.unwrap_or(h.len() + 1);
+                for (j, d) in t.desc.iter().enumerate() {
+                    if j == 0 || s.jd_indent_on_continuation {
+                        lines.push(format!("{}{}", " ".repeat(c), d.trim_start()));
+                    } else {
+                        lines.push(d.clone());
+                    }
+                }
+            } else {
+                let first = match col {
+                    Some(c) => format!(
+                        "{}{} {}",
+                        h,
+                        " ".repeat(c.saturating_sub(h.len() + 1)),
+                        t.desc[0].trim_start()
+                    ),
+                    None => format!("{} {}", h, t.desc[0].trim_start()),
+                };
+                lines.push(first);
+                let c = col.unwrap_or(h.len() + 1);
+                for (_, d) in t.desc.iter().enumerate().skip(1) {
+                    if s.jd_indent_on_continuation {
+                        // `JD_INDENT_ON_CONTINUATION`: continuation lines sit
+                        // at the tag's description column.
+                        lines.push(format!("{}{}", " ".repeat(c), d.trim_start()));
+                    } else {
+                        lines.push(d.clone());
+                    }
+                }
+            }
+            // `JD_ADD_BLANK_AFTER_PARM_COMMENTS` / `JD_ADD_BLANK_AFTER_RETURN`:
+            // a blank line after the block's last tag, before the next one.
+            let blank_after = match t.kind {
+                JavadocTagKind::Param => s.jd_add_blank_after_parm_comments,
+                JavadocTagKind::Return => s.jd_add_blank_after_return,
+                _ => false,
+            };
+            if blank_after && kept.len() > i + 1 && kept[i + 1].kind != t.kind {
+                lines.push(String::new());
+            }
+        }
+
+        // Per-line prefix: the leading `*` per
+        // `JD_LEADING_ASTERISKS_ARE_ENABLED`, the `/**` / `*/` delimiters
+        // always; content rides on ` * ` lines, never on the `/**` line.
+        let mut out = format!("{}/**", ind);
+        for l in &lines {
+            let body = l.trim_end();
+            if s.jd_leading_asterisks_are_enabled {
+                out.push('\n');
+                out.push_str(ind);
+                if body.is_empty() {
+                    out.push_str(" *");
+                } else {
+                    out.push_str(" * ");
+                    out.push_str(body);
+                }
+            } else {
+                out.push('\n');
+                if !body.is_empty() {
+                    out.push_str(ind);
+                    out.push(' ');
+                    out.push_str(body);
+                }
+            }
+        }
+        out.push('\n');
+        out.push_str(ind);
+        out.push_str(" */");
+        out
     }
 
     /// Governing `BLANK_LINES_*` "around" minimum for one class-body member:
@@ -1357,7 +1805,14 @@ impl<'s> Fmt<'s> {
                 )
             };
             self.insert_gap(&mut out, prev_end, ty.start_byte(), keep_cap, required_min);
-            out.push_str(&self.type_decl(*ty, 0));
+            // A javadoc block between the header and a top-level type is laid
+            // out by the javadoc engine when the gate is on; every other node
+            // (and any comment with the gate off) keeps the verbatim echo.
+            if let Some(j) = self.javadoc(*ty, 0) {
+                out.push_str(&j);
+            } else {
+                out.push_str(&self.type_decl(*ty, 0));
+            }
             out.push('\n');
             prev_end = Some(ty.end_byte());
         }

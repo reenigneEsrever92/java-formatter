@@ -244,22 +244,32 @@ use the `JD_` names).
 
 | Option                             | Type | Default | Effect                                                                                   | Support |
 | ---------------------------------- | ---- | ------- | ---------------------------------------------------------------------------------------- | ------- |
-| `ENABLE_JAVADOC_FORMATTING`        | bool | `true`  | Reformat javadoc comments at all.                                                        | ❌      |
+| `ENABLE_JAVADOC_FORMATTING`        | bool | `true`  | Reformat javadoc comments at all.                                                        | ✅      |
 | `CLASS_NAMES_IN_JAVADOC`           | int  | `1`     | `1` fully qualify if not imported, `2` always fully qualify, `3` shorten and add import. | ❌      |
-| `JD_ALIGN_PARAM_COMMENTS`          | bool | `true`  | Align `@param` descriptions in a column.                                                 | ❌      |
-| `JD_ALIGN_EXCEPTION_COMMENTS`      | bool | `true`  | Align `@throws` / `@exception` descriptions in a column.                                 | ❌      |
-| `JD_ADD_BLANK_AFTER_PARM_COMMENTS` | bool | `false` | Blank line after the `@param` block.                                                     | ❌      |
-| `JD_ADD_BLANK_AFTER_RETURN`        | bool | `false` | Blank line after the `@return` tag.                                                      | ❌      |
-| `JD_ADD_BLANK_AFTER_DESCRIPTION`   | bool | `true`  | Blank line after the description paragraph.                                              | ❌      |
-| `JD_P_AT_EMPTY_LINES`              | bool | `true`  | Put `<p>` on empty lines.                                                                | ❌      |
-| `JD_KEEP_INVALID_TAGS`             | bool | `true`  | Keep invalid / unknown tags.                                                             | ❌      |
-| `JD_KEEP_EMPTY_LINES`              | bool | `true`  | Keep empty lines inside javadoc.                                                         | ❌      |
-| `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS` | bool | `false` | Do not wrap one-line javadoc comments.                                                   | ❌      |
-| `JD_USE_THROWS_NOT_EXCEPTION`      | bool | `true`  | Use `@throws` rather than `@exception`.                                                  | ❌      |
-| `JD_KEEP_EMPTY_PARAMETER`          | bool | `true`  | Keep empty `@param` tags.                                                                | ❌      |
-| `JD_KEEP_EMPTY_EXCEPTION`          | bool | `true`  | Keep empty `@throws` / `@exception` tags.                                                | ❌      |
-| `JD_KEEP_EMPTY_RETURN`             | bool | `true`  | Keep empty `@return` tags.                                                               | ❌      |
-| `JD_LEADING_ASTERISKS_ARE_ENABLED` | bool | `true`  | Render javadoc with leading `*` on every line.                                           | ❌      |
-| `JD_PRESERVE_LINE_FEEDS`           | bool | `false` | Preserve line breaks inside javadoc.                                                     | ❌      |
-| `JD_PARAM_DESCRIPTION_ON_NEW_LINE` | bool | `false` | Put `@param` descriptions on a new line.                                                 | ❌      |
-| `JD_INDENT_ON_CONTINUATION`        | bool | `false` | Indent javadoc continuation lines.                                                       | ❌      |
+| `JD_ALIGN_PARAM_COMMENTS`          | bool | `true`  | Align `@param` descriptions in a column.                                                 | ✅      |
+| `JD_ALIGN_EXCEPTION_COMMENTS`      | bool | `true`  | Align `@throws` / `@exception` descriptions in a column.                                 | ✅      |
+| `JD_ADD_BLANK_AFTER_PARM_COMMENTS` | bool | `false` | Blank line after the `@param` block.                                                     | ✅      |
+| `JD_ADD_BLANK_AFTER_RETURN`        | bool | `false` | Blank line after the `@return` tag.                                                      | ✅      |
+| `JD_ADD_BLANK_AFTER_DESCRIPTION`   | bool | `true`  | Blank line after the description paragraph.                                              | ✅      |
+| `JD_P_AT_EMPTY_LINES`              | bool | `true`  | Put `<p>` on empty lines.                                                                | ✅      |
+| `JD_KEEP_INVALID_TAGS`             | bool | `true`  | Keep invalid / unknown tags.                                                             | ✅      |
+| `JD_KEEP_EMPTY_LINES`              | bool | `true`  | Keep empty lines inside javadoc.                                                         | ✅      |
+| `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS` | bool | `false` | Do not wrap one-line javadoc comments.                                                   | ✅      |
+| `JD_USE_THROWS_NOT_EXCEPTION`      | bool | `true`  | Use `@throws` rather than `@exception`.                                                  | ✅      |
+| `JD_KEEP_EMPTY_PARAMETER`          | bool | `true`  | Keep empty `@param` tags.                                                                | ✅      |
+| `JD_KEEP_EMPTY_EXCEPTION`          | bool | `true`  | Keep empty `@throws` / `@exception` tags.                                                | ✅      |
+| `JD_KEEP_EMPTY_RETURN`             | bool | `true`  | Keep empty `@return` tags.                                                               | ✅      |
+| `JD_LEADING_ASTERISKS_ARE_ENABLED` | bool | `true`  | Render javadoc with leading `*` on every line.                                           | ✅      |
+| `JD_PRESERVE_LINE_FEEDS`           | bool | `false` | Preserve line breaks inside javadoc.                                                     | ✅      |
+| `JD_PARAM_DESCRIPTION_ON_NEW_LINE` | bool | `false` | Put `@param` descriptions on a new line.                                                 | ✅      |
+| `JD_INDENT_ON_CONTINUATION`        | bool | `false` | Indent javadoc continuation lines.                                                       | ✅      |
+
+> **Divergence (recorded, not fixed):** the table lists `ENABLE_JAVADOC_FORMATTING`
+> with IntelliJ's built-in default `true`, but `JavaStyle::default()` ships
+> `false`. Comments are never rewritten by default (the README never-corrupt
+> contract), so absent / default schemes keep every javadoc byte-identical;
+> a scheme that sets the gate explicitly (`true` or `false`) is honoured
+> exactly. With the gate on, only javadoc whose structure parses cleanly is
+> reformatted — a malformed or unusual comment echoes byte-for-byte — and
+> `CLASS_NAMES_IN_JAVADOC` parses (int 1–3) but its type-reference rewriting
+> is not applied, so its row stays ❌ (safely ignored).

@@ -134,6 +134,24 @@ The options currently honoured are:
 | `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`     | Insert the space after `//` on reformat                                                                                            |
 | `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION`  | Insert the space after `//` inside `//noinspection` suppression comments                                                           |
 | `WRAP_COMMENTS`                          | Wrap long comments to the right margin                                                                                             |
+| `ENABLE_JAVADOC_FORMATTING`              | Reformat javadoc comments at all (default off — see the divergence note in docs/settings/java.md)                                |
+| `JD_ALIGN_PARAM_COMMENTS`                | Align `@param` descriptions in a column                                                                                          |
+| `JD_ALIGN_EXCEPTION_COMMENTS`            | Align `@throws` / `@exception` descriptions in a column                                                                          |
+| `JD_ADD_BLANK_AFTER_PARM_COMMENTS`       | Blank line after the `@param` block                                                                                              |
+| `JD_ADD_BLANK_AFTER_RETURN`              | Blank line after the `@return` tag                                                                                               |
+| `JD_ADD_BLANK_AFTER_DESCRIPTION`         | Blank line after the description paragraph                                                                                       |
+| `JD_P_AT_EMPTY_LINES`                    | Render empty javadoc lines as `<p>`                                                                                              |
+| `JD_KEEP_INVALID_TAGS`                   | Keep unknown javadoc tags (`@see`, `@since`, …)                                                                                  |
+| `JD_KEEP_EMPTY_LINES`                    | Keep empty lines inside javadoc                                                                                                  |
+| `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS`       | Keep one-line javadoc on one line (off expands it to the multi-line form)                                                        |
+| `JD_USE_THROWS_NOT_EXCEPTION`            | Render `@exception` tags as `@throws`                                                                                            |
+| `JD_KEEP_EMPTY_PARAMETER`                | Keep empty `@param` tags                                                                                                         |
+| `JD_KEEP_EMPTY_EXCEPTION`                | Keep empty `@throws` / `@exception` tags                                                                                         |
+| `JD_KEEP_EMPTY_RETURN`                   | Keep empty `@return` tags                                                                                                        |
+| `JD_LEADING_ASTERISKS_ARE_ENABLED`       | Render javadoc with leading `*` on every line                                                                                    |
+| `JD_PRESERVE_LINE_FEEDS`                 | Preserve description line breaks instead of merging per paragraph                                                                |
+| `JD_PARAM_DESCRIPTION_ON_NEW_LINE`       | Put `@param` descriptions on their own line                                                                                      |
+| `JD_INDENT_ON_CONTINUATION`              | Indent javadoc continuation lines to the description column                                                                      |
 | `KEEP_SIMPLE_BLOCKS_IN_ONE_LINE`         | Keep one-statement blocks of `if` / `else` / `for` / `while` / `do`, `try` / `catch` / `finally` and `synchronized` on one line |
 | `KEEP_SIMPLE_METHODS_IN_ONE_LINE`        | Keep single-statement method / constructor bodies on one line                                                                   |
 | `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`        | Keep single-statement lambda bodies on one line                                                                                 |
@@ -644,6 +662,34 @@ braces when the body spans multiple lines, `3` = always force braces.
   keep their source text verbatim. Comment text is never invented — only the
   indentation, the optional space after `//` and the line breaks change (R5),
   and re-formatting the output reproduces the layout (R6).
+- Javadoc is reformatted only when a scheme sets `ENABLE_JAVADOC_FORMATTING`
+  explicitly (the built-in default is `false` — a recorded divergence, see
+  docs/settings/java.md — so absent and default schemes keep every comment
+  byte-identical). With the gate on, a standalone `/** … */` comment whose
+  structure parses cleanly is laid out per the `JD_*` options: description
+  line breaks are kept per `JD_PRESERVE_LINE_FEEDS` or merged per paragraph,
+  empty description lines are kept per `JD_KEEP_EMPTY_LINES` and rendered as
+  `<p>` per `JD_P_AT_EMPTY_LINES`, a blank line follows the description per
+  `JD_ADD_BLANK_AFTER_DESCRIPTION`, `@param` descriptions align to a shared
+  column per `JD_ALIGN_PARAM_COMMENTS` (or sit on their own line per
+  `JD_PARAM_DESCRIPTION_ON_NEW_LINE`) with a blank after the block per
+  `JD_ADD_BLANK_AFTER_PARM_COMMENTS`, `@throws` / `@exception` descriptions
+  align per `JD_ALIGN_EXCEPTION_COMMENTS` and normalise to `@throws` per
+  `JD_USE_THROWS_NOT_EXCEPTION`, a blank follows `@return` per
+  `JD_ADD_BLANK_AFTER_RETURN`, empty tags are dropped per
+  `JD_KEEP_EMPTY_PARAMETER` / `JD_KEEP_EMPTY_EXCEPTION` / `JD_KEEP_EMPTY_RETURN`
+  and unknown tags per `JD_KEEP_INVALID_TAGS`, continuation lines indent to
+  the description column per `JD_INDENT_ON_CONTINUATION`, the leading `*`
+  follows `JD_LEADING_ASTERISKS_ARE_ENABLED`, and a one-line javadoc is kept
+  on one line per `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS` (off, the built-in
+  default, expands it to the multi-line form). The rewrite is
+  whitespace/layout only: prose, tags and inline `{@code …}` / `{@link …}`
+  text are preserved in order (R5), and only javadoc whose lines all carry
+  the `*` prefix and whose tags are well-formed is rewritten — anything else
+  (irregular prefixes, malformed tags, a comment embedded in a code line)
+  echoes byte-for-byte (R4). Re-formatting the output reproduces it (R6);
+  `CLASS_NAMES_IN_JAVADOC` parses but its type-reference rewriting is not
+  applied (safely ignored, R7).
 
 ## Desktop GUI
 

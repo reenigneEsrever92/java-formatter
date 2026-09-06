@@ -9,6 +9,46 @@ tags: [dev, changelog]
 
 ## 2026-09-05
 
+- **The javadoc options are honoured (R36, javadoc-formatting)**: the whole
+  Javadoc table previously ignored (R7) and marked ❌ in docs/settings/java.md
+  — `ENABLE_JAVADOC_FORMATTING`, `CLASS_NAMES_IN_JAVADOC` and the seventeen
+  `JD_*` options — are now parsed into `JavaStyle` (nineteen fields under a
+  javadoc block with the table defaults, plus nineteen `OptionDef` entries in
+  the `OPTIONS` registry, `Section::JavaCodeStyle`, group "Javadoc", all
+  `OptionValue::Bool` except `CLASS_NAMES_IN_JAVADOC` as `OptionValue::UInt`).
+  The gate ships `false` against IntelliJ's table default `true` — a recorded
+  divergence (docs/settings/java.md) keeping absent / default schemes
+  byte-identical, mirroring `RECORD_COMPONENTS_WRAP`; a scheme that sets the
+  gate explicitly is honoured exactly. With the gate on, one layout engine
+  (`Fmt::javadoc` in the formatter, slotted ahead of the generic comment
+  handling inside the shared comment helper, so every standalone-comment emit
+  site — file header comments, class-body members, block extras, the statement
+  comment arm, the switch stray fallback, expression extras, plus a javadoc
+  between the header and a top-level type — routes through it) renders
+  javadoc whose structure parses cleanly: description paragraphs merged or
+  kept per `JD_PRESERVE_LINE_FEEDS`, `<p>` / blank empty lines per
+  `JD_P_AT_EMPTY_LINES` / `JD_KEEP_EMPTY_LINES`, blank lines per the
+  `JD_ADD_BLANK_*` options, aligned `@param` / `@throws` descriptions per the
+  `JD_ALIGN_*` options with `@exception` normalised per
+  `JD_USE_THROWS_NOT_EXCEPTION`, empty / unknown tags dropped per the
+  `JD_KEEP_*` options, continuation indents per `JD_INDENT_ON_CONTINUATION`,
+  the leading `*` per `JD_LEADING_ASTERISKS_ARE_ENABLED` and the one-line
+  form per `JD_DO_NOT_WRAP_ONE_LINE_COMMENTS`. The rewrite is
+  whitespace/layout only (R5); a comment with irregular `*` prefixes or a
+  malformed tag, and any comment embedded in a code line, echoes byte-for-byte
+  (R4); formatted output re-formats to itself (R6). `CLASS_NAMES_IN_JAVADOC`
+  parses but its type-reference rewriting is not applied (safely ignored,
+  R7). Twenty-nine golden tests in one file
+  (`tests/options/javadoc_formatting.rs` — the `JD_*` options are knobs of
+  one engine, so the per-option-file convention is deliberately deviated
+  from, per the change request) with fixtures under `tests/java/javadoc_formatting/`.
+  No IntelliJ installation was available, so the layout shapes (alignment
+  columns, blank-line / `<p>` placement, one-line expansion, continuation
+  indent) are pinned by the goldens rather than cross-checked against the
+  IDE.
+
+## 2026-09-05
+
 - **The remaining import-on-demand options are honoured (R35,
   import-on-demand-extensions)**: the three options previously ignored (R7) and
   marked ❌ in the docs/settings/java.md Imports table — `NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND`

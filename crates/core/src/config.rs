@@ -259,6 +259,27 @@ pub struct JavaStyle {
     pub keep_first_column_comment: bool,
     pub wrap_comments: bool,
 
+    // --- javadoc ---
+    pub enable_javadoc_formatting: bool,
+    pub class_names_in_javadoc: u32,
+    pub jd_align_param_comments: bool,
+    pub jd_align_exception_comments: bool,
+    pub jd_add_blank_after_parm_comments: bool,
+    pub jd_add_blank_after_return: bool,
+    pub jd_add_blank_after_description: bool,
+    pub jd_p_at_empty_lines: bool,
+    pub jd_keep_invalid_tags: bool,
+    pub jd_keep_empty_lines: bool,
+    pub jd_do_not_wrap_one_line_comments: bool,
+    pub jd_use_throws_not_exception: bool,
+    pub jd_keep_empty_parameter: bool,
+    pub jd_keep_empty_exception: bool,
+    pub jd_keep_empty_return: bool,
+    pub jd_leading_asterisks_are_enabled: bool,
+    pub jd_preserve_line_feeds: bool,
+    pub jd_param_description_on_new_line: bool,
+    pub jd_indent_on_continuation: bool,
+
     // --- brace styles ---
     pub class_brace_style: BraceStyle,
     pub method_brace_style: BraceStyle,
@@ -587,6 +608,25 @@ impl Default for JavaStyle {
             line_comment_add_space_in_suppression: false,
             keep_first_column_comment: true,
             wrap_comments: false,
+            enable_javadoc_formatting: false,
+            class_names_in_javadoc: 1,
+            jd_align_param_comments: true,
+            jd_align_exception_comments: true,
+            jd_add_blank_after_parm_comments: false,
+            jd_add_blank_after_return: false,
+            jd_add_blank_after_description: true,
+            jd_p_at_empty_lines: true,
+            jd_keep_invalid_tags: true,
+            jd_keep_empty_lines: true,
+            jd_do_not_wrap_one_line_comments: false,
+            jd_use_throws_not_exception: true,
+            jd_keep_empty_parameter: true,
+            jd_keep_empty_exception: true,
+            jd_keep_empty_return: true,
+            jd_leading_asterisks_are_enabled: true,
+            jd_preserve_line_feeds: false,
+            jd_param_description_on_new_line: false,
+            jd_indent_on_continuation: false,
             class_brace_style: BraceStyle::EndOfLine,
             method_brace_style: BraceStyle::EndOfLine,
             other_brace_style: BraceStyle::EndOfLine,
@@ -2163,6 +2203,254 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.wrap_comments = b;
+            }
+        },
+    },
+    // --- Javadoc (JavaCodeStyleSettings) ---
+    OptionDef {
+        xml_name: "ENABLE_JAVADOC_FORMATTING",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Reformat javadoc comments at all.",
+        get: |s| OptionValue::Bool(s.enable_javadoc_formatting),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.enable_javadoc_formatting = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "CLASS_NAMES_IN_JAVADOC",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::UInt(1),
+        group: "Javadoc",
+        description: "Class-name treatment inside javadoc (1 fully qualify if not imported, 2 always fully qualify, 3 shorten and add import).",
+        get: |s| OptionValue::UInt(s.class_names_in_javadoc),
+        set: |s, v| {
+            if let OptionValue::UInt(n) = v {
+                s.class_names_in_javadoc = n;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_ALIGN_PARAM_COMMENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Align @param descriptions in a column.",
+        get: |s| OptionValue::Bool(s.jd_align_param_comments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_align_param_comments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_ALIGN_EXCEPTION_COMMENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Align @throws / @exception descriptions in a column.",
+        get: |s| OptionValue::Bool(s.jd_align_exception_comments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_align_exception_comments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_ADD_BLANK_AFTER_PARM_COMMENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Blank line after the @param block.",
+        get: |s| OptionValue::Bool(s.jd_add_blank_after_parm_comments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_add_blank_after_parm_comments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_ADD_BLANK_AFTER_RETURN",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Blank line after the @return tag.",
+        get: |s| OptionValue::Bool(s.jd_add_blank_after_return),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_add_blank_after_return = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_ADD_BLANK_AFTER_DESCRIPTION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Blank line after the description paragraph.",
+        get: |s| OptionValue::Bool(s.jd_add_blank_after_description),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_add_blank_after_description = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_P_AT_EMPTY_LINES",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Put <p> on empty lines.",
+        get: |s| OptionValue::Bool(s.jd_p_at_empty_lines),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_p_at_empty_lines = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_KEEP_INVALID_TAGS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Keep invalid / unknown tags.",
+        get: |s| OptionValue::Bool(s.jd_keep_invalid_tags),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_keep_invalid_tags = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_KEEP_EMPTY_LINES",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Keep empty lines inside javadoc.",
+        get: |s| OptionValue::Bool(s.jd_keep_empty_lines),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_keep_empty_lines = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_DO_NOT_WRAP_ONE_LINE_COMMENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Do not wrap one-line javadoc comments.",
+        get: |s| OptionValue::Bool(s.jd_do_not_wrap_one_line_comments),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_do_not_wrap_one_line_comments = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_USE_THROWS_NOT_EXCEPTION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Use @throws rather than @exception.",
+        get: |s| OptionValue::Bool(s.jd_use_throws_not_exception),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_use_throws_not_exception = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_KEEP_EMPTY_PARAMETER",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Keep empty @param tags.",
+        get: |s| OptionValue::Bool(s.jd_keep_empty_parameter),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_keep_empty_parameter = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_KEEP_EMPTY_EXCEPTION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Keep empty @throws / @exception tags.",
+        get: |s| OptionValue::Bool(s.jd_keep_empty_exception),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_keep_empty_exception = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_KEEP_EMPTY_RETURN",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Keep empty @return tags.",
+        get: |s| OptionValue::Bool(s.jd_keep_empty_return),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_keep_empty_return = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_LEADING_ASTERISKS_ARE_ENABLED",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Javadoc",
+        description: "Render javadoc with leading * on every line.",
+        get: |s| OptionValue::Bool(s.jd_leading_asterisks_are_enabled),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_leading_asterisks_are_enabled = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_PRESERVE_LINE_FEEDS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Preserve line breaks inside javadoc.",
+        get: |s| OptionValue::Bool(s.jd_preserve_line_feeds),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_preserve_line_feeds = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_PARAM_DESCRIPTION_ON_NEW_LINE",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Put @param descriptions on a new line.",
+        get: |s| OptionValue::Bool(s.jd_param_description_on_new_line),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_param_description_on_new_line = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "JD_INDENT_ON_CONTINUATION",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Javadoc",
+        description: "Indent javadoc continuation lines.",
+        get: |s| OptionValue::Bool(s.jd_indent_on_continuation),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.jd_indent_on_continuation = b;
             }
         },
     },
