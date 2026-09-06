@@ -209,12 +209,19 @@ the common block — see [Annotations](common.md#annotations).
 
 | Option                                            | Type | Default              | Effect                                      | Support |
 | ------------------------------------------------- | ---- | -------------------- | ------------------------------------------- | ------- |
-| `DECONSTRUCTION_LIST_WRAP`                        | int  | `1` (wrap as needed) | Wrapping of record-pattern component lists. | ❌      |
-| `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS`  | bool | `true`               | Align wrapped pattern components.           | ❌      |
-| `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` | bool | `true`               | `(` of a wrapped pattern on its own line.   | ❌      |
-| `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN`    | bool | `true`               | `)` of a wrapped pattern on its own line.   | ❌      |
-| `SPACE_WITHIN_DECONSTRUCTION_LIST`                | bool | `false`              | `case A( int x )` vs `case A(int x)`.       | ❌      |
-| `SPACE_BEFORE_DECONSTRUCTION_LIST`                | bool | `false`              | `case A (int x)` vs `case A(int x)`.        | ❌      |
+| `DECONSTRUCTION_LIST_WRAP`                        | int  | `1` (wrap as needed) | Wrapping of record-pattern component lists. | ✅      |
+| `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS`  | bool | `true`               | Align wrapped pattern components.           | ✅      |
+| `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` | bool | `true`               | `(` of a wrapped pattern on its own line.   | ✅      |
+| `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN`    | bool | `true`               | `)` of a wrapped pattern on its own line.   | ✅      |
+| `SPACE_WITHIN_DECONSTRUCTION_LIST`                | bool | `false`              | `case A( int x )` vs `case A(int x)`.       | ✅      |
+| `SPACE_BEFORE_DECONSTRUCTION_LIST`                | bool | `false`              | `case A (int x)` vs `case A(int x)`.        | ✅      |
+
+> **Divergence (recorded, not fixed):** the table lists `DECONSTRUCTION_LIST_WRAP`
+> with IntelliJ's built-in default `1` (wrap as needed), but
+> `JavaStyle::default()` ships `DoNotWrap` (`0`). Changing the default would
+> alter formatting behaviour, so the divergence is recorded here rather than
+> fixed; a scheme that sets `DECONSTRUCTION_LIST_WRAP` explicitly parses
+> identically in both.
 
 ## Multi-catch
 

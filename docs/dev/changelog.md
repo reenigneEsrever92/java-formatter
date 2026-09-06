@@ -9,6 +9,94 @@ tags: [dev, changelog]
 
 ## 2026-09-06
 
+- **The record-pattern deconstruction layout options are honoured (R41,
+  deconstruction-pattern-layout)**: the six Deconstruction patterns (Java 21)
+  options of java.md's table — `DECONSTRUCTION_LIST_WRAP`,
+  `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS`,
+  `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN`,
+  `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN`,
+  `SPACE_WITHIN_DECONSTRUCTION_LIST` and `SPACE_BEFORE_DECONSTRUCTION_LIST` —
+  previously ignored (R7) and marked ❌ in the settings docs, are now parsed
+  into `JavaStyle` (six fields in a new deconstruction-patterns block right
+  after the record block, with the table defaults — `DECONSTRUCTION_LIST_WRAP`
+  shipped `DoNotWrap` (the same recorded divergence as `RECORD_COMPONENTS_WRAP`:
+  IntelliJ's built-in default is `1`, `JavaStyle::default()` ships `DoNotWrap`
+  so an absent option keeps today's single-line labels byte-identical,
+  mirrored by a new divergence note under the Deconstruction table in
+  java.md), align `true`, both paren options `true`, spacing `false`/`false` —
+  plus six `OptionDef` entries in the `OPTIONS` registry,
+  `Section::JavaCodeStyle`, group "Deconstruction patterns", placed between
+  the text-blocks group and the multi-catch group so the registry reads
+  text-blocks → deconstruction-patterns → multi-catch → imports, matching the
+  java.md section order; the wrap entry reuses the existing `WrapStyle` int
+  mapping (`0`/`1`/`2`/`5`), and the registry defaults equal the
+  `JavaStyle::default()` values so parse/serialize and the GUI stay
+  consistent). The engine now models exactly one label shape instead of
+  echoing every `switch_label` with `self.txt`: a `case` label whose single
+  named child is a `pattern` wrapping one `record_pattern` — a type
+  (`identifier` or `generic_type`) plus a `record_pattern_body` component
+  list (grammar-confirmed for tree-sitter-java 0.23.5, which gives these
+  nodes no field names; nested record patterns are atomic components). Any
+  other label — a `type_pattern` (`case String s`), a guarded record
+  pattern, comma-separated constants, comments/extras anywhere in the chain,
+  malformed nesting — returns `None` and the call sites keep the verbatim
+  echo (R4). Components are rendered from their trimmed source text, so only
+  whitespace around the list ever changes (R5). The layout mirrors the
+  shipped `record_components` template: the flat single-line form applies the
+  spacing bools (`SPACE_BEFORE_DECONSTRUCTION_LIST` between the type and the
+  `(`, `SPACE_WITHIN_DECONSTRUCTION_LIST` just inside the parens); the wrap
+  decision follows `DECONSTRUCTION_LIST_WRAP` (`DoNotWrap` never,
+  `WrapAlways` always, codes `1`/`5` when the flat list overflows the margin
+  at the paren column — codes `1` and `5` are identical because a component
+  is atomic, and the record template's lone-component flat branch under the
+  lparen-attached layout is mirrored); a wrapped label aligns its components
+  one column right of the `(` when
+  `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS` is on (default), else uses
+  `cont(indent)`; `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` (default
+  on) starts every component on its own line below the `(` (the record
+  newline-lparen branch), off the first component stays after the `(`;
+  `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN` (default on) closes with `)`
+  alone at the label indent, off the `)` hugs the last component (padded when
+  the within toggle is on) — both paren options are independent, unlike the
+  record template whose newline-lparen branch always closes alone. The layout
+  is wired into the three label sites: `switch_group` (colon-form labels,
+  `:` glued after the last label line), `switch_rule` (arrow-form rules, the
+  label laid out against the label line's start column with the `-> body`
+  glued after the wrapped label's last line) and `switch_one_line` (the
+  single-line collapse uses the flat form only; a modelled label under
+  wrap-always makes the one-line form unusable so an expression-position
+  switch falls back to the multi-line layout, exactly as today when any part
+  cannot stay on one line — under codes `1`/`5` the caller's whole-line
+  fits check already rejects a one-line switch whose list overflows, since
+  the list column sits inside the one line). Whitespace/layout only (R5),
+  every produced layout re-formats to itself (R6), and absent/default
+  schemes keep today's byte-identical single-line labels — no pre-existing
+  golden changed (none of the existing fixtures carries a record-pattern
+  case label). Covered by six new per-option golden test files wired
+  alphabetically in `tests/options.rs` —
+  `tests/options/deconstruction_list_wrap.rs` (9 tests: the shared
+  over-margin arrow-rule switch at wrap codes 0/1/2/5 plus the absent-option
+  compact default, a wrapped colon-form group label, a compact
+  expression-position switch keeping its one-line form, an idempotency
+  self-golden, and the unmodelled-labels verbatim guard), `tests/options/align_multiline_deconstruction_list_components.rs`
+  (2 tests: aligned under the first component on, continuation indent off),
+  `tests/options/new_line_after_lparen_in_deconstruction_pattern.rs` (2
+  tests: lparen on / off), `tests/options/rparen_on_new_line_in_deconstruction_pattern.rs`
+  (3 tests: rparen on / off plus an idempotency self-golden),
+  `tests/options/space_before_deconstruction_list.rs` (4 tests: spaced flat
+  label on, compact absent default, an idempotency self-golden, and the
+  shifted `(` of a wrapped label) and
+  `tests/options/space_within_deconstruction_list.rs` (4 tests: padded flat
+  label on, compact absent default, an idempotency self-golden, and the pad
+  on a hugging `)` only — a paren alone on its own line gets no pad) — with
+  fixtures under `tests/java/<option>/`. The suite grew from 781 to 805
+  tests, all green (`cargo test --workspace`), and every pre-existing golden
+  stays byte-identical. No IntelliJ installation was available to
+  cross-check the goldens; the wrapped shapes pin the record-template mirror
+  recorded above per the plan's mechanisms — components one column right of
+  the `(` under the align default, both default-on paren options closing the
+  wrapped label, and the compact single-line labels under absent options.
+
 - **The enum constant-list layout options are honoured (R37, enum-layout)**:
   `ENUM_CONSTANTS_WRAP` (common.md "Enums"; wrap code, default `0` = do not
   wrap) and `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` (java.md "Miscellaneous

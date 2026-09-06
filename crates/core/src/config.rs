@@ -404,6 +404,14 @@ pub struct JavaStyle {
     pub annotation_new_line_in_record_component: bool,
     pub blank_lines_between_record_components: u32,
 
+    // --- deconstruction patterns (JavaCodeStyleSettings) ---
+    pub deconstruction_list_wrap: WrapStyle,
+    pub align_multiline_deconstruction_list_components: bool,
+    pub new_line_after_lparen_in_deconstruction_pattern: bool,
+    pub rparen_on_new_line_in_deconstruction_pattern: bool,
+    pub space_within_deconstruction_list: bool,
+    pub space_before_deconstruction_list: bool,
+
     // --- enum layout (CodeStyleJava "Enums" + JavaCodeStyleSettings) ---
     pub enum_constants_wrap: WrapStyle,
     pub space_inside_one_line_enum_braces: bool,
@@ -739,6 +747,12 @@ impl Default for JavaStyle {
             space_within_record_header: false,
             annotation_new_line_in_record_component: false,
             blank_lines_between_record_components: 0,
+            deconstruction_list_wrap: WrapStyle::DoNotWrap,
+            align_multiline_deconstruction_list_components: true,
+            new_line_after_lparen_in_deconstruction_pattern: true,
+            rparen_on_new_line_in_deconstruction_pattern: true,
+            space_within_deconstruction_list: false,
+            space_before_deconstruction_list: false,
             enum_constants_wrap: WrapStyle::DoNotWrap,
             space_inside_one_line_enum_braces: false,
             enum_field_annotation_wrap: WrapStyle::DoNotWrap,
@@ -2874,6 +2888,84 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.strip_whitespace_from_blank_lines_in_text_blocks = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "DECONSTRUCTION_LIST_WRAP",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Deconstruction patterns",
+        description: "Wrapping of record-pattern component lists.",
+        get: |s| OptionValue::Wrap(s.deconstruction_list_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.deconstruction_list_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Deconstruction patterns",
+        description: "Align wrapped record-pattern components under the first component.",
+        get: |s| OptionValue::Bool(s.align_multiline_deconstruction_list_components),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.align_multiline_deconstruction_list_components = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Deconstruction patterns",
+        description: "Put the '(' of a wrapped record pattern on its own line.",
+        get: |s| OptionValue::Bool(s.new_line_after_lparen_in_deconstruction_pattern),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.new_line_after_lparen_in_deconstruction_pattern = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(true),
+        group: "Deconstruction patterns",
+        description: "Put the ')' of a wrapped record pattern on its own line.",
+        get: |s| OptionValue::Bool(s.rparen_on_new_line_in_deconstruction_pattern),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.rparen_on_new_line_in_deconstruction_pattern = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_WITHIN_DECONSTRUCTION_LIST",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Deconstruction patterns",
+        description: "Put one space just inside the parens of a record pattern.",
+        get: |s| OptionValue::Bool(s.space_within_deconstruction_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_within_deconstruction_list = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_BEFORE_DECONSTRUCTION_LIST",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Deconstruction patterns",
+        description: "Put a space between the record type and its pattern list.",
+        get: |s| OptionValue::Bool(s.space_before_deconstruction_list),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_before_deconstruction_list = b;
             }
         },
     },

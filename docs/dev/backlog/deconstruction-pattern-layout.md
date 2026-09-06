@@ -3,10 +3,13 @@ type: ChangeRequest
 kind: feature
 title: Honour the deconstruction-pattern layout options (Java 21)
 description: Implement wrapping, alignment and spacing for record deconstruction patterns.
-state: planned
+state: done
 priority: low
 tags: [dev, formatter]
 owner: maintainer
+verified:
+  by: Zed coding agent
+  at: 2026-09-06
 ---
 
 # Problem
@@ -49,11 +52,14 @@ For the modelled shape, each component is rendered from its trimmed source text 
 
 ## Steps
 
-- [ ] `src/config.rs`: add the six `JavaStyle` fields and `Default` values (wrap `DoNotWrap`, align `true`, lparen/rparen `true`, spacing `false`/`false`) and the six `OPTIONS` entries in the `JavaCodeStyle` section under the group `"Deconstruction patterns"` (AC: option mapping and defaults; parse/serialize and GUI stay consistent with `JavaStyle::default()`).
-- [ ] Confirm the CST shape of `case Point(int x, String s) -> …` and its colon form with a one-off scratch parse — record the exact kind/fields of the record-pattern node, its list node and the components, then delete the scratch (AC2 boundary: only the confirmed shape is modelled).
-- [ ] `src/formatter.rs`: add the flat + wrapping label renderers mirroring `record_components` (independent rparen branch, spacing bools on the single-line form), returning `None` for any label that is not the confirmed single-record-pattern shape; wire them into `switch_group`, `switch_rule` and `switch_one_line` in place of the `self.txt` reads, keeping the verbatim fallback (AC2; AC3 absent-option/default byte-identity).
-- [ ] Add fixtures + goldens under `tests/java/<option>/` for the six options: the over-margin case-label input with `DECONSTRUCTION_LIST_WRAP` goldens for codes `0`/`1`/`2`/`5` (`0` keeps the single long line, `1` and `5` wrap the over-margin list, `2` wraps a short label too) and an absent-option compact assertion; align on/off goldens; lparen own-line on/off goldens; rparen own-line on/off goldens; `SPACE_WITHIN_DECONSTRUCTION_LIST` = `true` and `SPACE_BEFORE_DECONSTRUCTION_LIST` = `true` single-line goldens against the compact form; unmodelled-label fixtures (`case String s`, comma-separated patterns) asserting the verbatim round-trip (AC1, AC2).
-- [ ] Add the six per-option test files under `tests/options/` (doc header + `include_str!` fixture constants, one `assert_eq!` golden assertion per scenario) and register them in `tests/options.rs` at the correct alphabetical positions (AC1).
-- [ ] Run `cargo test`; inspect the new goldens against the template arithmetic (components under `open_col + 1` when aligning, continuation indent when not, `)` alone at the case-label indent, hugging parens when their options are off) and confirm the new goldens are idempotent by formatting each a second time in a scratch check — no committed idempotency assertions, per the suite conventions (AC3).
-- [ ] If an IntelliJ installation is available, format the over-margin snippet there and align the wrapped goldens with its output; otherwise record "no IntelliJ installation available" in the changelog entry as previous deliveries did.
-- [ ] Docs and final run: flip the six `docs/settings/java.md` rows to ✅ and add the `DECONSTRUCTION_LIST_WRAP` divergence note; add six rows to the README honoured-options table and extend the switch/pattern formatting-behaviour note; add the `R16` row to `docs/requirements.md` and mention it in the milestones paragraph; append the `docs/dev/changelog.md` entry; run `cargo test` once more (AC4).
+- [x] `src/config.rs`: add the six `JavaStyle` fields and `Default` values (wrap `DoNotWrap`, align `true`, lparen/rparen `true`, spacing `false`/`false`) and the six `OPTIONS` entries in the `JavaCodeStyle` section under the group `"Deconstruction patterns"` (AC: option mapping and defaults; parse/serialize and GUI stay consistent with `JavaStyle::default()`).
+- [x] Confirm the CST shape of `case Point(int x, String s) -> …` and its colon form with a one-off scratch parse — record the exact kind/fields of the record-pattern node, its list node and the components, then delete the scratch (AC2 boundary: only the confirmed shape is modelled).
+- [x] `src/formatter.rs`: add the flat + wrapping label renderers mirroring `record_components` (independent rparen branch, spacing bools on the single-line form), returning `None` for any label that is not the confirmed single-record-pattern shape; wire them into `switch_group`, `switch_rule` and `switch_one_line` in place of the `self.txt` reads, keeping the verbatim fallback (AC2; AC3 absent-option/default byte-identity).
+- [x] Add fixtures + goldens under `tests/java/<option>/` for the six options: the over-margin case-label input with `DECONSTRUCTION_LIST_WRAP` goldens for codes `0`/`1`/`2`/`5` (`0` keeps the single long line, `1` and `5` wrap the over-margin list, `2` wraps a short label too) and an absent-option compact assertion; align on/off goldens; lparen own-line on/off goldens; rparen own-line on/off goldens; `SPACE_WITHIN_DECONSTRUCTION_LIST` = `true` and `SPACE_BEFORE_DECONSTRUCTION_LIST` = `true` single-line goldens against the compact form; unmodelled-label fixtures (`case String s`, comma-separated patterns) asserting the verbatim round-trip (AC1, AC2).
+- [x] Add the six per-option test files under `tests/options/` (doc header + `include_str!` fixture constants, one `assert_eq!` golden assertion per scenario) and register them in `tests/options.rs` at the correct alphabetical positions (AC1).
+- [x] Run `cargo test`; inspect the new goldens against the template arithmetic (components under `open_col + 1` when aligning, continuation indent when not, `)` alone at the case-label indent, hugging parens when their options are off) and confirm the new goldens are idempotent by formatting each a second time in a scratch check — no committed idempotency assertions, per the suite conventions (AC3).
+- [x] If an IntelliJ installation is available, format the over-margin snippet there and align the wrapped goldens with its output; otherwise record "no IntelliJ installation available" in the changelog entry as previous deliveries did.
+- [x] Docs and final run: flip the six `docs/settings/java.md` rows to ✅ and add the `DECONSTRUCTION_LIST_WRAP` divergence note; add six rows to the README honoured-options table and extend the switch/pattern formatting-behaviour note; add the `R41` row (the next free number after R40 at the time of shipping) to `docs/requirements.md` and mention it in the milestones paragraph; append the `docs/dev/changelog.md` entry; run `cargo test` once more (AC4).
+
+Commit: not committed (worktree changes only — the repository is left for the
+owner to commit).

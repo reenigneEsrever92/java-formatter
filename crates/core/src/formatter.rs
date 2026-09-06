@@ -5916,6 +5916,183 @@ impl<'s> Fmt<'s> {
         }
     }
 
+    /// One switch-label shape is modelled for layout: a `switch_label` whose
+    /// single named child is a `pattern` wrapping one `record_pattern` — a
+    /// record deconstruction pattern (`case Point(int x, int y)`). The
+    /// grammar gives the nodes no field names, so the shape is matched by
+    /// kind: `switch_label` → `pattern` → `record_pattern` → a type
+    /// (`identifier` or `generic_type`) and a `record_pattern_body` list of
+    /// pattern components. Returns the record type's trimmed source text and
+    /// the trimmed source text of every list component when the label is
+    /// exactly that shape; any other label — a `type_pattern` (`case String
+    /// s`), comma-separated constant patterns, a `when` guard, comments or
+    /// other extras anywhere in the chain, malformed nesting — returns `None`
+    /// so the callers keep the verbatim echo (R4). A component's text is
+    /// taken verbatim from the source (R5): only the whitespace around the
+    /// list is ever rewritten, never text inside a component (nested record
+    /// patterns stay atomic).
+    fn deconstruction_parts(&self, label: Node<'s>) -> Option<(String, Vec<String>)> {
+        let named = self.named(label);
+        let [pat] = named.as_slice() else {
+            return None;
+        };
+        if pat.kind() != "pattern" {
+            return None;
+        }
+        let named = self.named(*pat);
+        let [rp] = named.as_slice() else {
+            return None;
+        };
+        if rp.kind() != "record_pattern" {
+            return None;
+        }
+        let named = self.named(*rp);
+        let [ty, body] = named.as_slice() else {
+            return None;
+        };
+        if !matches!(ty.kind(), "identifier" | "generic_type")
+            || body.kind() != "record_pattern_body"
+        {
+            return None;
+        }
+        let mut comps = Vec::new();
+        for c in self.named(*body) {
+            if !matches!(c.kind(), "record_pattern_component" | "record_pattern") {
+                return None;
+            }
+            comps.push(self.txt(c).trim().to_string());
+        }
+        Some((self.txt(*ty).trim().to_string(), comps))
+    }
+
+    /// The single-line rendering of a record-pattern label (used by
+    /// [`Self::switch_one_line`] and returned by [`Self::deconstruction_label`]
+    /// whenever no wrap engages): `case Type(` + components + `)` with
+    /// `SPACE_BEFORE_DECONSTRUCTION_LIST` between the type and the `(` and
+    /// `SPACE_WITHIN_DECONSTRUCTION_LIST` just inside the parens. `None` when
+    /// the label is not the modelled record-pattern shape.
+    fn deconstruction_flat_label(&self, label: Node<'s>) -> Option<String> {
+        let (ty, comps) = self.deconstruction_parts(label)?;
+        let lead = format!(
+            "case {}{}",
+            ty,
+            self.sp(self.style.space_before_deconstruction_list)
+        );
+        if comps.is_empty() {
+            return Some(format!("{}()", lead));
+        }
+        let pad = Self::sep(self.style.space_within_deconstruction_list);
+        Some(format!(
+            "{}({}{}{})",
+            lead,
+            pad,
+            comps.join(self.comma_sep(self.style.space_after_comma)),
+            pad
+        ))
+    }
+
+    /// Layout a record-pattern switch label — the mirror of
+    /// [`Self::record_components`] for a `case` label, honouring
+    /// `DECONSTRUCTION_LIST_WRAP` (wrapped components one per line),
+    /// `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS` (component lines pad
+    /// under the first component instead of the continuation column),
+    /// `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` (every component
+    /// starts on the line below the `(`), `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN`
+    /// (a wrapped label's `)` alone on its own line at the label indent),
+    /// `SPACE_WITHIN_DECONSTRUCTION_LIST` (one space just inside a paren that
+    /// shares its line with a component) and `SPACE_BEFORE_DECONSTRUCTION_LIST`
+    /// (one space between the record type and the `(`). `indent` is the label
+    /// level and `c` the column of the label's first line. Continuation lines
+    /// carry their own complete prefix, so callers prefix only the first line
+    /// and glue `:` / ` -> body` after the returned text. Returns `None` for
+    /// any label outside the modelled shape (verbatim echo, R4).
+    fn deconstruction_label(&self, label: Node<'s>, indent: usize, c: usize) -> Option<String> {
+        let (ty, comps) = self.deconstruction_parts(label)?;
+        let lead = format!(
+            "case {}{}",
+            ty,
+            self.sp(self.style.space_before_deconstruction_list)
+        );
+        if comps.is_empty() {
+            // An empty pattern list cannot wrap.
+            return Some(format!("{}()", lead));
+        }
+        let pad = Self::sep(self.style.space_within_deconstruction_list);
+        let flat = format!(
+            "{}({}{}{})",
+            lead,
+            pad,
+            comps.join(self.comma_sep(self.style.space_after_comma)),
+            pad
+        );
+        // Column of the opening paren within the physical line.
+        let open_col = self.col_after(c, &lead);
+        let should_wrap = match self.style.deconstruction_list_wrap {
+            WrapStyle::DoNotWrap => false,
+            WrapStyle::WrapAlways => true,
+            _ => !self.fits(open_col, &flat[lead.len()..]),
+        };
+        if !should_wrap {
+            return Some(flat);
+        }
+
+        // Wrapped layout: components one per line (record template
+        // arithmetic). `)` closes alone at the label indent when the rparen
+        // option is on, else it hugs the last component's line (padded when
+        // the pad is on); a paren alone on its own line gets no pad.
+        let sep = ",\n";
+        if self.style.new_line_after_lparen_in_deconstruction_pattern {
+            // `(` stays on the case line, every component starts its own line
+            // below it.
+            let pref = if self.style.align_multiline_deconstruction_list_components {
+                self.align_prefix(open_col + 1)
+            } else {
+                self.cont(indent)
+            };
+            let lines: Vec<String> = comps.iter().map(|p| format!("{}{}", pref, p)).collect();
+            let mut out = format!("{}(", lead);
+            out.push('\n');
+            out.push_str(&lines.join(sep));
+            if self.style.rparen_on_new_line_in_deconstruction_pattern {
+                out.push('\n');
+                out.push_str(&self.ind(indent));
+                out.push(')');
+            } else {
+                out.push_str(pad);
+                out.push(')');
+            }
+            Some(out)
+        } else {
+            // The first component stays on the case line after `(`. A lone
+            // component cannot wrap and keeps the flat form.
+            if comps.len() == 1 {
+                return Some(flat);
+            }
+            let pref = if self.style.align_multiline_deconstruction_list_components {
+                // The aligned column sits under the first inline component,
+                // so it shifts by the pad when the pad is on.
+                self.align_prefix(open_col + 1 + pad.len())
+            } else {
+                self.cont(indent)
+            };
+            let mut out = format!("{}({}{}", lead, pad, comps[0]);
+            for p in &comps[1..] {
+                out.push_str(sep);
+                out.push_str(&pref);
+                out.push_str(p);
+            }
+            if self.style.rparen_on_new_line_in_deconstruction_pattern {
+                out.push('\n');
+                out.push_str(&self.ind(indent));
+                out.push(')');
+            } else {
+                out.push_str(pad);
+                out.push(')');
+            }
+            Some(out)
+        }
+    }
+
     /// Multi-line layout for a `switch_expression` node — tree-sitter-java
     /// 0.23 represents both the switch statement and the switch expression
     /// with this single kind. Renders `switch (cond) {` on the header line,
@@ -5926,8 +6103,10 @@ impl<'s> Fmt<'s> {
     /// `INDENT_BREAK_FROM_CASE`) govern the layout; `is_value` is true when
     /// the switch is used as a value (see [`Self::switch_expr`]), which lets
     /// [`Self::switch_rule`] honour the `SWITCH_EXPRESSIONS_WRAP` chop-down
-    /// behaviour for overflowing nested switch expressions. Any unmodelled
-    /// shape falls back to the verbatim source echo (R4).
+    /// behaviour for overflowing nested switch expressions. Record-pattern
+    /// labels (`case Point(int x) -> …`) are laid out by
+    /// [`Self::deconstruction_label`]. Any unmodelled shape falls back to the
+    /// verbatim source echo (R4).
     fn switch_stmt(&self, node: Node<'s>, indent: usize, c: usize, is_value: bool) -> String {
         let p_gap = self.sp(self.style.space_before_switch_parentheses);
         let l_gap = self.sp(self.style.space_before_switch_lbrace);
@@ -6018,8 +6197,12 @@ impl<'s> Fmt<'s> {
                 if open_label {
                     out.push('\n');
                 }
+                let c = self.col_after(0, &self.ind(label_level));
                 out.push_str(&self.ind(label_level));
-                out.push_str(self.txt(ch));
+                match self.deconstruction_label(ch, label_level, c) {
+                    Some(label) => out.push_str(&label),
+                    None => out.push_str(self.txt(ch)),
+                }
                 out.push(':');
                 open_label = true;
             } else if self.is_comment_node(ch) {
@@ -6085,7 +6268,9 @@ impl<'s> Fmt<'s> {
         let mut body: Option<Node<'s>> = None;
         for ch in self.named(node) {
             if ch.kind() == "switch_label" {
-                label = self.txt(ch).to_string();
+                label = self
+                    .deconstruction_label(ch, indent, self.col_after(0, &self.ind(indent)))
+                    .unwrap_or_else(|| self.txt(ch).to_string());
             } else {
                 body = Some(ch);
             }
@@ -6155,6 +6340,25 @@ impl<'s> Fmt<'s> {
         self.switch_stmt(node, indent, c, true)
     }
 
+    /// Label text for the one-line switch collapse: a modelled record-pattern
+    /// label renders with its flat single-line form, any other label echoes
+    /// verbatim. `None` when the label is a modelled record pattern under
+    /// `DECONSTRUCTION_LIST_WRAP` = wrap always — the single-line form cannot
+    /// represent a list that must wrap, so the caller abandons the one-line
+    /// layout and the switch falls back to the multi-line [`Self::switch_stmt`]
+    /// form where the label wraps.
+    fn one_line_label(&self, label: Node<'s>) -> Option<String> {
+        if self.deconstruction_parts(label).is_some()
+            && self.style.deconstruction_list_wrap == WrapStyle::WrapAlways
+        {
+            return None;
+        }
+        Some(
+            self.deconstruction_flat_label(label)
+                .unwrap_or_else(|| self.txt(label).to_string()),
+        )
+    }
+
     /// One-line rendering of a whole switch; `None` when any part (condition,
     /// label or body) would need a newline.
     fn switch_one_line(&self, node: Node<'s>) -> Option<String> {
@@ -6179,7 +6383,7 @@ impl<'s> Fmt<'s> {
                             if !group.is_empty() {
                                 group.push(' ');
                             }
-                            group.push_str(self.txt(gc));
+                            group.push_str(&self.one_line_label(gc)?);
                             group.push(':');
                         } else {
                             let s = self.stmt(gc, 0, 0);
@@ -6197,7 +6401,7 @@ impl<'s> Fmt<'s> {
                     let mut body_txt: Option<String> = None;
                     for rc in self.named(ch) {
                         if rc.kind() == "switch_label" {
-                            label = self.txt(rc).to_string();
+                            label = self.one_line_label(rc)?;
                         } else if rc.kind() == "block" {
                             let b = self.flat_block(rc);
                             if b.contains('\n') {

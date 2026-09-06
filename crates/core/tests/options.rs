@@ -21,6 +21,8 @@ mod align_multiline_assignment;
 mod align_multiline_binary_operation;
 #[path = "options/align_multiline_chained_methods.rs"]
 mod align_multiline_chained_methods;
+#[path = "options/align_multiline_deconstruction_list_components.rs"]
+mod align_multiline_deconstruction_list_components;
 #[path = "options/align_multiline_extends_list.rs"]
 mod align_multiline_extends_list;
 #[path = "options/align_multiline_for.rs"]
@@ -133,6 +135,8 @@ mod class_count_to_use_import_on_demand;
 mod continuation_indent_size;
 #[path = "options/declaration_parameter_indent.rs"]
 mod declaration_parameter_indent;
+#[path = "options/deconstruction_list_wrap.rs"]
+mod deconstruction_list_wrap;
 #[path = "options/delete_unused_module_imports.rs"]
 mod delete_unused_module_imports;
 #[path = "options/do_not_indent_top_level_class_members.rs"]
@@ -247,6 +251,8 @@ mod multi_catch_types_wrap;
 mod names_count_to_use_import_on_demand;
 #[path = "options/new_line_after_lparen_in_annotation.rs"]
 mod new_line_after_lparen_in_annotation;
+#[path = "options/new_line_after_lparen_in_deconstruction_pattern.rs"]
+mod new_line_after_lparen_in_deconstruction_pattern;
 #[path = "options/new_line_after_lparen_in_record_header.rs"]
 mod new_line_after_lparen_in_record_header;
 #[path = "options/new_line_when_body_is_presented.rs"]
@@ -277,6 +283,8 @@ mod resource_list_wrap;
 mod right_margin;
 #[path = "options/rparen_on_new_line_in_annotation.rs"]
 mod rparen_on_new_line_in_annotation;
+#[path = "options/rparen_on_new_line_in_deconstruction_pattern.rs"]
+mod rparen_on_new_line_in_deconstruction_pattern;
 #[path = "options/rparen_on_new_line_in_record_header.rs"]
 mod rparen_on_new_line_in_record_header;
 #[path = "options/smart_tabs.rs"]
@@ -343,6 +351,8 @@ mod space_before_colon;
 mod space_before_colon_in_foreach;
 #[path = "options/space_before_comma.rs"]
 mod space_before_comma;
+#[path = "options/space_before_deconstruction_list.rs"]
+mod space_before_deconstruction_list;
 #[path = "options/space_before_do_lbrace.rs"]
 mod space_before_do_lbrace;
 #[path = "options/space_before_else_keyword.rs"]
@@ -407,6 +417,8 @@ mod space_within_brackets;
 mod space_within_cast_parentheses;
 #[path = "options/space_within_catch_parentheses.rs"]
 mod space_within_catch_parentheses;
+#[path = "options/space_within_deconstruction_list.rs"]
+mod space_within_deconstruction_list;
 #[path = "options/space_within_empty_array_initializer_braces.rs"]
 mod space_within_empty_array_initializer_braces;
 #[path = "options/space_within_empty_method_call_parentheses.rs"]

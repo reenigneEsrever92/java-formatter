@@ -187,6 +187,12 @@ The options currently honoured are:
 | `ALIGN_TYPES_IN_MULTI_CATCH`             | Whether wrapped multi-catch types align under the first type (default on)                                                   |
 | `ALIGN_MULTILINE_TEXT_BLOCKS`            | Align the opening delimiter of multiline text blocks to the statement's continuation column                                   |
 | `STRIP_WHITESPACE_FROM_BLANK_LINES_IN_TEXT_BLOCKS` | Strip trailing whitespace from blank lines inside text blocks (default off)                                       |
+| `DECONSTRUCTION_LIST_WRAP`               | Wrapping of record-pattern component lists in `case` labels (0 never / 1 if long / 2 always / 5 chop down if long)             |
+| `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS` | Whether wrapped record-pattern components align under the first component (default on)                              |
+| `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` | Start every component of a wrapped record pattern on its own line below the `(` (default on)                       |
+| `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN` | Put `)` of a wrapped record pattern on its own line (default on)                                                      |
+| `SPACE_WITHIN_DECONSTRUCTION_LIST`       | Space just inside the parens of a record pattern (default: none, `case A(int x)`)                                             |
+| `SPACE_BEFORE_DECONSTRUCTION_LIST`       | Space between the record type and its pattern list (default: none, `case A(int x)`)                                            |
 | `ALIGN_MULTILINE_PARAMETERS`             | Align wrapped method / constructor parameter lists under the first parameter (default on)                                      |
 | `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`    | Align wrapped method-call / `new` arguments under the first argument                                                            |
 | `ALIGN_MULTILINE_RESOURCES`              | Align wrapped try-with-resources lists under the first resource (default on)                                                   |
@@ -617,6 +623,32 @@ braces when the body spans multiple lines, `3` = always force braces.
   `1`): code `0` keeps the one-line form whenever one exists, code `2` always
   uses the multi-line layout, and code `5` additionally breaks an overflowing
   nested switch expression in the body.
+- A record deconstruction pattern used as a `case` label
+  (`case Point(int x, int y) -> …`) is laid out like a record header per the
+  Deconstruction patterns options: `DECONSTRUCTION_LIST_WRAP` wraps the
+  component list — codes `1` and `5` share the one-component-per-line layout
+  (the components are atomic), code `0` (the shipped default; a recorded
+  divergence from IntelliJ's built-in `1`) keeps the single line even when it
+  overflows, and code `2` wraps even a list that fits. The wrapped components
+  pad under the first component when
+  `ALIGN_MULTILINE_DECONSTRUCTION_LIST_COMPONENTS` is on (the default) and sit
+  at the continuation indent otherwise;
+  `NEW_LINE_AFTER_LPAREN_IN_DECONSTRUCTION_PATTERN` (default on) starts every
+  component on its own line below the `(` — off, the first component stays on
+  the `case` line after the paren — and
+  `RPAREN_ON_NEW_LINE_IN_DECONSTRUCTION_PATTERN` (default on) closes the `)`
+  on its own line at the label indent — off, it hugs the last component.
+  `SPACE_WITHIN_DECONSTRUCTION_LIST` puts one space just inside a paren that
+  shares its line with a component (`case Point( int x )`), and
+  `SPACE_BEFORE_DECONSTRUCTION_LIST` separates the record type from its `(`
+  (`case Point (int x)`). The one modelled label shape is a `case` label
+  carrying exactly one record pattern with a component list; components are
+  echoed from the source with only the whitespace around the list rewritten
+  (R5), and every other label — a type pattern (`case String s`), a guarded
+  record pattern, or comma-separated constants — keeps its verbatim source
+  echo (R4). A switch expression whose label cannot stay on the single line
+  (wrap-always, or an over-margin list under codes `1` / `5`) falls back to
+  the multi-line switch layout, where the label wraps.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
   (naming the construct and its line:column), while the best-effort formatted
