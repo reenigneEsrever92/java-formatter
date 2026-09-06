@@ -313,8 +313,8 @@ control whether an annotation is placed on its own line before a declaration.
 
 | Option                         | Type   | Default | Effect                                                                            | Support |
 | ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------- | ------- |
-| `BUILDER_METHODS`              | string | `""`    | Comma-separated method names treated as builder calls for wrapping / indentation. | ❌      |
-| `KEEP_BUILDER_METHODS_INDENTS` | bool   | `false` | Keep indentation of builder-method chains.                                        | ❌      |
+| `BUILDER_METHODS`              | string | `""`    | Comma-separated method names treated as builder calls for wrapping / indentation. | ✅      |
+| `KEEP_BUILDER_METHODS_INDENTS` | bool   | `false` | Keep indentation of builder-method chains.                                        | ✅      |
 
 ## Rearranger & typing
 

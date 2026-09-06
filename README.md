@@ -102,6 +102,8 @@ The options currently honoured are:
 | `RESOURCE_LIST_LPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `(` goes on its own line                                                                      |
 | `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`      | Whether a wrapped resource list's `)` goes on its own line                                                                      |
 | `METHOD_CALL_CHAIN_WRAP`                 | Wrapping of chained method calls                                                                                                |
+| `BUILDER_METHODS`                        | Comma-separated method names treated as builder calls — a wrapped chain of them breaks after the receiver                     |
+| `KEEP_BUILDER_METHODS_INDENTS`           | Keep a wrapped builder chain's `.call()` lines at the chain's own indent instead of the continuation indent                       |
 | `WRAP_FIRST_METHOD_IN_CALL_CHAIN`        | Whether the first link of a wrapped chain also goes on a continuation line                                                    |
 | `WRAP_SEMICOLON_AFTER_CALL_CHAIN`        | Put the `;` of a wrapped chained call on its own line                                                                          |
 | `ASSIGNMENT_WRAP`                        | Wrapping of assignment statements and variable / field initialisers                                                             |
@@ -475,7 +477,11 @@ braces when the body spans multiple lines, `3` = always force braces.
   moves to the next line with `PLACE_ASSIGNMENT_SIGN_ON_NEXT_LINE`, a wrapped
   chain's first link breaks after the receiver with
   `WRAP_FIRST_METHOD_IN_CALL_CHAIN`, its `;` moves to its own line with
-  `WRAP_SEMICOLON_AFTER_CALL_CHAIN`, and `MODIFIER_LIST_WRAP` breaks a
+  `WRAP_SEMICOLON_AFTER_CALL_CHAIN`, a wrapped chain whose calls all match
+  `BUILDER_METHODS` breaks after the receiver so every `.call()` — including
+  the first — starts its own line (`KEEP_BUILDER_METHODS_INDENTS`, default
+  `false`, keeps those lines at the chain's own indentation instead of
+  stepping a continuation indent), and `MODIFIER_LIST_WRAP` breaks a
   declaration after its modifier / annotation list. Layout / whitespace only;
   with none of these set, output matches today's one-line layouts.
 - With `USE_TAB_CHARACTER`, indentation is emitted as tab characters using a
@@ -717,8 +723,10 @@ cargo run -p java-formatter-gui
 It renders every option the formatter supports, grouped logically, with the
 correct control per type (bool → checkbox, `u32` → drag value, wrap/brace/force
 → labeled combo of the IntelliJ meaning; the import-layout table is shown as a
-read-only entry count, as a full table editor is out of scope, and the
-always-on-demand package list as a multi-line text box, one package per line):
+read-only entry count, as a full table editor is out of scope, the
+always-on-demand package list as a multi-line text box, one package per line,
+and the builder-method list as a single-line text box over its comma-separated
+value):
 
 - **New** resets the style to the IntelliJ built-in defaults.
 - **Open…** opens a native file chooser (or drop a `codestyle.xml` anywhere in

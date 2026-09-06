@@ -6241,7 +6241,14 @@ impl<'s> Fmt<'s> {
                 {
                     return self.inv_wrapped(node, indent, c);
                 }
-                return self.fmt_chain_ac(&base, &links, indent, c, acol);
+                return self.fmt_chain_ac(
+                    &base,
+                    &links,
+                    indent,
+                    c,
+                    acol,
+                    self.is_builder_chain(&links),
+                );
             }
         }
 
@@ -6350,7 +6357,8 @@ impl<'s> Fmt<'s> {
             if args[0].kind() == "method_invocation" {
                 let (base, links) = self.collect_chain(args[0]);
                 if links.len() >= 2 {
-                    let chain_str = self.fmt_chain(&base, &links, indent, c + 1);
+                    let chain_str =
+                        self.fmt_chain(&base, &links, indent, c + 1, self.is_builder_chain(&links));
                     return format!("({})", chain_str);
                 }
             }
@@ -6478,15 +6486,39 @@ impl<'s> Fmt<'s> {
         }
     }
 
-    fn fmt_chain(&self, base: &str, links: &[Link<'s>], indent: usize, c: usize) -> String {
-        self.fmt_chain_ac(base, links, indent, c, None)
+    fn fmt_chain(
+        &self,
+        base: &str,
+        links: &[Link<'s>],
+        indent: usize,
+        c: usize,
+        builder: bool,
+    ) -> String {
+        self.fmt_chain_ac(base, links, indent, c, None, builder)
+    }
+
+    /// True when `links` is a builder chain: `style.builder_methods` is
+    /// non-empty and every link's method name is in it (IntelliJ's
+    /// whole-chain-of-builder-methods rule, matching the split/trimmed
+    /// names). Default / absent schemes (empty list) never match.
+    fn is_builder_chain(&self, links: &[Link<'s>]) -> bool {
+        !self.style.builder_methods.is_empty()
+            && links.iter().all(|l| {
+                self.style
+                    .builder_methods
+                    .iter()
+                    .any(|m| m.as_str() == self.txt(l.name))
+            })
     }
 
     /// [`Self::fmt_chain`] with an inherited alignment column (see
     /// [`Self::binary_ac`]): the wrapped link lines pad to the first link's
     /// dot column when `ALIGN_MULTILINE_CHAINED_METHODS` is on, else to the
     /// inherited `acol` when the chain sits inside an aligned assignment or
-    /// parenthesized expression.
+    /// parenthesized expression. `builder` selects the `BUILDER_METHODS`
+    /// layout: break after the base so every `.call()` — including the
+    /// first — starts its own line, at the continuation indent or, with
+    /// `KEEP_BUILDER_METHODS_INDENTS`, at the chain's own indent.
     fn fmt_chain_ac(
         &self,
         base: &str,
@@ -6494,13 +6526,52 @@ impl<'s> Fmt<'s> {
         indent: usize,
         c: usize,
         acol: Option<usize>,
+        builder: bool,
     ) -> String {
         // `CHAINED_CALL_INDENT`: an explicit width overrides the continuation
         // indent for the chain's link lines only; `-1` (default) inherits
-        // today's `cont(indent)` byte-for-byte.
+        // today's `cont(indent)` byte-for-byte. The builder layout composes
+        // with it via `cont` when stepping the continuation indent
+        // (`KEEP_BUILDER_METHODS_INDENTS` off); the keep-indents layout uses
+        // the chain's own indent, where no continuation width applies.
         let cont = self.construct_ind(indent, self.style.chained_call_indent, &self.cont(indent));
-        let mut out = String::new();
         let gap = self.sp(self.style.space_before_method_call_parentheses);
+        if builder {
+            let link_ind = if self.style.keep_builder_methods_indents {
+                self.ind(indent)
+            } else {
+                cont.clone()
+            };
+            let mut out = String::new();
+            for (i, link) in links.iter().enumerate() {
+                let ta = link
+                    .type_args
+                    .map(|n| self.flat_type_args(n))
+                    .unwrap_or_default();
+                let nm = self.txt(link.name);
+                let flat_a = self.flat_args(link.args);
+                if i == 0 {
+                    // With an empty base the first link opens the header line
+                    // as the generic layout does; otherwise the base ends its
+                    // own line and the first call starts the builder lines.
+                    if base.is_empty() {
+                        out = format!("{}{}{}{}", ta, nm, gap, flat_a);
+                    } else {
+                        out = format!("{}\n{}.{}{}{}{}", base, link_ind, ta, nm, gap, flat_a);
+                    }
+                } else {
+                    out.push('\n');
+                    out.push_str(&link_ind);
+                    out.push('.');
+                    out.push_str(&ta);
+                    out.push_str(nm);
+                    out.push_str(gap);
+                    out.push_str(&flat_a);
+                }
+            }
+            return out;
+        }
+        let mut out = String::new();
         // `WRAP_FIRST_METHOD_IN_CALL_CHAIN`: the first link also starts a
         // continuation line. With an empty base (a chain without an explicit
         // receiver) there is nothing on the header line to wrap after, so the

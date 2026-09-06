@@ -58,6 +58,54 @@ tags: [dev, changelog]
   semantics follow the docs/settings tables and the codebase's established
   do-not-wrap convention.
 
+- **The builder-method wrapping options are honoured (R38,
+  builder-method-layout)**: `BUILDER_METHODS` (common.md "Builder method
+  calls"; string, default `""`) and `KEEP_BUILDER_METHODS_INDENTS` (bool,
+  default `false`), previously ignored (R7) and marked ❌ in the settings
+  docs, are now parsed into `JavaStyle` (two fields under a new builder
+  method block, plus two `OptionDef` entries in the `OPTIONS` registry after
+  `METHOD_CALL_CHAIN_WRAP`, both `Section::CodeStyleJava`, group "Builder
+  methods" — `BUILDER_METHODS` default `OptionValue::String(String::new())`
+  whose `set` splits the comma-separated value (trimming and dropping
+  empties) into `builder_methods` and whose `get` joins with `,`, and
+  `KEEP_BUILDER_METHODS_INDENTS` default `Bool(false)`). This introduces the
+  `OptionValue::String` registry variant (the enum was already non-`Copy`
+  from the import CRs): `parse_codestyle` reads it via a new
+  `OptionMap::get_string`, `serialize_codestyle` emits the XML-escaped raw
+  value, and the registry round-trip is exact for both the `""` default and
+  a non-empty `value="a,b"` list (verified by hand — no committed
+  `parse_codestyle` test per AGENTS.md). The GUI's `option_row` gained the
+  `OptionValue::String` arm (a single-line text edit over the
+  comma-separated value), completing the exhaustive match. The engine:
+  `is_builder_chain` matches every collected link's method name against the
+  list (exact split names; the empty default never matches), and when such a
+  chain wraps per `METHOD_CALL_CHAIN_WRAP` the base ends its own line so
+  every `.call()` — including the first — starts its own line: at
+  `cont(indent)` with `KEEP_BUILDER_METHODS_INDENTS` off (composing with
+  `CHAINED_CALL_INDENT` via the chained-call continuation width), or at
+  `ind(indent)` — the chain's own indentation — with it on; an empty base
+  keeps the first link on the header line as the generic layout does. Both
+  call sites (`method_inv_ac` and `args_wrapped`) thread the flag. Default /
+  absent schemes (empty list, false) never take the branch, so every
+  pre-existing golden stays byte-identical; the change is whitespace/layout
+  only (R5) and the new goldens re-format to themselves (R6). Covered by two
+  new per-option golden test files wired alphabetically in `tests/options.rs`
+  — `tests/options/builder_methods.rs` (5 tests: the overflowing
+  all-builder chain `setName,setAge,setCity,setZip,build` under `WrapIfLong`
+  at margin 40 breaks after the receiver with the list set, the same fixture
+  without the list keeps the plain `METHOD_CALL_CHAIN_WRAP` layout, a
+  fitting chain stays flat, the absent default keeps the chain flat, and an
+  idempotency self-golden) and
+  `tests/options/keep_builder_methods_indents.rs` (4 tests: `true` keeps the
+  chain's indent, `false` and absent step the continuation indent — the two
+  layouts differ only in the continuation-line indentation — and an
+  idempotency self-golden) — with fixtures under `tests/java/<option>/`.
+  The suite grew from 738 to 747 tests, all green
+  (`cargo test --workspace`). No IntelliJ installation was available to
+  cross-check the break/indent convention; the goldens pin the layout
+  per the plan (break after the receiver, fixed indent strings, no column
+  alignment).
+
 ## 2026-09-05
 
 - **The javadoc options are honoured (R36, javadoc-formatting)**: the whole

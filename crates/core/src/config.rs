@@ -320,6 +320,10 @@ pub struct JavaStyle {
     pub modifier_list_wrap: bool,
     pub wrap_semicolon_after_call_chain: bool,
 
+    // --- builder method chains ---
+    pub builder_methods: Vec<String>,
+    pub keep_builder_methods_indents: bool,
+
     // --- annotation placement (CodeStyleJava) ---
     pub method_annotation_wrap: WrapStyle,
     pub class_annotation_wrap: WrapStyle,
@@ -659,6 +663,8 @@ impl Default for JavaStyle {
             parentheses_expression_rparen_wrap: false,
             modifier_list_wrap: false,
             wrap_semicolon_after_call_chain: false,
+            builder_methods: Vec::new(),
+            keep_builder_methods_indents: false,
             method_annotation_wrap: WrapStyle::WrapAlways,
             class_annotation_wrap: WrapStyle::WrapAlways,
             field_annotation_wrap: WrapStyle::WrapAlways,
@@ -854,8 +860,9 @@ pub enum Section {
 
 /// The value of a supported option, typed per the option's kind.
 ///
-/// Not `Copy`: the list-typed [`OptionValue::ImportLayout`] and
-/// [`OptionValue::Packages`] variants hold a `Vec`. The registry's
+/// Not `Copy`: the [`OptionValue::String`] variant owns a `String`, and the
+/// list-typed [`OptionValue::ImportLayout`] and [`OptionValue::Packages`]
+/// variants hold a `Vec`. The registry's
 /// [`OptionDef::default`] for those variants is an empty type tag whose real
 /// value lives in [`JavaStyle::default`] (see `OptionDef::default`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -882,6 +889,10 @@ pub enum OptionValue {
     /// appended on serialize). The registry default is `Vec::new()` (a type
     /// tag — see [`OptionDef::default`]).
     Packages(Vec<String>),
+    /// A raw string option (e.g. `BUILDER_METHODS`' comma-separated method
+    /// names). The registry default is the empty string — a real default,
+    /// not a type tag.
+    String(String),
 }
 
 /// Declarative description of one supported code style option — the single
@@ -1451,6 +1462,38 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.method_call_chain_wrap = w;
+            }
+        },
+    },
+    // --- Builder method chains ---
+    OptionDef {
+        xml_name: "BUILDER_METHODS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::String(String::new()),
+        group: "Builder methods",
+        description: "Comma-separated method names whose chains are treated as builder calls for wrapping / indentation.",
+        get: |s| OptionValue::String(s.builder_methods.join(",")),
+        set: |s, v| {
+            if let OptionValue::String(x) = v {
+                s.builder_methods = x
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "KEEP_BUILDER_METHODS_INDENTS",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Bool(false),
+        group: "Builder methods",
+        description: "Keep the indentation of builder-method chains instead of stepping the continuation indent.",
+        get: |s| OptionValue::Bool(s.keep_builder_methods_indents),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.keep_builder_methods_indents = b;
             }
         },
     },
@@ -4209,6 +4252,13 @@ impl<'a> OptionMap<'a> {
         }
     }
 
+    /// The raw attribute value of a scalar string option (e.g.
+    /// `BUILDER_METHODS`' comma-separated method names), or `default` when
+    /// the option is absent.
+    fn get_string(&self, name: &str, default: &str) -> String {
+        self.get(name).unwrap_or(default).to_string()
+    }
+
     fn get_wrap(&self, name: &str, default: WrapStyle) -> WrapStyle {
         self.get(name)
             .and_then(|v| v.parse::<u32>().ok())
@@ -4481,6 +4531,9 @@ pub fn parse_codestyle(xml: &str) -> Result<JavaStyle, Box<dyn std::error::Error
             OptionValue::LineSep(default) => {
                 OptionValue::LineSep(map.get_line_sep(def.xml_name, *default))
             }
+            OptionValue::String(default) => {
+                OptionValue::String(map.get_string(def.xml_name, default))
+            }
             OptionValue::ImportLayout(_) => unreachable!(),
             OptionValue::Packages(_) => unreachable!(),
         };
@@ -4551,6 +4604,7 @@ pub fn serialize_codestyle(style: &JavaStyle) -> String {
                         // forms.
                         s.to_xml().unwrap_or("").to_string()
                     }
+                    OptionValue::String(s) => xml_attr_escape(s),
                     OptionValue::ImportLayout(_) => unreachable!(),
                     OptionValue::Packages(_) => unreachable!(),
                 };

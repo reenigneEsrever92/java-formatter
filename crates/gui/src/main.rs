@@ -231,6 +231,17 @@ impl CodestyleApp {
                             .collect();
                     }
                 }
+                OptionValue::String(s) => {
+                    // A single-line text edit over the raw comma-separated
+                    // value; the edited text is written back so `set` below
+                    // splits it.
+                    let mut text = s.clone();
+                    let response =
+                        ui.add(egui::TextEdit::singleline(&mut text).desired_width(200.0));
+                    if response.changed() {
+                        *s = text;
+                    }
+                }
             }
             (def.set)(&mut self.style, value);
             let response = ui.label(egui::RichText::new(def.xml_name).monospace());

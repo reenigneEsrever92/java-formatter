@@ -103,6 +103,8 @@ mod blank_lines_between_record_components;
 mod block_comment_at_first_column;
 #[path = "options/brace_style.rs"]
 mod brace_style;
+#[path = "options/builder_methods.rs"]
+mod builder_methods;
 #[path = "options/call_parameter_indent.rs"]
 mod call_parameter_indent;
 #[path = "options/call_parameters_lparen_on_next_line.rs"]
@@ -183,6 +185,8 @@ mod keep_blank_lines_between_package_declaration_and_header;
 mod keep_blank_lines_in_code;
 #[path = "options/keep_blank_lines_in_declarations.rs"]
 mod keep_blank_lines_in_declarations;
+#[path = "options/keep_builder_methods_indents.rs"]
+mod keep_builder_methods_indents;
 #[path = "options/keep_control_statement_in_one_line.rs"]
 mod keep_control_statement_in_one_line;
 #[path = "options/keep_first_column_comment.rs"]
