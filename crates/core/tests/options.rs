@@ -139,6 +139,8 @@ mod do_not_wrap_after_single_annotation_in_parameter;
 mod dowhile_brace_force;
 #[path = "options/else_on_new_line.rs"]
 mod else_on_new_line;
+#[path = "options/enum_constants_wrap.rs"]
+mod enum_constants_wrap;
 #[path = "options/enum_field_annotation_wrap.rs"]
 mod enum_field_annotation_wrap;
 #[path = "options/extends_keyword_wrap.rs"]
@@ -375,6 +377,8 @@ mod space_before_while_keyword;
 mod space_before_while_lbrace;
 #[path = "options/space_before_while_parentheses.rs"]
 mod space_before_while_parentheses;
+#[path = "options/space_inside_one_line_enum_braces.rs"]
+mod space_inside_one_line_enum_braces;
 #[path = "options/space_within_annotation_parentheses.rs"]
 mod space_within_annotation_parentheses;
 #[path = "options/space_within_array_initializer_braces.rs"]

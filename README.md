@@ -173,6 +173,8 @@ The options currently honoured are:
 | `SPACE_AROUND_ANNOTATION_EQ`             | Spaces around `=` in annotation arguments (default: spaced)                                                                     |
 | `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION`    | Keep a lone field / method / class / local-variable annotation inline regardless of the wrap code                              |
 | `DO_NOT_WRAP_AFTER_SINGLE_ANNOTATION_IN_PARAMETER` | Keep a lone parameter annotation inline in the wrapped parameter list                                              |
+| `ENUM_CONSTANTS_WRAP`                    | Wrapping of enum constant lists (0 never / 1 if long / 2 always / 5 chop down if long)                                       |
+| `SPACE_INSIDE_ONE_LINE_ENUM_BRACES`      | Spaces inside the braces of a one-line enum body (`enum E { A, B }` vs `enum E {A, B}`)                                      |
 | `RECORD_COMPONENTS_WRAP`                 | Wrapping of record component lists                                                                                              |
 | `NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER` | Layout of a wrapped record header                                                                                               |
 | `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`    | Put `)` of a wrapped record header on its own line                                                                               |
@@ -434,6 +436,19 @@ braces when the body spans multiple lines, `3` = always force braces.
   today's one-per-line shape for methods / classes / fields and the IntelliJ
   default reshaped expanded annotation argument lists (first argument on the
   `(` line, `)` attached).
+- Enum constant lists wrap per `ENUM_CONSTANTS_WRAP`: a constant-only body (no `;`
+  declarations section) whose constants each render on one line collapses to the
+  flat `{A, B}` form — always under code `0` (do not wrap, the default: a list
+  that overflows the margin stays on one line), one constant per line under code
+  `2` (wrap always), and flat iff the flat declaration fits the margin under
+  codes `1` / `5` (identical at this granularity — constants are echoed verbatim,
+  so nothing is chopped inside a constant). An enum with a `;` / member-
+  declarations section, or a constant that cannot render on a single line
+  (multi-line source constant, an own-line `ENUM_FIELD_ANNOTATION_WRAP`
+  placement), keeps the expanded one-constant-per-line layout. The flat body is
+  padded (`enum E { A, B }`) only when `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` is on;
+  the padding never leaks into the expanded layout. Whitespace / layout only
+  (R5), and every produced layout re-formats to itself (R6).
 - Wrapped binary expressions break at their top-level operators at the
   continuation indent (`BINARY_OPERATION_WRAP`): by default the operator ends
   the preceding line (`alpha() +`), and `BINARY_OPERATION_SIGN_ON_NEXT_LINE`

@@ -228,7 +228,7 @@ the common block — see [Annotations](common.md#annotations).
 | Option                                            | Type | Default | Effect                                                                                 | Support |
 | ------------------------------------------------- | ---- | ------- | -------------------------------------------------------------------------------------- | ------- |
 | `SPACE_BEFORE_COLON_IN_FOREACH`                   | bool | `true`  | `for (T t : xs)` vs `for (T t: xs)`.                                                   | ✅      |
-| `SPACE_INSIDE_ONE_LINE_ENUM_BRACES`               | bool | `false` | `enum E { A, B }` vs `enum E {A, B}`.                                                  | ❌      |
+| `SPACE_INSIDE_ONE_LINE_ENUM_BRACES`               | bool | `false` | `enum E { A, B }` vs `enum E {A, B}`.                                                  | ✅      |
 | `SPACES_INSIDE_BLOCK_BRACES_WHEN_BODY_IS_PRESENT` | bool | `false` | Spaces inside `{ … }` of a non-empty one-line block when `SPACE_WITHIN_BRACES` is off. | ✅      |
 | `NEW_LINE_WHEN_BODY_IS_PRESENTED`                 | bool | `false` | Put the body of a one-line block on a new line.                                        | ✅      |
 | `BLANK_LINES_AROUND_INITIALIZER`                  | int  | `1`     | Blank lines around instance / static initializer blocks.                               | ✅      |

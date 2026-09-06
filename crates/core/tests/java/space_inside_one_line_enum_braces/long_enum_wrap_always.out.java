@@ -1,0 +1,6 @@
+enum LongNames {
+    ALPHA_BETA,
+    GAMMA_DELTA_EPSILON,
+    ZETA_ETA_THETA_IOTA,
+    KAPPA_LAMBDA
+}

@@ -3,10 +3,7 @@ class Outer {
         void m();
     }
 
-    enum E {
-        A,
-        B
-    }
+    enum E {A, B}
 
     record R(int x) {}
 

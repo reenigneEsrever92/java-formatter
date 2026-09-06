@@ -400,6 +400,10 @@ pub struct JavaStyle {
     pub annotation_new_line_in_record_component: bool,
     pub blank_lines_between_record_components: u32,
 
+    // --- enum layout (CodeStyleJava "Enums" + JavaCodeStyleSettings) ---
+    pub enum_constants_wrap: WrapStyle,
+    pub space_inside_one_line_enum_braces: bool,
+
     // --- annotation body layout (JavaCodeStyleSettings) ---
     pub enum_field_annotation_wrap: WrapStyle,
     pub align_multiline_annotation_parameters: bool,
@@ -717,6 +721,8 @@ impl Default for JavaStyle {
             space_within_record_header: false,
             annotation_new_line_in_record_component: false,
             blank_lines_between_record_components: 0,
+            enum_constants_wrap: WrapStyle::DoNotWrap,
+            space_inside_one_line_enum_braces: false,
             enum_field_annotation_wrap: WrapStyle::DoNotWrap,
             align_multiline_annotation_parameters: false,
             new_line_after_lparen_in_annotation: false,
@@ -1748,6 +1754,19 @@ pub static OPTIONS: &[OptionDef] = &[
             }
         },
     },
+    OptionDef {
+        xml_name: "ENUM_CONSTANTS_WRAP",
+        section: Section::CodeStyleJava,
+        default: OptionValue::Wrap(WrapStyle::DoNotWrap),
+        group: "Enums",
+        description: "Wrapping of enum constant lists.",
+        get: |s| OptionValue::Wrap(s.enum_constants_wrap),
+        set: |s, v| {
+            if let OptionValue::Wrap(w) = v {
+                s.enum_constants_wrap = w;
+            }
+        },
+    },
     // --- Declaration clause wrapping (resource / extends-implements / throws lists) ---
     OptionDef {
         xml_name: "RESOURCE_LIST_WRAP",
@@ -2584,6 +2603,19 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Wrap(w) = v {
                 s.enum_field_annotation_wrap = w;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "SPACE_INSIDE_ONE_LINE_ENUM_BRACES",
+        section: Section::JavaCodeStyle,
+        default: OptionValue::Bool(false),
+        group: "Enums",
+        description: "Spaces inside the braces of a one-line enum body.",
+        get: |s| OptionValue::Bool(s.space_inside_one_line_enum_braces),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.space_inside_one_line_enum_braces = b;
             }
         },
     },

@@ -2379,10 +2379,64 @@ impl<'s> Fmt<'s> {
 
         // Enum body: keep original text for enum constants; format methods
         if let Some(body) = self.fld(node, "body") {
-            let body_str = self.enum_body(node, body, indent);
-            self.with_brace(header, body_str, indent, self.style.class_brace_style)
+            // `ENUM_CONSTANTS_WRAP` / `SPACE_INSIDE_ONE_LINE_ENUM_BRACES`:
+            // a constant-only body (no `;` declarations section) whose
+            // constants each render on one line collapses to the flat
+            // `{A, B}` body — always under `DoNotWrap` (the absent-option
+            // default, matching the codebase's do-not-wrap convention),
+            // one constant per line under `WrapAlways`, and flat iff the
+            // composed declaration fits the margin under `WrapIfLong` /
+            // `ChopDownIfLong` (5 == 1 here — the constants are echoed
+            // verbatim, so there is no in-constant chopping to do). The
+            // spacing option pads the flat body only (`{ A, B }`).
+            let flat = self.enum_one_line_body(body, indent);
+            let use_flat = match (&flat, self.style.enum_constants_wrap) {
+                (Some(_), WrapStyle::DoNotWrap) => true,
+                (Some(_), WrapStyle::WrapAlways) => false,
+                (Some(fb), _) => {
+                    let gap = self.sp(self.style.space_before_class_lbrace);
+                    self.fits(c, &format!("{}{}{}", header, gap, fb))
+                }
+                (None, _) => false,
+            };
+            if use_flat {
+                self.with_brace(header, flat.unwrap(), indent, self.style.class_brace_style)
+            } else {
+                let body_str = self.enum_body(node, body, indent);
+                self.with_brace(header, body_str, indent, self.style.class_brace_style)
+            }
         } else {
             header
+        }
+    }
+
+    /// The flat one-line `{A, B}` body of an enum whose body holds only
+    /// constants — no `enum_body_declarations` (`;` and any members after it
+    /// keep the expanded `enum_body` layout) — and where every constant
+    /// renders on a single line. Each constant goes through the shared
+    /// `enum_constant` renderer (unannotated constants echo their source
+    /// text, R4/R5), so a constant that spans source lines or whose
+    /// `ENUM_FIELD_ANNOTATION_WRAP` placement puts its annotations on their
+    /// own lines keeps the expanded layout. `None` leaves the caller's
+    /// expanded layout in place. The constants are joined with `", "`;
+    /// `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` pads the braces (`{ A, B }`).
+    fn enum_one_line_body(&self, body: Node<'s>, indent: usize) -> Option<String> {
+        let mut parts: Vec<String> = Vec::new();
+        for child in self.named(body) {
+            match child.kind() {
+                "enum_constant" => parts.push(self.enum_constant(child, indent)),
+                "enum_body_declarations" => return None,
+                _ => {}
+            }
+        }
+        if parts.is_empty() || parts.iter().any(|p| p.contains('\n')) {
+            return None;
+        }
+        let inner = parts.join(", ");
+        if self.style.space_inside_one_line_enum_braces {
+            Some(format!("{{ {} }}", inner))
+        } else {
+            Some(format!("{{{}}}", inner))
         }
     }
 

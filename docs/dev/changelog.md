@@ -7,6 +7,57 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-06
+
+- **The enum constant-list layout options are honoured (R37, enum-layout)**:
+  `ENUM_CONSTANTS_WRAP` (common.md "Enums"; wrap code, default `0` = do not
+  wrap) and `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` (java.md "Miscellaneous
+  spacing & blank lines"; bool, default `false`), previously ignored (R7) and
+  marked ❌ in the settings docs, are now parsed into `JavaStyle` (two fields
+  in a new enum-layout block with the IntelliJ defaults, plus two `OptionDef`
+  entries in the `OPTIONS` registry — `ENUM_CONSTANTS_WRAP` in
+  `Section::CodeStyleJava` (wrap variant, parsed via the existing `get_wrap` /
+  `WrapStyle::from_int` mapping) and `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` in
+  `Section::JavaCodeStyle` (bool variant), both in the "Enums" group; the
+  minimal-scheme serializer emits each in its own block, verified by a
+  parse/serialize round-trip). The engine's `enum_decl` now builds the flat
+  one-line body `{A, B}` — the constants echoed verbatim and joined with
+  `", "`, padded (`{ A, B }`) only when the spacing option is on — whenever
+  the enum body holds constants but no `enum_body_declarations` node (any
+  `;` / member-declarations section keeps the expanded one-constant-per-line
+  `enum_body` layout, as do constants that cannot render on one line, e.g. an
+  own-line `ENUM_FIELD_ANNOTATION_WRAP` placement), and picks flat vs expanded
+  per the wrap code: `DoNotWrap` (absent-option default) always flat — an
+  overflowing list stays on one line, matching the codebase's do-not-wrap
+  convention — `WrapAlways` always one constant per line, `WrapIfLong` /
+  `ChopDownIfLong` flat iff the flat declaration fits the margin (`5` equals
+  `1` here: constants are echoed verbatim, so there is no in-constant
+  chopping). `with_brace` keeps handling brace placement, so a `NextLine`
+  brace style still puts `{` on its own line with the constants joined.
+  Whitespace/layout only (R5), every produced layout re-formats to itself
+  (R6). The new default behaviour — a fitting constant-only enum collapses to
+  `{A, B}` where the engine previously always expanded — changed the two
+  space_before_class_lbrace goldens (`types.out.java`, `types_default.out.java`),
+  which are re-baselined to the flat default shape (the test pins brace
+  spacing, not the enum expansion); every other pre-existing enum-bearing
+  fixture (class_brace_style, extends_list_wrap, enum_field_annotation_wrap —
+  all carry a trailing `;`, so they keep the expanded layout — and the empty
+  enums under align_multiline_extends_list) is unchanged, byte for byte.
+  Covered by two new per-option golden test files wired alphabetically in
+  `tests/options.rs` — `tests/options/enum_constants_wrap.rs` (9 tests:
+  overflow-at-margin-40 goldens at codes 0/1/2/5 plus the absent-option
+  default for a long list, a fitting short enum one-line default and wrap-always
+  goldens distinguishing code 2 from code 1, and a wrap-if-long idempotency
+  self-golden) and
+  `tests/options/space_inside_one_line_enum_braces.rs` (4 tests: `{ A, B }`
+  on, `{A, B}` absent / false, and a guard that the padding does not leak
+  into the wrap-always expanded layout) — with fixtures under
+  `tests/java/<option>/`. The suite grew from 725 to 738 tests, all green
+  (`cargo test --workspace`). No IntelliJ installation was available to
+  cross-check the goldens; the flat-layout default and the wrap-code
+  semantics follow the docs/settings tables and the codebase's established
+  do-not-wrap convention.
+
 ## 2026-09-05
 
 - **The javadoc options are honoured (R36, javadoc-formatting)**: the whole

@@ -307,7 +307,7 @@ control whether an annotation is placed on its own line before a declaration.
 
 | Option                | Type | Default | Effect                           | Support |
 | --------------------- | ---- | ------- | -------------------------------- | ------- |
-| `ENUM_CONSTANTS_WRAP` | int  | `0`     | Wrapping of enum constant lists. | ❌      |
+| `ENUM_CONSTANTS_WRAP` | int  | `0`     | Wrapping of enum constant lists. | ✅      |
 
 ## Builder method calls
 

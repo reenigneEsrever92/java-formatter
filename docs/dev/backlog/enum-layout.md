@@ -3,10 +3,13 @@ type: ChangeRequest
 kind: feature
 title: Layout enum constant lists and enum spacing per the enum options
 description: Implement ENUM_CONSTANTS_WRAP and SPACE_INSIDE_ONE_LINE_ENUM_BRACES.
-state: planned
+state: done
 priority: low
 tags: [dev, formatter]
 owner: maintainer
+verified:
+  by: maintainer
+  at: 2026-09-06T00:00:00Z
 ---
 
 # Problem
@@ -127,7 +130,7 @@ cross-check was possible (as the binary-expression entry does).
 
 ## Steps
 
-- [ ] config.rs: add `enum_constants_wrap: WrapStyle` and
+- [x] config.rs: add `enum_constants_wrap: WrapStyle` and
       `space_inside_one_line_enum_braces: bool` to `JavaStyle` with defaults
       `DoNotWrap` / `false`, and the two `OptionDef` registry entries
       (`ENUM_CONSTANTS_WRAP` in `Section::CodeStyleJava`, wrap variant;
@@ -135,36 +138,36 @@ cross-check was possible (as the binary-expression entry does).
       variant; group `"Enums"`); sanity-check that `serialize_codestyle`
       emits the new options in their correct blocks when non-default
       (AC: config mapping).
-- [ ] formatter.rs: build the flat one-line enum body in `enum_decl` and
+- [x] formatter.rs: build the flat one-line enum body in `enum_decl` and
       select flat vs expanded per wrap code + `fits` as described in the
       approach; keep `enum_body` (expanded) and `with_brace` unchanged
       (AC1/AC2 semantics).
-- [ ] Add fixtures under tests/java/enum_constants_wrap/: `long_constants.java`
+- [x] Add fixtures under tests/java/enum_constants_wrap/: `long_constants.java`
       (overflows at `right_margin = 40`) with wrap0/wrap1/wrap2/wrap5 goldens,
       and `short_enum.java` (fits at the default margin) with a
       default/absent-option one-line golden and a wrap-always golden (AC1).
-- [ ] Add tests/options/enum_constants_wrap.rs (doc header,
+- [x] Add tests/options/enum_constants_wrap.rs (doc header,
       `use super::common::*;`, `include_str!` paths): assert each wrap-code
       golden via `style(|s| { s.right_margin = 40; s.enum_constants_wrap = ...; })`,
       the absent-option default via `format`, and idempotency via
       `format_with(wrap1_golden, &narrow(WrapIfLong)) == wrap1_golden`
       (AC1, AC3 idempotency).
-- [ ] Add fixtures under tests/java/space_inside_one_line_enum_braces/:
+- [x] Add fixtures under tests/java/space_inside_one_line_enum_braces/:
       `padding.java` with a spaces golden (`{ A, B }`) and a no-spaces golden
       (`{A, B}`), plus a long-enum golden pinning that the padding does not
       leak into the multi-line layout (AC2).
-- [ ] Add tests/options/space_inside_one_line_enum_braces.rs: spaces golden
+- [x] Add tests/options/space_inside_one_line_enum_braces.rs: spaces golden
       with the option `true`; no-spaces golden with the absent option
       (`format`) and with explicit `false`; the no-padding guard (AC2).
-- [ ] Wire both modules into tests/options.rs in alphabetical position
+- [x] Wire both modules into tests/options.rs in alphabetical position
       (`enum_constants_wrap` after `continuation_indent_size`,
       `space_inside_one_line_enum_braces` after `right_margin`)
       (AGENTS.md wiring convention).
-- [ ] Run `cargo test`: the whole suite stays green and no existing golden
+- [x] Run `cargo test`: the whole suite stays green and no existing golden
       changes (only the new fixtures show the new layouts) (AC3).
-- [ ] Update the docs: flip the two ❌→✅ marks in docs/settings/common.md and
+- [x] Update the docs: flip the two ❌→✅ marks in docs/settings/common.md and
       docs/settings/java.md, add both options to the README honoured-options
-      table plus a formatting-behaviour note, add the R16 row to
+      table plus a formatting-behaviour note, add the R37 row to
       docs/requirements.md (and the Milestones delivered list), and append the
       delivery entry to docs/dev/changelog.md (noting whether an IntelliJ
       cross-check was possible); re-run `cargo test` to confirm the suite is
@@ -172,3 +175,16 @@ cross-check was possible (as the binary-expression entry does).
 
 Commit: not committed (worktree changes only — the repository is left for the
 owner to commit).
+
+## Delivery notes
+
+The plan's "no fixture or golden currently contains an enum" claim predates the
+annotation-layout CR (R31), whose `enum_field_annotation_wrap` fixtures do
+contain enums. Those fixtures (and the enums under `class_brace_style` and
+`extends_list_wrap`) all carry a trailing `;`, which produces an
+`enum_body_declarations` node, so they keep the expanded layout under the new
+rules and stay green untouched. The only pre-existing golden drift is the
+`space_before_class_lbrace` pair (`types.out.java`, `types_default.out.java`):
+their `A, B` constant-only enum now collapses to `enum E {A, B}` under the new
+default (DoNotWrap → flat), and the goldens were re-baselined to that shape —
+the test pins brace spacing, not the enum expansion.
