@@ -6,7 +6,10 @@
 //! states diverge: off (and absent, since the default is `false`) breaks the
 //! chain and keeps the tail's arguments flat, on wraps the arguments of the
 //! tail call instead. Only meaningful when the chain can wrap and the
-//! argument list can wrap (both `*_WRAP` options set here).
+//! argument list can wrap (both `*_WRAP` options set here). A chain whose
+//! *first* call cannot fit on the header line prefers the chain break when the
+//! option is off too (the first call moves to its own line); on, the first call
+//! stays put and its arguments wrap.
 
 use super::common::*;
 use java_formatter_core::config::{JavaStyle, WrapStyle};
@@ -17,6 +20,11 @@ const OVERFLOWING_CHAIN_PREFER_OUT: &str =
     include_str!("../java/prefer_parameters_wrap/overflowing_chain_prefer.out.java");
 const OVERFLOWING_CHAIN_OUT: &str =
     include_str!("../java/prefer_parameters_wrap/overflowing_chain.out.java");
+const FIRST_CALL_LONG: &str = include_str!("../java/prefer_parameters_wrap/first_call_long.java");
+const FIRST_CALL_LONG_OUT: &str =
+    include_str!("../java/prefer_parameters_wrap/first_call_long.out.java");
+const FIRST_CALL_LONG_PREFER_OUT: &str =
+    include_str!("../java/prefer_parameters_wrap/first_call_long_prefer.out.java");
 
 fn style_with(prefer_parameters_wrap: bool) -> JavaStyle {
     style(|s| {
@@ -55,5 +63,24 @@ fn absent_prefer_defaults_to_off() {
     assert_eq!(
         format_with(OVERFLOWING_CHAIN, &style),
         OVERFLOWING_CHAIN_OUT
+    );
+}
+
+#[test]
+fn prefer_off_breaks_the_chain_when_the_first_call_cannot_fit() {
+    // The first call's argument list does not fit on the header line but does
+    // fit on its own continuation line, so breaking the chain resolves the
+    // overflow and the arguments stay flat.
+    assert_eq!(
+        format_with(FIRST_CALL_LONG, &style_with(false)),
+        FIRST_CALL_LONG_OUT
+    );
+}
+
+#[test]
+fn prefer_on_keeps_the_first_call_and_wraps_its_arguments() {
+    assert_eq!(
+        format_with(FIRST_CALL_LONG, &style_with(true)),
+        FIRST_CALL_LONG_PREFER_OUT
     );
 }

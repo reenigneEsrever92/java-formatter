@@ -427,7 +427,13 @@ braces when the body spans multiple lines, `3` = always force braces.
   `2` / `5`) into one link per line at the continuation indent, and an
   overflowing link's own argument list wraps per `CALL_PARAMETERS_WRAP` (with
   `CALL_PARAMETER_INDENT`), one indent level below the link with its `)` on the
-  link's line. A chain used as an argument — including one nested inside another
+  link's line. `PREFER_PARAMETERS_WRAP` sets the precedence for a chain whose
+  first call cannot fit on the header line: off (the default), the chain is
+  preferred, so the first call moves to its own line when that resolves the
+  overflow and only an argument list that still does not fit on the link's own
+  line wraps; on, the first call stays on the header line and its arguments wrap
+  instead. `WRAP_FIRST_METHOD_IN_CALL_CHAIN` always puts the first call on its
+  own line. A chain used as an argument — including one nested inside another
   chain's link argument or inside a multi-element argument such as
   `List.of(<chain>, <chain>)` — breaks too, one indent level deeper than its
   enclosing chain, independent of `CALL_PARAMETERS_WRAP`; chains that fit, and

@@ -7237,6 +7237,36 @@ impl<'s> Fmt<'s> {
             })
     }
 
+    /// Whether the receiver and the first call, kept on the header line at
+    /// column `c`, overflow the margin with the call's flat argument list while
+    /// the call *would* fit on its own `cont`-prefixed line. Only then does
+    /// breaking the chain resolve the overflow, so only then is it preferred
+    /// over wrapping the call's arguments.
+    fn first_call_should_wrap(
+        &self,
+        base: &str,
+        cont: &str,
+        links: &[Link<'s>],
+        c: usize,
+        gap: &str,
+    ) -> bool {
+        let Some(first) = links.first() else {
+            return false;
+        };
+        let ta = first
+            .type_args
+            .map(|n| self.flat_type_args(n))
+            .unwrap_or_default();
+        let nm = self.txt(first.name);
+        let name_gap = self.type_args_gap(&ta, nm);
+        let call = format!(".{}{}{}{}", ta, name_gap, nm, gap);
+        let args = self.flat_args(first.args);
+        if self.fits(c, &format!("{}{}{}", base, call, args)) {
+            return false;
+        }
+        self.fits(self.col_after(0, cont), &format!("{}{}", call, args))
+    }
+
     /// [`Self::fmt_chain`] with an inherited alignment column (see
     /// [`Self::binary_ac`]): the wrapped link lines pad to the first link's
     /// dot column when `ALIGN_MULTILINE_CHAINED_METHODS` is on, else to the
@@ -7300,8 +7330,16 @@ impl<'s> Fmt<'s> {
         // `WRAP_FIRST_METHOD_IN_CALL_CHAIN`: the first link also starts a
         // continuation line. With an empty base (a chain without an explicit
         // receiver) there is nothing on the header line to wrap after, so the
-        // first link stays where it is.
-        let first_next = self.style.wrap_first_method_in_call_chain && !base.is_empty();
+        // first link stays where it is. When the chain is preferred over
+        // parameter wrapping (`PREFER_PARAMETERS_WRAP` off, the default) the
+        // first call also moves to its own line when it cannot fit on the
+        // header — otherwise its arguments would wrap under an over-margin
+        // header line, i.e. wrapping parameters to avoid an already broken
+        // line.
+        let first_next = !base.is_empty()
+            && (self.style.wrap_first_method_in_call_chain
+                || (!self.style.prefer_parameters_wrap
+                    && self.first_call_should_wrap(base, &cont, links, c, gap)));
         // Continuation prefix for the link lines: the alignment column is the
         // first link's dot column when it stays on the header line.
         let link_pref: String = if !first_next && !base.is_empty() {

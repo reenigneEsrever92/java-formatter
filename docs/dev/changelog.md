@@ -9,6 +9,24 @@ tags: [dev, changelog]
 
 ## 2026-09-10
 
+- **`PREFER_PARAMETERS_WRAP` off now prefers the chain break
+  (prefer-chain-wrap-over-parameter-wrap)**: an overflowing chain kept the
+  receiver and the first call on an over-margin header line and then wrapped
+  that call's arguments, and `PREFER_PARAMETERS_WRAP` was never consulted (its
+  branch looked only at the outermost call's arguments, so `true` and `false`
+  gave the same bytes). `fmt_chain_ac` now moves the first call to its own
+  continuation line when the header line overflows _and_ the call fits on its
+  own line, but only when `PREFER_PARAMETERS_WRAP` is off — so off gives the
+  chain-break layout (what `WRAP_FIRST_METHOD_IN_CALL_CHAIN` already produced)
+  and on keeps the first call in place and wraps its arguments, making the two
+  states actually differ. Two goldens that pinned the over-margin header
+  (`method_call_chain_wrap/chain`, `builder_methods/chain_plain`) were
+  corrected, and `first_call_long` prefer-off / prefer-on golden pairs were
+  added to `PREFER_PARAMETERS_WRAP`. Verified with `cargo test --workspace`
+  (817 core integration tests plus the core unit and GUI tests),
+  `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
+  `cargo fmt --all -- --check`.
+
 - **The around-member blank lines are placed before a member's leading comment
   (blank-line-before-member-comment)**: a member's leading comment (javadoc or
   other comment lines) was emitted as a standalone line that took no part in the
