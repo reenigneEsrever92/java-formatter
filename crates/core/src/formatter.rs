@@ -1672,28 +1672,36 @@ impl<'s> Fmt<'s> {
         (existing.min(keep_cap as usize)).max(required_min as usize)
     }
 
-    /// Blank lines to emit before the class-body member `m`. `prev` is the
-    /// previous content member (when the header has already been passed) and
-    /// `anchor` the source byte of the body's opening `{` (the gap for the
-    /// first member is measured from there). `keep` is
-    /// `KEEP_BLANK_LINES_IN_DECLARATIONS`.
-    fn member_gap(
+    /// `(measure-from, required-minimum)` for the blank-line gap before the
+    /// class-body member `m`. `prev` is the previous content member (when the
+    /// header has already been passed) and `anchor` the source byte of the
+    /// body's opening `{` (the gap for the first member is measured from
+    /// there).
+    fn member_gap_bounds(
         &self,
         prev: Option<Node<'s>>,
         m: Node<'s>,
         anchor: usize,
         kind: BodyKind,
-    ) -> usize {
-        let (start, min) = match prev {
+    ) -> (usize, u32) {
+        match prev {
             None => (anchor, self.body_header_min(kind)),
             Some(p) => (
                 p.end_byte(),
                 self.member_around_min(p, kind)
                     .max(self.member_around_min(m, kind)),
             ),
-        };
-        let existing = self.blank_lines_between(start, m.start_byte());
-        self.spacing(existing, self.style.keep_blank_lines_in_declarations, min)
+        }
+    }
+
+    /// `spacing` over the source blank lines in `[from, to)`, capped by
+    /// `KEEP_BLANK_LINES_IN_DECLARATIONS`.
+    fn decl_gap(&self, from: usize, to: usize, min: u32) -> usize {
+        self.spacing(
+            self.blank_lines_between(from, to),
+            self.style.keep_blank_lines_in_declarations,
+            min,
+        )
     }
 
     // ── program ───────────────────────────────────────────────────────────────
@@ -1720,18 +1728,27 @@ impl<'s> Fmt<'s> {
         let s = self.style;
         let mut out = String::new();
 
-        for c in &header_comments {
-            out.push_str(&self.comment(*c, 0));
-            out.push('\n');
-        }
-
-        // Byte offset of the end of the content emitted so far (None when the
-        // file does not yet contain anything, so no leading gap is inserted).
-        let mut prev_end: Option<usize> = header_comments.last().map(|c| c.end_byte());
         let has_pkg = pkg.is_some();
         // A module-import file with no regular imports still has an import
         // section (the preserved module lines are emitted from it).
         let has_imports = !imports.is_empty() || !self.module_imports.is_empty();
+
+        // A file-header comment is a separate header only when a package or
+        // import section follows; with neither it is leading trivia of the
+        // first top-level type (see the type loop below).
+        let mut pending: Vec<Node<'s>> = Vec::new();
+        // Byte offset of the end of the content emitted so far (None when the
+        // file does not yet contain anything, so no leading gap is inserted).
+        let mut prev_end: Option<usize> = None;
+        if has_pkg || has_imports {
+            for c in &header_comments {
+                out.push_str(&self.comment(*c, 0));
+                out.push('\n');
+                prev_end = Some(c.end_byte());
+            }
+        } else {
+            pending.extend(header_comments.iter().copied());
+        }
 
         if let Some(p) = pkg {
             self.insert_gap(
@@ -1791,27 +1808,52 @@ impl<'s> Fmt<'s> {
             prev_end = section_end;
         }
 
-        for (i, ty) in top_types.iter().enumerate() {
-            let (keep_cap, required_min) = if i == 0 {
-                // The gap before the first top-level type is the section
-                // boundary after imports/package (or the header when neither
-                // exists); later top-level types are spaced by
-                // `BLANK_LINES_AROUND_CLASS`.
-                let min = if has_imports {
+        let mut first_type = true;
+        for ty in top_types.iter() {
+            if self.is_comment_node(*ty) {
+                // Comments between the header and a type are attached to that
+                // type (see below); a trailing run with no following type is
+                // flushed after the loop.
+                pending.push(*ty);
+                continue;
+            }
+            // The gap before the first top-level type is the section boundary
+            // after imports/package (or the header when neither exists); later
+            // top-level types are spaced by `BLANK_LINES_AROUND_CLASS`. The
+            // gap goes before the type's leading comment run — the comments are
+            // attached to the declaration.
+            let required_min = if first_type {
+                if has_imports {
                     s.blank_lines_after_imports
                 } else if has_pkg {
                     s.blank_lines_after_package
                 } else {
                     s.blank_lines_around_class
-                };
-                (s.keep_blank_lines_in_declarations, min)
+                }
             } else {
-                (
-                    s.keep_blank_lines_in_declarations,
-                    s.blank_lines_around_class,
-                )
+                s.blank_lines_around_class
             };
-            self.insert_gap(&mut out, prev_end, ty.start_byte(), keep_cap, required_min);
+            let keep_cap = s.keep_blank_lines_in_declarations;
+            let mut from = prev_end;
+            let mut min = required_min;
+            for c in pending.drain(..) {
+                if let Some(pe) = from {
+                    self.push_blanks(
+                        &mut out,
+                        self.spacing(self.blank_lines_between(pe, c.start_byte()), keep_cap, min),
+                    );
+                }
+                out.push_str(&self.comment(c, 0));
+                out.push('\n');
+                from = Some(c.end_byte());
+                min = 0;
+            }
+            if let Some(pe) = from {
+                self.push_blanks(
+                    &mut out,
+                    self.spacing(self.blank_lines_between(pe, ty.start_byte()), keep_cap, min),
+                );
+            }
             // A javadoc block between the header and a top-level type is laid
             // out by the javadoc engine when the gate is on; every other node
             // (and any comment with the gate off) keeps the verbatim echo.
@@ -1822,6 +1864,22 @@ impl<'s> Fmt<'s> {
             }
             out.push('\n');
             prev_end = Some(ty.end_byte());
+            first_type = false;
+        }
+
+        // A trailing comment run with no following type keeps its current
+        // placement (source blanks preserved, no forced minimum).
+        for c in pending {
+            if let Some(pe) = prev_end {
+                let existing = self.blank_lines_between(pe, c.start_byte());
+                self.push_blanks(
+                    &mut out,
+                    self.spacing(existing, self.style.keep_blank_lines_in_declarations, 0),
+                );
+            }
+            out.push_str(&self.comment(c, 0));
+            out.push('\n');
+            prev_end = Some(c.end_byte());
         }
 
         out
@@ -2488,19 +2546,42 @@ impl<'s> Fmt<'s> {
                         out.push_str(";\n");
                     }
                     let mut prev = last_const;
+                    let mut leading: Vec<Node<'s>> = Vec::new();
                     for member in self.named(child) {
                         if self.is_comment_node(member) {
-                            out.push_str(&self.comment(member, inner));
-                            out.push('\n');
+                            leading.push(member);
                             continue;
                         }
-                        let gap = self.member_gap(prev, member, body.start_byte(), BodyKind::Class);
-                        self.push_blanks(&mut out, gap);
+                        // Comments leading the declaration are attached to it:
+                        // the member's minimum gap goes before the first of
+                        // them, source blanks separate the rest.
+                        let (mut from, mut min) = self.member_gap_bounds(
+                            prev,
+                            member,
+                            body.start_byte(),
+                            BodyKind::Class,
+                        );
+                        for c in leading.drain(..) {
+                            let blanks = self.decl_gap(from, c.start_byte(), min);
+                            self.push_blanks(&mut out, blanks);
+                            out.push_str(&self.comment(c, inner));
+                            out.push('\n');
+                            from = c.end_byte();
+                            min = 0;
+                        }
+                        let blanks = self.decl_gap(from, member.start_byte(), min);
+                        self.push_blanks(&mut out, blanks);
                         out.push_str(&self.ind(inner));
                         out.push_str(&self.class_member(member, inner));
                         out.push('\n');
                         prev = Some(member);
                         last_content = Some(member);
+                    }
+                    // A trailing comment run keeps its current no-gap placement.
+                    for c in leading {
+                        out.push_str(&self.comment(c, inner));
+                        out.push('\n');
+                        last_content = Some(c);
                     }
                 }
                 _ => {}
@@ -2875,34 +2956,51 @@ impl<'s> Fmt<'s> {
         let mut last: Option<Node<'s>> = None;
 
         let mut lines: Vec<BodyLine> = Vec::with_capacity(members.len());
+        // Comments leading the next member are buffered: they are attached to
+        // the declaration, so the member's minimum gap goes before the first of
+        // them and only the source's blank lines separate them from the
+        // declaration.
+        let mut leading: Vec<Node<'s>> = Vec::new();
         for m in members {
             if self.is_comment_node(m) {
-                // Comments are content but take no part in the spacing
-                // options: they are emitted in place, without their own gap.
-                // `comment` renders the full line(s) (column placement, the
-                // optional space after `//`, wrapping), so the member indent
-                // prefix is not added here. Comments break columnar runs.
-                lines.push(BodyLine {
-                    blanks: 0,
-                    indented: false,
-                    text: self.comment(m, inner),
-                    align: None,
-                });
-                last = Some(m);
+                leading.push(m);
                 continue;
             }
 
-            let gap = self.member_gap(prev, m, anchor, kind);
-            prev = Some(m);
-            last = Some(m);
+            let (mut from, mut min) = self.member_gap_bounds(prev, m, anchor, kind);
+            for c in leading.drain(..) {
+                let blanks = self.decl_gap(from, c.start_byte(), min);
+                lines.push(BodyLine {
+                    blanks,
+                    indented: false,
+                    text: self.comment(c, inner),
+                    align: None,
+                });
+                from = c.end_byte();
+                min = 0;
+            }
+            let blanks = self.decl_gap(from, m.start_byte(), min);
             let text = self.class_member(m, inner);
             let align = self.member_align_elem(m, &text);
             lines.push(BodyLine {
-                blanks: gap,
+                blanks,
                 indented: true,
                 text,
                 align,
             });
+            prev = Some(m);
+            last = Some(m);
+        }
+        // A trailing comment run with no following member keeps its current
+        // no-gap placement.
+        for c in leading {
+            lines.push(BodyLine {
+                blanks: 0,
+                indented: false,
+                text: self.comment(c, inner),
+                align: None,
+            });
+            last = Some(c);
         }
 
         // Columnar alignment over output-adjacent members

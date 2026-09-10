@@ -9,6 +9,26 @@ tags: [dev, changelog]
 
 ## 2026-09-10
 
+- **The around-member blank lines are placed before a member's leading comment
+  (blank-line-before-member-comment)**: a member's leading comment (javadoc or
+  other comment lines) was emitted as a standalone line that took no part in the
+  blank-line spacing, so the `BLANK_LINES_AROUND_*` minimum (default `1` for
+  methods / constructors, nested types and initializers) landed between the
+  comment and the declaration — a doc comment always ended up followed by an
+  empty line, and setting the option to `0` also removed the intended blanks
+  between members. `crates/core/src/formatter.rs` now buffers each member's
+  leading comment run in `class_body`, `enum_body` and the top-level `program`
+  path (where comments between the header and a type were previously spaced as
+  if they were types): the minimum gap goes before the first comment, and only
+  the source's blank lines separate the comments from the declaration. Two
+  `javadoc_formatting` goldens that pinned the misplaced blank (`class_doc`,
+  `class_doc_absent`) were corrected, and commented-method /
+  commented-enum-member / commented-top-level-class golden pairs were added to
+  `blank_lines_around_method` and `blank_lines_around_class`. Verified with
+  `cargo test --workspace` (815 core integration tests plus the core unit and
+  GUI tests), `cargo clippy --workspace --lib --bins --tests -- -D warnings`,
+  and `cargo fmt --all -- --check`.
+
 - **Chain-link argument lists wrap per `CALL_PARAMETERS_WRAP`, and the
   lparen-stays / rparen-alone layout no longer injects indentation
   (chain-link-args-and-lparen-layout)**: `fmt_chain_ac` rendered every link's

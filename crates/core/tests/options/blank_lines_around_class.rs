@@ -10,6 +10,8 @@ const CLASSES_DEFAULT_OUT: &str =
     include_str!("../java/blank_lines_around_class/classes_default.out.java");
 const CLASSES_0_OUT: &str = include_str!("../java/blank_lines_around_class/classes_0.out.java");
 const CLASSES_3_OUT: &str = include_str!("../java/blank_lines_around_class/classes_3.out.java");
+const COMMENT: &str = include_str!("../java/blank_lines_around_class/comment.java");
+const COMMENT_OUT: &str = include_str!("../java/blank_lines_around_class/comment.out.java");
 
 fn around_class(min: u32) -> JavaStyle {
     style(|s| s.blank_lines_around_class = min)
@@ -29,4 +31,11 @@ fn minimum_zero_glues_nested_and_top_level_classes() {
 #[test]
 fn minimum_three_inserts_three_blank_lines_around_classes() {
     assert_eq!(format_with(CLASSES, &around_class(3)), CLASSES_3_OUT);
+}
+
+#[test]
+fn the_minimum_goes_before_a_classs_leading_comment() {
+    // A top-level type's leading comment is attached to it: the blank line goes
+    // before the comment, not between the comment and the declaration.
+    assert_eq!(format(COMMENT), COMMENT_OUT);
 }

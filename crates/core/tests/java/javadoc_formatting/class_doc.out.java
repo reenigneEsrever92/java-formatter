@@ -6,7 +6,6 @@ package com.example;
  * @author Someone
  * @see Math
  */
-
 public class Calc {
     public int f(int unused) {
         return unused;

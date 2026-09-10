@@ -8,6 +8,7 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 
 | State | Priority | Kind        | Change request                                                                                                                   |
 | ----- | -------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| done  | high     | bug         | [Place the around-member blank lines before a member's leading comment](blank-line-before-member-comment.md)                     |
 | done  | high     | bug         | [Wrap chain-link arguments and fix the lparen-stays / rparen-alone indentation](chain-link-args-and-lparen-layout.md)            |
 | done  | medium   | improvement | [Structure the GUI config options into ordered, collapsible sections](gui-option-structure.md)                                   |
 | done  | high     | bug         | [METHOD_CALL_CHAIN_WRAP does not wrap a chain nested in an argument](nested-chain-argument-wrap.md)                              |

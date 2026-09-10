@@ -341,7 +341,11 @@ braces when the body spans multiple lines, `3` = always force braces.
   how many pre-existing blank lines between two constructs are preserved, and
   the `BLANK_LINES_*` minimums insert the configured number around package,
   imports, class header/end, fields, methods, initializer blocks and interface
-  members. Within the import section, the grouping and its separator blank
+  members. A member's leading comments — its javadoc and any other comment lines
+  — are part of the member, so the minimum is inserted _before_ the comment
+  block and the comment stays attached to its declaration; only the source's own
+  blank lines separate a comment from the declaration it documents. Within the
+  import section, the grouping and its separator blank
   lines come from the import layout (`IMPORT_LAYOUT_TABLE`): imports are
   grouped per the table's `<package>` entries in table order — the default
   layout groups the third-party imports, then a blank line, then the
