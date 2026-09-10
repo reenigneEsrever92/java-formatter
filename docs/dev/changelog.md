@@ -7,6 +7,101 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-10
+
+- **Chain-link argument lists wrap per `CALL_PARAMETERS_WRAP`, and the
+  lparen-stays / rparen-alone layout no longer injects indentation
+  (chain-link-args-and-lparen-layout)**: `fmt_chain_ac` rendered every link's
+  arguments with the flat `flat_args_chain`, so `CALL_PARAMETERS_WRAP`,
+  `CALL_PARAMETER_INDENT` and the call paren options were ignored for a chain
+  link; it now routes through a `chain_link_args` helper to `args_wrapped` when
+  the option is set (arguments one indent unit below an own-line link, `)` on
+  the link's line) and keeps the previous flat path when it is off, so default
+  chain output is byte-identical. Separately, the `(LPAREN=false, RPAREN=true)`
+  arm of `args_wrapped`, `formal_params` and `resource_list` prefixed the first
+  element with the continuation indent (`alpha(            beta,`); the first
+  element is now glued directly after `(` with the rest at the continuation
+  indent. Six goldens that pinned the malformed layout
+  (`call_parameters_lparen_on_next_line/long_call_lparen_off`,
+  `call_parameters_rparen_on_next_line/long_call`,
+  `align_multiline_parameters/sample_cont`,
+  `align_multiline_parameters_in_calls/sample_cont` and `sample_default`,
+  `align_multiline_resources/sample_cont`) were corrected, and chain cases were
+  added to `CALL_PARAMETERS_WRAP`. Verified with `cargo test --workspace` (812
+  core integration tests plus the core unit and GUI tests),
+  `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
+  `cargo fmt --all -- --check`.
+
+- **The GUI options panel is organised into ordered, collapsible sections and is
+  filterable (gui-option-structure)**: the core registry gained an ordered
+  `Group` enum and a `GROUPS` table (`crates/core/src/config.rs`) declaring
+  twelve top-level sections and their one-level sub-sections in display order;
+  `OptionDef.group` is now a `Group` and the 258 `OPTIONS` entries were
+  re-grouped into 31 sections, fixing the repeated "Wrapping" (four headings)
+  and "Enums" (two) that the GUI produced by emitting a heading per group
+  _change_ in registry order. Spaces and Wrapping gained named sub-sections and
+  the Java-feature families moved under a "Language features" parent; nine
+  options moved section — the switch/case indent trio and
+  `DO_NOT_INDENT_TOP_LEVEL_CLASS_MEMBERS` to Indentation,
+  `SPACE_INSIDE_ONE_LINE_ENUM_BRACES` to Enums, `PREFER_PARAMETERS_WRAP` to
+  Wrapping/Parameters, and the annotation wrap options to Wrapping/Annotations.
+  The GUI (`crates/gui/src/main.rs`) now derives its layout from `GROUPS` through
+  a pure `panel_layout` helper, renders each section as an
+  `egui::CollapsingHeader` (open by default) with nested headers for
+  sub-sections, and adds a filter box matching option XML names and
+  descriptions. Verified with `cargo test --workspace` (five new core registry
+  invariant tests and four new GUI layout tests),
+  `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
+  `cargo fmt --all -- --check`; the GUI was not launched interactively.
+
+- **The GUI editor and preview are syntax-highlighted, scroll in both
+  directions, and show the right margin (gui-editor-polish)**: core gains a
+  presentation-agnostic `highlight` module (`crates/core/src/highlight.rs`,
+  declared in `lib.rs`) built on the `tree-sitter-java` grammar the formatter
+  already uses — `highlight_java(source) -> Vec<HighlightSpan>` walks the CST
+  and returns non-overlapping byte ranges tagged with a `HighlightKind`
+  (keyword, string, number, comment, annotation, type, method), leaving
+  incomplete input's unresolved regions untagged; covered by four inline unit
+  tests (category mapping, text blocks and `true`/`false`/`null`, sorted and
+  disjoint ranges, partial input). The GUI (`crates/gui/src/main.rs`) now
+  wraps both the source editor and the formatted preview in
+  `ScrollArea::both()` with soft wrap off (`desired_width(INFINITY)` plus a
+  custom `TextEdit::layouter` whose `LayoutJob` sets `wrap.max_width` to
+  infinity), syntax-highlights both panes from that job (colours picked from
+  the active light/dark `egui` theme), and draws a vertical guide at the
+  configured right margin (`JavaStyle.right_margin`, the field behind both
+  `RIGHT_MARGIN` and `SOFT_MARGINS`) via `Painter::vline`, skipped when the
+  margin is `0` and reachable even when no line reaches it. Highlight spans
+  are cached per source string so the tree is not re-parsed every frame. The
+  README's "Desktop GUI" section documents the new behaviour. Verified with
+  `cargo test --workspace` (805 option tests plus the four new highlight unit
+  tests and the two new GUI widget tests),
+  `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
+  `cargo fmt --all -- --check`; the GUI itself was not launched
+  interactively.
+
+- **Chains nested in method-call arguments wrap per `METHOD_CALL_CHAIN_WRAP`
+  (nested-chain-argument-wrap)**: `fmt_chain_ac` rendered every chain link's
+  argument list with `flat_args`, so a method-call chain used as an argument —
+  a builder chain passed to a link (`.lastCallText(LocalizedText.builder()…)`),
+  a `List.of(<chain>, <chain>)` argument, or a chain argument of a plain
+  multi-argument call — stayed on one line and blew past the margin. New
+  `flat_arg_chain` / `flat_args_chain` / `flat_inv_chain` / `flat_new_chain`
+  render an over-margin chain argument wrapped (`collect_chain` links >= 2 and
+  the flat form over the margin) and recurse through invocation and creation
+  arguments; `args_wrapped` returns that chain-aware rendering when
+  `CALL_PARAMETERS_WRAP` is `DoNotWrap` (taking precedence over the
+  keep-line-breaks path, so the result is a fixed point), and `fmt_chain_ac`
+  routes link arguments through it one indent level deeper. Whitespace/layout
+  only (R5): `flat_args_chain` is byte-identical to `flat_args` when no
+  argument is an over-margin chain, and the `0` / absent default keeps
+  everything flat, so no pre-existing golden changed. Covered by five new
+  tests in `tests/options/method_call_chain_wrap.rs` (a nested chain in a
+  link, `List.of(<chain>, <chain>)`, a multi-argument chain argument with
+  `CALL_PARAMETERS_WRAP` off, the `DoNotWrap` flat case, and an idempotency
+  self-golden); the suite is 810 tests, all green. The README
+  formatting-behaviour notes record the nested-chain behaviour.
+
 ## 2026-09-06
 
 - **The record-pattern deconstruction layout options are honoured (R41,
@@ -211,7 +306,7 @@ tags: [dev, changelog]
   diamond `<>` is never padded). `SPACE_AFTER_CLOSING_ANGLE_BRACKET_IN_TYPE_ARGUMENT`
   inserts one space after the closing `>` of an explicit type-argument list
   where it directly abuts a following token, via a `type_args_gap(ta,
-  following)` helper that returns a single space only when the toggle is on
+following)` helper that returns a single space only when the toggle is on
   and both sides are non-empty (never at line ends): the explicit method
   invocation joins (`flat_inv`, `inv_wrapped`, the wrap-fit check), every
   chained-call link that carries type arguments in `fmt_chain` (both
@@ -277,7 +372,7 @@ tags: [dev, changelog]
     children are the union members separated by anonymous `|` tokens, and the
     parameter name via the `name` field hoisted from the hidden
     `_variable_declarator_id`) renders the pieces canonically — keyword
-    modifiers + each member through `flat_type` + ` | ` joins + the name —
+    modifiers + each member through `flat_type` + `|` joins + the name —
     and is used in both the multi-line `try_stmt` catch arm (previously a
     verbatim `self.txt` echo) and the `try_one_line` collapse (previously
     `normalise_ws`). `DoNotWrap` (and the absent default) always keep the flat
@@ -315,29 +410,29 @@ tags: [dev, changelog]
     scheme opts in — the strip is the request's recorded, opt-in
     value-touching deviation. Every new golden re-formats to itself (R6),
     and the align/strip transforms re-apply as no-ops.
-  Covered by four new per-option golden test files wired alphabetically in
-  `tests/options.rs` — `tests/options/multi_catch_types_wrap.rs` (6 tests:
-  over-margin multi-catch goldens at codes 0/1/2/5 plus the absent-option
-  default, and an idempotency self-golden),
-  `tests/options/align_types_in_multi_catch.rs` (4 tests: aligned under the
-  first type on, continuation-indent off, absent-default-aligned — with a
-  continuation indent of 4 in the styles so the two layouts are distinct —
-  and an idempotency self-golden),
-  `tests/options/align_multiline_text_blocks.rs` (4 tests: misindented block
-  aligned on, verbatim off, verbatim absent-default, and an idempotency
-  self-golden) and
-  `tests/options/strip_whitespace_from_blank_lines_in_text_blocks.rs`
-  (4 tests: whitespace-only lines stripped on, byte-identical off and
-  absent, and an idempotency self-golden) — with fixtures under
-  `tests/java/<option>/`. The suite grew from 763 to 781 tests, all green
-  (`cargo test --workspace`), and every pre-existing golden stays
-  byte-identical (the defaults keep the flat single-line multi-catch and the
-  verbatim text-block echo). No IntelliJ installation was available to
-  cross-check the exact shapes; the goldens pin the conventions recorded
-  above — the `|`-leading continuation at the first type's column under the
-  align default, the continuation-column text-block alignment, and the
-  opt-in blank-line strip — per the plan's mechanisms, and the suite's
-  default/absent goldens hold today's output byte-for-byte.
+    Covered by four new per-option golden test files wired alphabetically in
+    `tests/options.rs` — `tests/options/multi_catch_types_wrap.rs` (6 tests:
+    over-margin multi-catch goldens at codes 0/1/2/5 plus the absent-option
+    default, and an idempotency self-golden),
+    `tests/options/align_types_in_multi_catch.rs` (4 tests: aligned under the
+    first type on, continuation-indent off, absent-default-aligned — with a
+    continuation indent of 4 in the styles so the two layouts are distinct —
+    and an idempotency self-golden),
+    `tests/options/align_multiline_text_blocks.rs` (4 tests: misindented block
+    aligned on, verbatim off, verbatim absent-default, and an idempotency
+    self-golden) and
+    `tests/options/strip_whitespace_from_blank_lines_in_text_blocks.rs`
+    (4 tests: whitespace-only lines stripped on, byte-identical off and
+    absent, and an idempotency self-golden) — with fixtures under
+    `tests/java/<option>/`. The suite grew from 763 to 781 tests, all green
+    (`cargo test --workspace`), and every pre-existing golden stays
+    byte-identical (the defaults keep the flat single-line multi-catch and the
+    verbatim text-block echo). No IntelliJ installation was available to
+    cross-check the exact shapes; the goldens pin the conventions recorded
+    above — the `|`-leading continuation at the first type's column under the
+    align default, the continuation-column text-block alignment, and the
+    opt-in blank-line strip — per the plan's mechanisms, and the suite's
+    default/absent goldens hold today's output byte-for-byte.
 
 ## 2026-09-05
 
@@ -478,7 +573,7 @@ tags: [dev, changelog]
   threaded from `program()`'s `package_declaration`);
   `KEEP_BLANK_LINES_BETWEEN_IMPORTS` preserves source blank gaps within groups
   (recovered from the byte ranges between the import nodes). `import module
-  …;` is not a tree-sitter-java production, so the import region (leading
+…;` is not a tree-sitter-java production, so the import region (leading
   blank/comment/package/import lines before the first type) is scanned for
   such lines, they are blanked in place with equal-length spaces before
   parsing (no ERROR node, positions and diagnostics unaffected), and the kept
@@ -587,7 +682,7 @@ tags: [dev, changelog]
   default widths, labels under plain and absolute indents, tab refinements
   under `USE_TAB_CHARACTER`, and an absent-option default check per file);
   the suite grew from 604 to 639 tests, all green (`cargo test
-  --workspace`). No IntelliJ installation was available to cross-check the
+--workspace`). No IntelliJ installation was available to cross-check the
   goldens; the pinned semantics follow the docs/settings table and the
   R13 tab-stop model.
 
@@ -608,7 +703,7 @@ tags: [dev, changelog]
   `OptionDef` entries in the `OPTIONS` registry) and applied in the engine.
   Member / type declarations render their `modifiers` per the governing
   `*_ANNOTATION_WRAP` code: `DoNotWrap` joins annotations inline (`@A @B
-  public`), `WrapAlways` keeps the historical one-annotation-per-line shape,
+public`), `WrapAlways` keeps the historical one-annotation-per-line shape,
   and `WrapIfLong` / `ChopDownIfLong` keep the inline form unless the composed
   first line (measured via the caller's header tail) overflows the margin,
   then fall back to one per line (the two codes behave identically at this
@@ -836,7 +931,7 @@ tags: [dev, changelog]
 - **A GitHub Actions CI pipeline was added (R28, github-ci-pipeline)**:
   `.github/workflows/ci.yml` runs `cargo fmt --all -- --check` and, on an
   ubuntu/macos/windows × stable Rust matrix, `cargo clippy --workspace --lib
-  --bins --tests -- -D warnings` and `cargo test --workspace` on every push to
+--bins --tests -- -D warnings` and `cargo test --workspace` on every push to
   `main` and every pull request (plus manual `workflow_dispatch` runs), with
   per-matrix-cell `Swatinem/rust-cache`. Benches are deliberately not built on
   CI until the missing `tests/java/kitchen_sink.java` bench fixture is
@@ -960,7 +1055,7 @@ tags: [dev, changelog]
   (a space there would break the suppression); and `WRAP_COMMENTS`
   word-wraps a single-line comment longer than the right margin, repeating
   the comment's column prefix on continuation lines (`//` for line comments,
-  aligned ` * ` text for block comments) — multi-line block comments keep
+  aligned `*` text for block comments) — multi-line block comments keep
   their source text verbatim (R4). Comment text is preserved: indentation,
   the optional space and line breaks only change (R5), and each new golden
   was re-formatted under its own style and confirmed byte-identical (R6).
@@ -1037,24 +1132,21 @@ tags: [dev, changelog]
   `method_reference` rebuild (`A::new`, on → `A :: new`; unexpected shapes and
   comment-bearing nodes fall back to the verbatim echo, R4) and the cast
   separator. The column constants that assumed the old canonical spacing (`c +
-  ty.len() + 2`, `+ name.len() + 3`, `+ op.len() + 2`, `c + left.len() + 4`, `c
-  + params.len() + 4`) were replaced by arithmetic over the separator actually
-  emitted so margin/wrap decisions stay exact. One deliberate consequence:
-  `SPACE_AFTER_TYPE_CAST` defaults `true`, so a cast now renders `(int) x`
-  (matching IntelliJ) instead of the old `(int)x` — a fidelity fix, not a
-  regression, since no existing golden contains a cast or a method reference.
-  The change is whitespace-only (R5), inserting/removing one space is
-  idempotent (R6), and default/absent schemes keep byte-identical goldens.
-  Covered by twelve new per-option golden test files
-  (`tests/options/space_around_*.rs`, `space_after_type_cast.rs`) each testing
-  the option toggled away from its default plus the absent-option default;
-  `space_around_additive_operators` also covers the wrapped long-sum (margin
-  40 + `WrapIfLong` + off → glued `+beta()` continuation lines) and
-  `space_around_lambda_arrow` one-line lambdas under
-  `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`; the suite grew from 160 to 186 tests, all
-  green (`cargo test`). No IntelliJ installation was available to cross-check
-  the cast / unary-on / `::`-on goldens; the defaults follow the settings
-  table in docs/settings/common.md.
+ty.len() + 2`, `+ name.len() + 3`, `+ op.len() + 2`, `c + left.len() + 4`, `c
+  - params.len() + 4`) were replaced by arithmetic over the separator actually
+emitted so margin/wrap decisions stay exact. One deliberate consequence:
+`SPACE_AFTER_TYPE_CAST`defaults`true`, so a cast now renders `(int) x`(matching IntelliJ) instead of the old`(int)x` — a fidelity fix, not a
+regression, since no existing golden contains a cast or a method reference.
+The change is whitespace-only (R5), inserting/removing one space is
+idempotent (R6), and default/absent schemes keep byte-identical goldens.
+Covered by twelve new per-option golden test files
+(`tests/options/space_around_*.rs`, `space_after_type_cast.rs`) each testing
+the option toggled away from its default plus the absent-option default;
+`space_around_additive_operators`also covers the wrapped long-sum (margin
+40 +`WrapIfLong`+ off → glued`+beta()`continuation lines) and`space_around_lambda_arrow`one-line lambdas under`KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`; the suite grew from 160 to 186 tests, all
+green (`cargo test`). No IntelliJ installation was available to cross-check
+the cast / unary-on / `::`-on goldens; the defaults follow the settings
+    table in docs/settings/common.md.
 
 - **Braces are forced on statement bodies per the `*_BRACE_FORCE` options (R17,
   force-braces)**: `IF_BRACE_FORCE`, `FOR_BRACE_FORCE`, `WHILE_BRACE_FORCE` and
@@ -1313,7 +1405,7 @@ tags: [dev, changelog]
   byte-identical goldens — and eighteen `OptionDef` entries in the `OPTIONS`
   registry under the existing "Spaces" GUI group, ten in the JAVA
   `codeStyleSettings` block) and applied in the engine: a `within(open, close,
-  pad, inner)` helper (plus an empty-aware `within_opt` for the constructs
+pad, inner)` helper (plus an empty-aware `within_opt` for the constructs
   with empty variants) rebuilds every structured paren/bracket/brace pair,
   padding one space per side when the toggle is on, keeping the pair bare for
   an empty inner unless the construct has an empty variant in the request, and

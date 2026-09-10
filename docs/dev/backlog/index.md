@@ -8,6 +8,10 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 
 | State | Priority | Kind        | Change request                                                                                                                   |
 | ----- | -------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| done  | high     | bug         | [Wrap chain-link arguments and fix the lparen-stays / rparen-alone indentation](chain-link-args-and-lparen-layout.md)            |
+| done  | medium   | improvement | [Structure the GUI config options into ordered, collapsible sections](gui-option-structure.md)                                   |
+| done  | high     | bug         | [METHOD_CALL_CHAIN_WRAP does not wrap a chain nested in an argument](nested-chain-argument-wrap.md)                              |
+| done  | medium   | feature     | [GUI editor polish: right-margin guide, scrollable panes, tree-sitter highlighting](gui-editor-polish.md)                        |
 | done  | medium   | refactor    | [Restructure the test suite so each option gets a dedicated test](per-option-test-suite.md)                                      |
 | done  | high     | feature     | [egui codestyle editor (crates/gui)](egui-codestyle-editor.md)                                                                   |
 | done  | high     | improvement | [Detect parse errors and warn, still emitting best-effort output](parse-error-detection.md)                                      |
@@ -42,4 +46,4 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 | done  | low      | feature     | [Honour the type-argument and type-parameter spacing options](type-argument-spacing-options.md)                                  |
 | done  | low      | feature     | [Honour the text-block layout and multi-catch wrapping options](text-blocks-and-multi-catch.md)                                  |
 | done  | low      | feature     | [Honour the deconstruction-pattern layout options (Java 21)](deconstruction-pattern-layout.md)                                   |
-| done  | medium   | feature     | [Set up a GitHub Actions CI pipeline (fmt, clippy, tests on an OS matrix)](github-ci-pipeline.md)                               |
+| done  | medium   | feature     | [Set up a GitHub Actions CI pipeline (fmt, clippy, tests on an OS matrix)](github-ci-pipeline.md)                                |

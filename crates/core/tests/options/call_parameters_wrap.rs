@@ -14,6 +14,20 @@ const LONG_CALL_WRAP_ALWAYS_OUT: &str =
 const SHORT_CALL: &str = include_str!("../java/call_parameters_wrap/short_call.java");
 const SHORT_CALL_WRAP_ALWAYS_OUT: &str =
     include_str!("../java/call_parameters_wrap/short_call.out.java");
+const CHAIN: &str = include_str!("../java/call_parameters_wrap/chain.java");
+const CHAIN_OUT: &str = include_str!("../java/call_parameters_wrap/chain.out.java");
+const CHAIN_DO_NOT_WRAP_OUT: &str =
+    include_str!("../java/call_parameters_wrap/chain_do_not_wrap.out.java");
+
+/// A style that breaks the chain so a link's own argument list is what is left
+/// to wrap: `CALL_PARAMETERS_WRAP` must then govern that list too.
+fn chain_style(wrap: WrapStyle) -> JavaStyle {
+    style(|s| {
+        s.right_margin = 60;
+        s.method_call_chain_wrap = WrapStyle::WrapIfLong;
+        s.call_parameters_wrap = wrap;
+    })
+}
 
 /// A style with a tight margin so the long call overflows it.
 fn narrow(wrap: WrapStyle) -> JavaStyle {
@@ -52,5 +66,21 @@ fn wrap_always_keeps_short_calls_flat() {
     assert_eq!(
         format_with(SHORT_CALL, &narrow(WrapStyle::WrapAlways)),
         SHORT_CALL_WRAP_ALWAYS_OUT
+    );
+}
+
+#[test]
+fn an_overflowing_chain_links_arguments_wrap_with_the_option() {
+    assert_eq!(
+        format_with(CHAIN, &chain_style(WrapStyle::WrapIfLong)),
+        CHAIN_OUT
+    );
+}
+
+#[test]
+fn do_not_wrap_keeps_a_chain_links_arguments_flat() {
+    assert_eq!(
+        format_with(CHAIN, &chain_style(WrapStyle::DoNotWrap)),
+        CHAIN_DO_NOT_WRAP_OUT
     );
 }

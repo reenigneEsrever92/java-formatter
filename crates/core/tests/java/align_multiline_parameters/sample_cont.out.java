@@ -1,5 +1,5 @@
 class F {
-    void lotsOfParameters(        int alphaParameter,
+    void lotsOfParameters(int alphaParameter,
         int betaParameter,
         int gammaParameter
     ) {

@@ -1,6 +1,6 @@
 class A {
     void m() {
-        alpha(            beta,
+        alpha(beta,
             gamma,
             delta,
             epsilon,

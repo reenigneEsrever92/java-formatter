@@ -3917,6 +3917,17 @@ impl<'s> Fmt<'s> {
                 s.push_str(p);
             }
             s
+        } else if first_inline {
+            // The lparen stays and the rparen moves to its own line, alignment
+            // off: the first parameter is glued straight after `(`, the rest
+            // stay at the continuation indent.
+            let mut s = self.wrapped_param(params[0], &ind, inner);
+            for &p in params.iter().skip(1) {
+                s.push_str(",\n");
+                s.push_str(&ind);
+                s.push_str(&self.wrapped_param(p, &ind, inner));
+            }
+            s
         } else {
             params
                 .iter()
@@ -5728,6 +5739,16 @@ impl<'s> Fmt<'s> {
                 body.push_str(&pref);
                 body.push_str(&line_of(r, i + 1 == resources.len()));
             }
+        } else if !lp && rp {
+            // The lparen stays and the rparen moves to its own line, alignment
+            // off: the first resource is glued straight after `(`, the rest
+            // stay at the continuation indent.
+            body.push_str(&line_of(&resources[0], resources.len() == 1));
+            for (i, r) in resources.iter().enumerate().skip(1) {
+                body.push('\n');
+                body.push_str(&ind);
+                body.push_str(&line_of(r, i + 1 == resources.len()));
+            }
         } else {
             let lines: Vec<String> = resources
                 .iter()
@@ -6757,6 +6778,124 @@ impl<'s> Fmt<'s> {
         )
     }
 
+    /// Like [`Self::flat`], but an argument that is itself an over-margin
+    /// method-call chain is rendered wrapped (per `METHOD_CALL_CHAIN_WRAP`)
+    /// instead of flat, and invocations / creations recurse so a chain nested
+    /// deeper in an argument list is reached too. Used where a context stays
+    /// flat overall but a nested chain must still break.
+    fn flat_arg_chain(&self, arg: Node<'s>, indent: usize, c: usize) -> String {
+        match arg.kind() {
+            "method_invocation" => {
+                let (base, links) = self.collect_chain(arg);
+                if links.len() >= 2
+                    && self.style.method_call_chain_wrap != WrapStyle::DoNotWrap
+                    && !self.fits(c, &self.flat(arg))
+                {
+                    return self.fmt_chain(&base, &links, indent, c, self.is_builder_chain(&links));
+                }
+                self.flat_inv_chain(arg, indent, c)
+            }
+            "object_creation_expression" => self.flat_new_chain(arg, indent, c),
+            _ => self.flat(arg),
+        }
+    }
+
+    /// [`Self::flat_args`] with each argument rendered by
+    /// [`Self::flat_arg_chain`], so a nested chain can break. The running
+    /// column is tracked so every argument's fit decision uses its real start
+    /// column and a wrapped argument continues from its last line.
+    /// Byte-identical to `flat_args` when no argument is an over-margin chain.
+    fn flat_args_chain(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let pad = self.style.space_within_method_call_parentheses;
+        let sep = self.comma_sep(self.style.space_after_comma);
+        let mut col = c + 1 + usize::from(pad);
+        let mut inner = String::new();
+        for (i, &a) in self.named(node).iter().enumerate() {
+            if i > 0 {
+                inner.push_str(sep);
+                col += sep.chars().count();
+            }
+            let rendered = self.flat_arg_chain(a, indent, col);
+            col = self.col_after(col, &rendered);
+            inner.push_str(&rendered);
+        }
+        Self::within_opt(
+            '(',
+            ')',
+            pad,
+            self.style.space_within_empty_method_call_parentheses,
+            &inner,
+        )
+    }
+
+    /// [`Self::flat_inv`] with [`Self::flat_args_chain`] supplying the argument
+    /// list (identical output when no argument is an over-margin chain).
+    fn flat_inv_chain(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let obj = self
+            .fld(node, "object")
+            .map(|n| format!("{}{}", self.flat(n), "."))
+            .unwrap_or_default();
+        let ta = self
+            .fld(node, "type_arguments")
+            .map(|n| self.flat_type_args(n))
+            .unwrap_or_default();
+        let name = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+        let gap = self.sp(self.style.space_before_method_call_parentheses);
+        let prefix = format!(
+            "{}{}{}{}{}",
+            obj,
+            ta,
+            self.type_args_gap(&ta, name),
+            name,
+            gap
+        );
+        let args = self
+            .fld(node, "arguments")
+            .map(|n| self.flat_args_chain(n, indent, self.col_after(c, &prefix)))
+            .unwrap_or_else(|| {
+                Self::within_opt(
+                    '(',
+                    ')',
+                    self.style.space_within_method_call_parentheses,
+                    self.style.space_within_empty_method_call_parentheses,
+                    "",
+                )
+            });
+        format!("{}{}", prefix, args)
+    }
+
+    /// [`Self::flat_new`] with [`Self::flat_args_chain`] supplying the argument
+    /// list (identical output when no argument is an over-margin chain).
+    fn flat_new_chain(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let ta = self
+            .fld(node, "type_arguments")
+            .map(|n| self.flat_type_args(n))
+            .unwrap_or_default();
+        let ty = self
+            .fld(node, "type")
+            .map(|n| self.flat_type(n))
+            .unwrap_or_default();
+        let gap = self.sp(self.style.space_before_method_call_parentheses);
+        let prefix = format!("new {}{}{}{}", ta, self.type_args_gap(&ta, &ty), ty, gap);
+        let args = self
+            .fld(node, "arguments")
+            .map(|n| self.flat_args_chain(n, indent, self.col_after(c, &prefix)))
+            .unwrap_or_else(|| {
+                Self::within_opt(
+                    '(',
+                    ')',
+                    self.style.space_within_method_call_parentheses,
+                    self.style.space_within_empty_method_call_parentheses,
+                    "",
+                )
+            });
+        let body = self
+            .fld(node, "class_body")
+            .map(|_| format!("{}{{ ... }}", self.sp(self.style.space_before_class_lbrace)))
+            .unwrap_or_default();
+        format!("{}{}{}", prefix, args, body)
+    }
+
     fn inv_wrapped(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         let obj = self
             .fld(node, "object")
@@ -6808,6 +6947,20 @@ impl<'s> Fmt<'s> {
 
         let keep = self.keep_wrapped(node);
         let flat = self.flat_args(node);
+
+        // A chain argument that must break is its own fixed point: render it
+        // even when the parameter list itself is not being wrapped, and
+        // independent of KEEP_LINE_BREAKS (the break just introduced must
+        // reproduce on re-format rather than fall into the list-wrap path).
+        if self.style.method_call_chain_wrap != WrapStyle::DoNotWrap
+            && self.style.call_parameters_wrap == WrapStyle::DoNotWrap
+        {
+            let chained = self.flat_args_chain(node, indent, c);
+            if chained != flat {
+                return chained;
+            }
+        }
+
         if !keep && self.fits(c, &flat) {
             return flat;
         }
@@ -6874,12 +7027,18 @@ impl<'s> Fmt<'s> {
                 &format!("\n{}\n{}", arg_strs.join(",\n"), self.ind(indent)),
             ),
             (true, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join(",\n"))),
-            (false, true) => Self::within(
-                '(',
-                ')',
-                pad,
-                &format!("{}\n{}", arg_strs.join(",\n"), self.ind(indent)),
-            ),
+            (false, true) => {
+                // The lparen stays and the rparen moves to its own line:
+                // the first argument is glued straight after `(` (no
+                // continuation indent), the rest stay at the continuation
+                // indent.
+                let mut body = self.expr(args[0], inner, c + 1 + usize::from(pad));
+                for rest in arg_strs.iter().skip(1) {
+                    body.push_str(",\n");
+                    body.push_str(rest);
+                }
+                Self::within('(', ')', pad, &format!("{}\n{}", body, self.ind(indent)))
+            }
             (false, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join(",\n"))),
         }
     }
@@ -7018,41 +7177,23 @@ impl<'s> Fmt<'s> {
                     .map(|n| self.flat_type_args(n))
                     .unwrap_or_default();
                 let nm = self.txt(link.name);
-                let flat_a = self.flat_args(link.args);
-                if i == 0 {
-                    // With an empty base the first link opens the header line
-                    // as the generic layout does; otherwise the base ends its
-                    // own line and the first call starts the builder lines.
-                    if base.is_empty() {
-                        out = format!(
-                            "{}{}{}{}{}",
-                            ta,
-                            self.type_args_gap(&ta, nm),
-                            nm,
-                            gap,
-                            flat_a
-                        );
-                    } else {
-                        out = format!(
-                            "{}\n{}.{}{}{}{}{}",
-                            base,
-                            link_ind,
-                            ta,
-                            self.type_args_gap(&ta, nm),
-                            nm,
-                            gap,
-                            flat_a
-                        );
-                    }
+                let name_gap = self.type_args_gap(&ta, nm);
+                if i == 0 && base.is_empty() {
+                    let prefix = format!("{}{}{}{}", ta, name_gap, nm, gap);
+                    let args =
+                        self.chain_link_args(link.args, false, indent, self.col_after(0, &prefix));
+                    out = format!("{}{}", prefix, args);
                 } else {
-                    out.push('\n');
-                    out.push_str(&link_ind);
-                    out.push('.');
-                    out.push_str(&ta);
-                    out.push_str(self.type_args_gap(&ta, nm));
-                    out.push_str(nm);
-                    out.push_str(gap);
-                    out.push_str(&flat_a);
+                    let prefix = format!("{}.{}{}{}{}", link_ind, ta, name_gap, nm, gap);
+                    let args =
+                        self.chain_link_args(link.args, true, indent, self.col_after(0, &prefix));
+                    if i == 0 {
+                        out = format!("{}\n{}{}", base, prefix, args);
+                    } else {
+                        out.push('\n');
+                        out.push_str(&prefix);
+                        out.push_str(&args);
+                    }
                 }
             }
             return out;
@@ -7083,53 +7224,60 @@ impl<'s> Fmt<'s> {
                 .map(|n| self.flat_type_args(n))
                 .unwrap_or_default();
             let nm = self.txt(link.name);
-            let flat_a = self.flat_args(link.args);
+            let name_gap = self.type_args_gap(&ta, nm);
 
-            if i == 0 {
-                if base.is_empty() {
-                    out = format!(
-                        "{}{}{}{}{}",
-                        ta,
-                        self.type_args_gap(&ta, nm),
-                        nm,
-                        gap,
-                        flat_a
-                    );
-                } else if first_next {
-                    out = format!(
-                        "{}\n{}.{}{}{}{}{}",
-                        base,
-                        cont,
-                        ta,
-                        self.type_args_gap(&ta, nm),
-                        nm,
-                        gap,
-                        flat_a
-                    );
-                } else {
-                    out = format!(
-                        "{}.{}{}{}{}{}",
-                        base,
-                        ta,
-                        self.type_args_gap(&ta, nm),
-                        nm,
-                        gap,
-                        flat_a
-                    );
-                }
+            if i == 0 && base.is_empty() {
+                let prefix = format!("{}{}{}{}", ta, name_gap, nm, gap);
+                let args =
+                    self.chain_link_args(link.args, false, indent, self.col_after(0, &prefix));
+                out = format!("{}{}", prefix, args);
+            } else if i == 0 && first_next {
+                let prefix = format!("{}.{}{}{}{}", cont, ta, name_gap, nm, gap);
+                let args =
+                    self.chain_link_args(link.args, true, indent, self.col_after(0, &prefix));
+                out = format!("{}\n{}{}", base, prefix, args);
+            } else if i == 0 {
+                let prefix = format!("{}.{}{}{}{}", base, ta, name_gap, nm, gap);
+                let args =
+                    self.chain_link_args(link.args, false, indent, self.col_after(c, &prefix));
+                out = format!("{}{}", prefix, args);
             } else {
+                let prefix = format!("{}.{}{}{}{}", link_pref, ta, name_gap, nm, gap);
+                let args =
+                    self.chain_link_args(link.args, true, indent, self.col_after(0, &prefix));
                 out.push('\n');
-                out.push_str(&link_pref);
-                out.push('.');
-                out.push_str(&ta);
-                out.push_str(self.type_args_gap(&ta, nm));
-                out.push_str(nm);
-                out.push_str(gap);
-                out.push_str(&flat_a);
+                out.push_str(&prefix);
+                out.push_str(&args);
             }
         }
 
         out
+    }
+
+    /// Render a chain link's argument list at column `c`. With
+    /// `CALL_PARAMETERS_WRAP` off the flat, chain-aware form is kept unchanged;
+    /// with it on, [`Self::args_wrapped`] applies the call wrapping (and
+    /// `CALL_PARAMETER_INDENT` / the call paren options). An own-line link sits
+    /// at the continuation indent, so its arguments start one indent unit below
+    /// that and the closing paren lands back on the link line; a first link
+    /// that stays on the header line anchors on the header's own indent.
+    fn chain_link_args(
+        &self,
+        args: Node<'s>,
+        own_line: bool,
+        stmt_indent: usize,
+        c: usize,
+    ) -> String {
+        if self.style.call_parameters_wrap == WrapStyle::DoNotWrap {
+            return self.flat_args_chain(args, stmt_indent + 1, c);
+        }
+        let indent = if own_line {
+            let unit = self.style.indent_size.max(1) as usize;
+            stmt_indent + (self.style.continuation_indent_size as usize).div_ceil(unit)
+        } else {
+            stmt_indent
+        };
+        self.args_wrapped(args, indent, c)
     }
 
     // ── new / field_access / assignment / binary … ────────────────────────────
