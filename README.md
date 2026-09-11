@@ -37,12 +37,18 @@ Options:
   -h, --help           Print help
 ```
 
-The formatted source is written to stdout. In directory mode (`--dir`)
-nothing is written to stdout: each `*.java` file is rewritten in place (only
-when its content changes), and per-file problems are reported on stderr
-without stopping the run. The process exits 1 if any file failed — unreadable
-file, invalid Java (a warning in single-file mode), or a failed write — and 0
-otherwise.
+The formatted source is written to stdout. In directory mode (`--dir`) file
+contents are never written to stdout: each `*.java` file is rewritten in place
+(only when its content changes), files are formatted in parallel across the
+machine's cores (set `RAYON_NUM_THREADS` to cap the thread count; the bar's file
+name is the most recently handled file, so it is best-effort while several are
+in flight), and when stdout is a terminal a progress bar such as
+`Formatting [3/12] src/Foo.java` is drawn there while the run works.
+Per-file problems are reported on stderr without stopping the run, and when
+stdout is not a terminal (piped or redirected) the run ends with a one-line
+summary on stderr, e.g. `Formatted 12 files` or `Formatted 11 files, 1
+failed`. The process exits 1 if any file failed — unreadable file, invalid
+Java (a warning in single-file mode), or a failed write — and 0 otherwise.
 
 ### Examples
 
@@ -802,7 +808,17 @@ braces when the body spans multiple lines, `3` = always force braces.
   comments, aligned `*` text for block comments); multi-line block comments
   keep their source text verbatim. Comment text is never invented — only the
   indentation, the optional space after `//` and the line breaks change (R5),
-  and re-formatting the output reproduces the layout (R6).
+  and re-formatting the output reproduces the layout (R6). A comment between
+  the elements of a comma-separated list — record components, parameters, call
+  arguments, array and annotation elements, type arguments, a `throws` /
+  `implements` / `extends` list, enum constants, a record pattern — is likewise
+  preserved as its own item: it is attached to the element it precedes (or to
+  the closing delimiter) and never receives the list's separator comma. A line
+  comment (or a multi-line block comment) cannot share its line with code, so
+  it forces the list onto its wrapped layout, while a single-line block comment
+  stays inline before its element. Type arguments, lambda parameters, a
+  multi-declarator list and a commented record pattern have no wrapped form, so
+  their construct keeps its source text verbatim (R4).
 - Javadoc is reformatted only when a scheme sets `ENABLE_JAVADOC_FORMATTING`
   explicitly (the built-in default is `false` — a recorded divergence, see
   docs/settings/java.md — so absent and default schemes keep every comment

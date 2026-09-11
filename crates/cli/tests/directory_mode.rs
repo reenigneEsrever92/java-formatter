@@ -29,10 +29,17 @@ fn write_tree(files: &[(&str, &str)]) -> TempDir {
 }
 
 fn run(args: &[&str]) -> Output {
-    Command::new(BIN)
-        .args(args)
-        .output()
-        .expect("failed to execute java-formatter")
+    run_with_env(args, &[])
+}
+
+/// Like [`run`], but with extra environment variables set on the child process.
+fn run_with_env(args: &[&str], env: &[(&str, &str)]) -> Output {
+    let mut cmd = Command::new(BIN);
+    cmd.args(args);
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("failed to execute java-formatter")
 }
 
 fn read(dir: &Path, rel: &str) -> String {
@@ -266,4 +273,128 @@ fn single_file_mode_still_exits_0_with_warning_on_invalid_java() {
     assert_eq!(out.status.code(), Some(0));
     assert!(stderr(&out).contains("not valid Java"));
     assert!(!out.stdout.is_empty());
+}
+
+#[test]
+fn summary_line_reports_the_run_when_stdout_is_not_a_terminal() {
+    let dir = write_tree(&[("a.java", MESSY_JAVA), ("b.java", MESSY_JAVA)]);
+
+    // Piped stdout (as in every test here) hides the bar, so the run ends
+    // with a one-line summary on stderr instead.
+    let out = run(&["-d", dir.path().to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(0));
+    assert!(out.stdout.is_empty(), "hidden bar must not write to stdout");
+    let err = stderr(&out);
+    assert!(
+        err.contains("Formatted 2 files"),
+        "stderr should summarise the run: {err:?}"
+    );
+    assert!(
+        !err.contains("failed"),
+        "success run must not mention failures: {err:?}"
+    );
+}
+
+#[test]
+fn summary_line_counts_failures() {
+    let dir = write_tree(&[("bad.java", "class Foo {\n"), ("good.java", MESSY_JAVA)]);
+
+    let out = run(&["-d", dir.path().to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(
+        stderr(&out).contains("Formatted 1 file, 1 failed"),
+        "stderr should count the failed file: {}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn summary_line_for_empty_directory() {
+    let dir = write_tree(&[("notes.txt", "not java\n")]);
+
+    let out = run(&["-d", dir.path().to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(0));
+    assert!(
+        stderr(&out).contains("Formatted 0 files"),
+        "stderr should summarise the empty run: {}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn many_files_are_all_formatted_in_parallel() {
+    // More files than any realistic thread count, so the run must fan out and
+    // still format every one of them.
+    let files: Vec<(String, String)> = (0..64)
+        .map(|i| (format!("F{i}.java"), MESSY_JAVA.to_string()))
+        .collect();
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, content)| (name.as_str(), content.as_str()))
+        .collect();
+    let dir = write_tree(&refs);
+
+    let out = run(&["-d", dir.path().to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(0));
+    for (name, _) in &files {
+        assert_ne!(
+            read(dir.path(), name),
+            MESSY_JAVA,
+            "{name} was not formatted"
+        );
+    }
+}
+
+#[test]
+fn parallel_run_counts_multiple_failures_and_formats_the_rest() {
+    let dir = write_tree(&[
+        ("a.java", "class A {\n"),
+        ("b.java", "class B {\n"),
+        ("c.java", "class C {\n"),
+        ("good.java", MESSY_JAVA),
+    ]);
+
+    let out = run(&["-d", dir.path().to_str().unwrap()]);
+
+    assert_eq!(out.status.code(), Some(1));
+    let err = stderr(&out);
+    assert!(
+        err.contains("Formatted 1 file, 3 failed"),
+        "stderr should count every failure: {err:?}"
+    );
+    assert_ne!(read(dir.path(), "good.java"), MESSY_JAVA);
+}
+
+#[test]
+fn thread_count_does_not_change_the_output() {
+    // The same tree formatted with one thread and with the default pool must
+    // come out byte-for-byte identical.
+    let files: Vec<(String, String)> = (0..32)
+        .map(|i| (format!("F{i}.java"), format!("class F{i}{{int x={i};}}\n")))
+        .collect();
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, content)| (name.as_str(), content.as_str()))
+        .collect();
+    let single = write_tree(&refs);
+    let parallel = write_tree(&refs);
+
+    let single_out = run_with_env(
+        &["-d", single.path().to_str().unwrap()],
+        &[("RAYON_NUM_THREADS", "1")],
+    );
+    let parallel_out = run(&["-d", parallel.path().to_str().unwrap()]);
+
+    assert_eq!(single_out.status.code(), Some(0));
+    assert_eq!(parallel_out.status.code(), Some(0));
+    for (name, source) in &files {
+        let one_thread = read(single.path(), name);
+        let many_threads = read(parallel.path(), name);
+        assert_eq!(one_thread, many_threads, "{name} differs by thread count");
+        assert_ne!(one_thread, *source, "{name} was not formatted");
+    }
 }

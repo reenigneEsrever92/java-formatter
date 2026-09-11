@@ -55,6 +55,8 @@ mod align_types_in_multi_catch;
 mod annotation_new_line_in_record_component;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
+#[path = "options/array_creation.rs"]
+mod array_creation;
 #[path = "options/array_element_indent.rs"]
 mod array_element_indent;
 #[path = "options/array_initializer_lbrace_on_next_line.rs"]
@@ -131,6 +133,8 @@ mod class_annotation_wrap;
 mod class_brace_style;
 #[path = "options/class_count_to_use_import_on_demand.rs"]
 mod class_count_to_use_import_on_demand;
+#[path = "options/comments_in_lists.rs"]
+mod comments_in_lists;
 #[path = "options/continuation_indent_size.rs"]
 mod continuation_indent_size;
 #[path = "options/declaration_parameter_indent.rs"]

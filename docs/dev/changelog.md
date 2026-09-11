@@ -9,6 +9,27 @@ tags: [dev, changelog]
 
 ## 2026-09-11
 
+- **Comments inside comma-separated lists are preserved instead of taking the
+  list separator (comments-in-comma-separated-lists)**: a comment between two
+  list elements used to be collected as an element by every comma-list
+  renderer, so it received the list's separator comma and — on a flat list —
+  its `//` swallowed the rest of the construct, producing invalid Java in
+  record headers, annotation arguments, type arguments, lambda parameters,
+  `throws` lists, deconstruction patterns and the flat form of call arguments
+  and array initializers; an enum constant list and a multi-declarator
+  field / local declaration dropped the comment outright. Comments now render
+  as their own item — attached to the element they precede (or to the closing
+  delimiter), never a separator — and a line comment (or a multi-line block
+  comment) forces the list onto its wrapped layout, while a single-line block
+  comment stays inline before its element. Type arguments, lambda parameters,
+  multi-declarator lists and a commented record pattern have no wrapped form,
+  so their construct keeps its source text verbatim (R4). Added
+  `crates/core/tests/options/comments_in_lists.rs` with one golden pair per
+  context under `tests/java/comments_in_lists/` (11 tests, each asserting the
+  comment survives and that the output is a fixed point, R6). Verified with
+  `cargo test --workspace` (831 core + 18 cli, all green), clippy
+  `-D warnings` and `cargo fmt --check` clean.
+
 - **The CLI can format every Java file in a directory in place
   (directory-formatting)**: `-d` / `--dir DIR` formats each `*.java` file
   directly under `DIR` and `-r` / `--recursive` descends into subdirectories
@@ -31,6 +52,54 @@ tags: [dev, changelog]
   golden tests plus 12 new CLI tests and 6 GUI tests, core untouched),
   `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
   `cargo fmt --all -- --check`.
+
+- **Directory-mode runs show a progress bar (directory-progress-bar)**: with
+  stdout a terminal, `-d` / `--dir` runs (with or without `-r`) draw a
+  determinate `indicatif` bar on stdout — `Formatting [3/12] src/Foo.java` —
+  incrementing once per file with the current file's path relative to the
+  base directory, while per-file warnings/errors print to stderr through the
+  bar's suspend mechanism so the two never interleave; the bar hides itself
+  when stdout is not a terminal (piped/CI), where the run instead ends with a
+  one-line stderr summary (`Formatted 12 files` / `Formatted 11 files, 1
+failed`). File contents are still never written to stdout, so the R42
+  contract is amended rather than broken. `indicatif` 0.18 is a new runtime
+  dependency of the cli crate; exit codes, continue-past-failures and
+  single-file / stdin mode are unchanged. Added three CLI tests pinning the
+  summary line and failure count. Verified with `cargo test --workspace`
+  (817 core golden tests plus 15 cli and 6 GUI tests), the TTY path
+  smoke-tested through a pty, `cargo clippy --workspace --lib --bins --tests
+-- -D warnings`, and `cargo fmt --all -- --check`.
+
+- **Directory formatting runs in parallel across CPU cores
+  (parallel-directory-formatting)**: `-d` / `--dir` runs (with or without `-r`)
+  now format the collected files through rayon's global thread pool, so a run
+  uses every core instead of one; `RAYON_NUM_THREADS` caps the thread count.
+  Per-file output, the write-if-changed rule, the failure count, the summary
+  line, the exit codes and single-file / stdin mode are unchanged, and a
+  one-thread run produces byte-identical files; only the order of per-file
+  stderr messages and the progress bar's file name (the most recently handled
+  file) are best-effort. `rayon` 1.12 — already in the lockfile via
+  `criterion` — becomes a direct dependency of the cli crate. Added three CLI
+  tests (a 64-file parallel run, multi-failure counting, and a one-thread versus
+  default byte-comparison); verified with `cargo test --workspace` (820 core
+  golden tests plus 18 cli and 6 GUI tests), `cargo clippy --workspace --lib
+--bins --tests -- -D warnings`, and `cargo fmt --all -- --check`.
+
+- **`new T[expr]` array creation no longer doubles its brackets
+  (array-creation-double-brackets)**: `array_creation` and `flat_arr_creation`
+  in `crates/core/src/formatter.rs` rendered each `dimensions_expr` by
+  wrapping the whole node in brackets and formatting it via the text-echo
+  fallback, so `new FormFieldApiDto[0]` came out as `new FormFieldApiDto[[0]]`
+  (one pair per dimension, multi-dimensional as `new int[[2]][[3]]`) —
+  invalid Java that broke files. Both paths now format the dimension's inner
+  expression child instead (with the wrapped path tracking the true column
+  after the `[` for margin decisions), so `new int[3]`, `new int[2][3]` and
+  `new int[size]` keep exactly one bracket pair per dimension in every
+  context; the `new int[] { … }` initializer form is untouched. Added the
+  `array_creation` golden suite (3 tests: single brackets, R6 idempotency,
+  initializer-form guard). Verified with `cargo test --workspace` (820 core
+  goldens — 817 + 3 new), `cargo clippy --workspace --lib --bins --tests
+-- -D warnings`, and `cargo fmt --all -- --check`.
 
 ## 2026-09-10
 
