@@ -2387,6 +2387,11 @@ impl<'s> Fmt<'s> {
         }
 
         let mut first_type = true;
+        // A header-zone region already consumed the section boundary: the
+        // first unit after it must not get the forced after-imports/after-
+        // package minimum (a region boundary is an artificial seam, and the
+        // region's own slice already carries the source's blank lines).
+        let mut boundary_consumed = header_region.is_some();
         let mut i = 0;
         while i < top_types.len() {
             let ty = top_types[i];
@@ -2400,6 +2405,19 @@ impl<'s> Fmt<'s> {
             // A protected run (a formatter-control region spanning top-level
             // content) is emitted as one verbatim slice, byte-for-byte.
             if let Some((count, slice_start, slice_end)) = self.protected_run(&top_types, i) {
+                let required_min = if boundary_consumed {
+                    0
+                } else if first_type {
+                    if has_imports {
+                        s.blank_lines_after_imports
+                    } else if has_pkg {
+                        s.blank_lines_after_package
+                    } else {
+                        s.blank_lines_around_class
+                    }
+                } else {
+                    s.blank_lines_around_class
+                };
                 for c in pending.drain(..) {
                     if let Some(pe) = prev_end {
                         self.push_blanks(
@@ -2407,17 +2425,7 @@ impl<'s> Fmt<'s> {
                             self.spacing(
                                 self.blank_lines_between(pe, c.start_byte()),
                                 s.keep_blank_lines_in_declarations,
-                                if first_type {
-                                    if has_imports {
-                                        s.blank_lines_after_imports
-                                    } else if has_pkg {
-                                        s.blank_lines_after_package
-                                    } else {
-                                        s.blank_lines_around_class
-                                    }
-                                } else {
-                                    s.blank_lines_around_class
-                                },
+                                required_min,
                             ),
                         );
                     }
@@ -2431,23 +2439,14 @@ impl<'s> Fmt<'s> {
                         self.spacing(
                             self.blank_lines_between(pe, slice_start),
                             s.keep_blank_lines_in_declarations,
-                            if first_type {
-                                if has_imports {
-                                    s.blank_lines_after_imports
-                                } else if has_pkg {
-                                    s.blank_lines_after_package
-                                } else {
-                                    s.blank_lines_around_class
-                                }
-                            } else {
-                                s.blank_lines_around_class
-                            },
+                            required_min,
                         ),
                     );
                 }
                 self.push_protected(&mut out, &self.src_str()[slice_start..slice_end]);
                 prev_end = Some(slice_end);
                 first_type = false;
+                boundary_consumed = false;
                 i += count;
                 continue;
             }
@@ -2464,7 +2463,9 @@ impl<'s> Fmt<'s> {
             // top-level types are spaced by `BLANK_LINES_AROUND_CLASS`. The
             // gap goes before the type's leading comment run — the comments are
             // attached to the declaration.
-            let required_min = if first_type {
+            let required_min = if boundary_consumed {
+                0
+            } else if first_type {
                 if has_imports {
                     s.blank_lines_after_imports
                 } else if has_pkg {
@@ -2475,6 +2476,7 @@ impl<'s> Fmt<'s> {
             } else {
                 s.blank_lines_around_class
             };
+            boundary_consumed = false;
             let keep_cap = s.keep_blank_lines_in_declarations;
             let mut from = prev_end;
             let mut min = required_min;
@@ -7203,7 +7205,7 @@ impl<'s> Fmt<'s> {
             if let Some((count, slice_start, slice_end)) = self.protected_run(&children, i) {
                 self.push_protected(
                     &mut out,
-                    &self.src_str()[slice_start..slice_end].trim_end_matches(['\r', '\n']),
+                    self.src_str()[slice_start..slice_end].trim_end_matches(['\r', '\n']),
                 );
                 out.push('\n');
                 i += count;

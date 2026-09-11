@@ -105,6 +105,10 @@ The options currently honoured are:
 | `SOFT_MARGINS`                                            | Right margin used for line-length decisions (wins over `RIGHT_MARGIN` when both are set)                                                                      |
 | `RIGHT_MARGIN`                                            | Hard right margin driving line-length decisions when `SOFT_MARGINS` is absent                                                                                 |
 | `LINE_SEPARATOR`                                          | Line separator emitted at every line end — system default, LF, CRLF or CR                                                                                     |
+| `FORMATTER_TAGS_ENABLED`                                  | Honour `// @formatter:off` / `// @formatter:on` comment tags (regions preserved byte-for-byte)                                                                |
+| `FORMATTER_OFF_TAG`                                       | Formatter-off marker text, recognised inside a `//` or `/* */` comment                                                                                        |
+| `FORMATTER_ON_TAG`                                        | Formatter-on marker text, recognised inside a `//` or `/* */` comment                                                                                         |
+| `FORMATTER_TAGS_ACCEPT_REGEXP`                            | Treat the formatter tag texts as regular expressions matched against comment content                                                                          |
 | `CLASS_BRACE_STYLE`                                       | Brace placement for class / interface / enum / record bodies                                                                                                  |
 | `METHOD_BRACE_STYLE`                                      | Brace placement for method, constructor and compact-constructor bodies                                                                                        |
 | `LAMBDA_BRACE_STYLE`                                      | Brace placement for block lambda bodies                                                                                                                       |
@@ -365,6 +369,21 @@ long, `2` = wrap always, `5` = chop down if long. Brace-forcing values
 braces when the body spans multiple lines, `3` = always force braces.
 
 ### Formatting behaviour notes
+
+- Formatter control tags (`FORMATTER_TAGS_ENABLED`, default on): a region
+  between `// @formatter:off` and `// @formatter:on` (or `/* … */` block
+  comment markers, or custom `FORMATTER_OFF_TAG` / `FORMATTER_ON_TAG` texts) is
+  emitted **byte-for-byte** — no re-indentation, no wrapping, no blank-line
+  policy inside. Markers are recognised comment-scoped: only the content of a
+  `//` line comment or `/* */` block comment is compared to the tag
+  (case-insensitively, or by regex `find` with `FORMATTER_TAGS_ACCEPT_REGEXP`,
+  a malformed regex falling back to literal comparison), so a tag inside a
+  string literal or prose never triggers — a deliberate divergence from
+  IntelliJ's raw substring scan. The region spans from the start of the off
+  marker's line through the start of the on marker's line; an unmatched `off`
+  protects to end of file; a second `off` is ignored, an `on` without `off`
+  is ignored, and tags inside a region are inert. `WRAP_LONG_LINES` never
+  wraps a protected line.
 
 - Blank lines follow the scheme's blank-line policy: `KEEP_BLANK_LINES_*` caps
   how many pre-existing blank lines between two constructs are preserved, and

@@ -9,6 +9,22 @@ tags: [dev, changelog]
 
 ## 2026-09-11
 
+- **`// @formatter:off` / `// @formatter:on` regions are preserved
+  byte-for-byte (formatter-tags)**: the four root-level options
+  (`FORMATTER_TAGS_ENABLED`, `FORMATTER_OFF_TAG`, `FORMATTER_ON_TAG`,
+  `FORMATTER_TAGS_ACCEPT_REGEXP`) are now honoured — a region between an off
+  marker and its matching on marker (line or block comment, case-insensitive
+  literal or regexp tags, the latter falling back to literal on a malformed
+  regex) is emitted exactly as written, with no re-indentation or wrapping,
+  an unmatched `off` protecting to end of file, a second `off` ignored, and
+  an `on` without `off` ignored; markers are recognised comment-scoped (a tag
+  inside a string literal or prose never triggers — a deliberate divergence
+  from IntelliJ's raw substring scan), `WRAP_LONG_LINES` skips protected
+  lines, and regions are honoured at unit granularity across top-level
+  types, class members, statements, the package/import header zone, and enum
+  and switch bodies. See
+  [Honour the formatter control tags](backlog/formatter-tags.md).
+
 - **Comments inside comma-separated lists are preserved instead of taking the
   list separator (comments-in-comma-separated-lists)**: a comment between two
   list elements used to be collected as an element by every comma-list

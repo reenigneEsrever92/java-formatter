@@ -25,36 +25,46 @@ Options that appear as direct children of `<code_scheme>` (before any
 `SOFT_MARGINS`, `RIGHT_MARGIN` and `LINE_SEPARATOR` here; the rest are global
 scheme options.
 
-| Option                         | Type   | Default          | Values                                          | Effect                                                                                                                     | Support                                    |
-| ------------------------------ | ------ | ---------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `SOFT_MARGINS`                 | string | empty            | comma-separated integers, e.g. `100,120`        | Right margin(s) used for line-length decisions; java-formatter reads this for its line-length limit.                       | ✅ (first value used as the single margin; wins over `RIGHT_MARGIN` when both are set) |
-| `RIGHT_MARGIN`                 | int    | `120`            | `≥ 0`                                           | Hard right margin; drives the line-length decisions when `SOFT_MARGINS` is absent.                                         | ✅                                        |
-| `LINE_SEPARATOR`               | string | system default   | `&#10;` (LF), `&#13;&#10;` (CRLF), `&#13;` (CR) | Line separator emitted at every line end, including the final newline.                                                     | ✅                                        |
-| `FORMATTER_TAGS_ENABLED`       | bool   | `true`           | `true` / `false`                                | Honour `// @formatter:off` / `// @formatter:on` comment tags.                                                              | n/a                                        |
-| `FORMATTER_TAGS_ACCEPT_REGEXP` | bool   | `false`          | `true` / `false`                                | Treat the formatter tags as regular expressions.                                                                           | n/a                                        |
-| `FORMATTER_ON_TAG`             | string | `@formatter:on`  | any                                             | Text of the "formatter on" tag.                                                                                            | n/a                                        |
-| `FORMATTER_OFF_TAG`            | string | `@formatter:off` | any                                             | Text of the "formatter off" tag.                                                                                           | n/a                                        |
-| `AUTODETECT_INDENTS`           | bool   | `true`           | `true` / `false`                                | Detect indentation from file contents instead of the configured indent.                                                    | n/a                                        |
-| `OTHER_INDENT_OPTIONS`         | block  | —                | nested `<option>` list                          | Legacy global indentation block (pre-2018); the same keys as `<indentOptions>`.                                            | n/a                                        |
+| Option                         | Type   | Default          | Values                                          | Effect                                                                                               | Support                                                                                |
+| ------------------------------ | ------ | ---------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `SOFT_MARGINS`                 | string | empty            | comma-separated integers, e.g. `100,120`        | Right margin(s) used for line-length decisions; java-formatter reads this for its line-length limit. | ✅ (first value used as the single margin; wins over `RIGHT_MARGIN` when both are set) |
+| `RIGHT_MARGIN`                 | int    | `120`            | `≥ 0`                                           | Hard right margin; drives the line-length decisions when `SOFT_MARGINS` is absent.                   | ✅                                                                                     |
+| `LINE_SEPARATOR`               | string | system default   | `&#10;` (LF), `&#13;&#10;` (CRLF), `&#13;` (CR) | Line separator emitted at every line end, including the final newline.                               | ✅                                                                                     |
+| `FORMATTER_TAGS_ENABLED`       | bool   | `true`           | `true` / `false`                                | Honour `// @formatter:off` / `// @formatter:on` comment tags.                                        | ✅ (comment-scoped markers — see note)                                                 |
+| `FORMATTER_TAGS_ACCEPT_REGEXP` | bool   | `false`          | `true` / `false`                                | Treat the formatter tags as regular expressions.                                                     | ✅ (malformed regex falls back to literal)                                             |
+| `FORMATTER_ON_TAG`             | string | `@formatter:on`  | any                                             | Text of the "formatter on" tag.                                                                      | ✅ (comment-scoped)                                                                    |
+| `FORMATTER_OFF_TAG`            | string | `@formatter:off` | any                                             | Text of the "formatter off" tag.                                                                     | ✅ (comment-scoped)                                                                    |
+| `AUTODETECT_INDENTS`           | bool   | `true`           | `true` / `false`                                | Detect indentation from file contents instead of the configured indent.                              | n/a                                                                                    |
+| `OTHER_INDENT_OPTIONS`         | block  | —                | nested `<option>` list                          | Legacy global indentation block (pre-2018); the same keys as `<indentOptions>`.                      | n/a                                                                                    |
+
+Markers are recognised **comment-scoped**: only the content of a `//` line
+comment or a `/* */` block comment, trimmed, is compared to the tag
+(case-insensitively in literal mode; by regex `find` when
+`FORMATTER_TAGS_ACCEPT_REGEXP` is on), so a tag inside a string literal or
+prose never triggers — a deliberate divergence from IntelliJ's raw substring
+scan. A region spans from the start of the off marker's line through the
+start of the on marker's line and is emitted byte-for-byte; an unmatched
+`off` protects to end of file; a second `off` while off is ignored; an `on`
+without a preceding `off` is ignored; tags inside a region are inert.
 
 ## General & comments
 
 Options controlling comment layout and line-break retention.
 
-| Option                                  | Type | Default | Values           | Effect                                                                         | Support |
-| --------------------------------------- | ---- | ------- | ---------------- | ------------------------------------------------------------------------------ | ------- |
-| `LINE_COMMENT_AT_FIRST_COLUMN`          | bool | `true`  | `true` / `false` | Keep `//` line comments in the first column (no indent).                       | ✅      |
-| `BLOCK_COMMENT_AT_FIRST_COLUMN`         | bool | `true`  | `true` / `false` | Keep `/* */` block comments in the first column.                               | ✅      |
-| `LINE_COMMENT_ADD_SPACE`                | bool | `false` | `true` / `false` | Insert a space after `//` when commenting / uncommenting lines.                | n/a     |
-| `BLOCK_COMMENT_ADD_SPACE`               | bool | `false` | `true` / `false` | Insert a space after `/*` and before `*/`.                                     | n/a     |
-| `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`    | bool | `false` | `true` / `false` | Add the space after `//` on reformat.                                          | ✅      |
-| `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` | bool | `false` | `true` / `false` | Add the space inside `// noinspection` suppression comments.                   | ✅      |
-| `DOCUMENTATION_LINE_COMMENT_PREFERRED`  | bool | `false` | `true` / `false` | Prefer documentation line comments where the language supports them.           | n/a     |
-| `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code: a construct whose source spans rows keeps its canonical wrapped layout.               | ✅      |
-| `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.              | ✅      |
-| `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line. | ✅ (source-driven: a same-line body stays, an own-line body keeps its line) |
-| `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                        | ✅      |
-| `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap) at the last whitespace boundary; literals and comments are never split. | ✅      |
+| Option                                  | Type | Default | Values           | Effect                                                                                                                      | Support                                                                     |
+| --------------------------------------- | ---- | ------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `LINE_COMMENT_AT_FIRST_COLUMN`          | bool | `true`  | `true` / `false` | Keep `//` line comments in the first column (no indent).                                                                    | ✅                                                                          |
+| `BLOCK_COMMENT_AT_FIRST_COLUMN`         | bool | `true`  | `true` / `false` | Keep `/* */` block comments in the first column.                                                                            | ✅                                                                          |
+| `LINE_COMMENT_ADD_SPACE`                | bool | `false` | `true` / `false` | Insert a space after `//` when commenting / uncommenting lines.                                                             | n/a                                                                         |
+| `BLOCK_COMMENT_ADD_SPACE`               | bool | `false` | `true` / `false` | Insert a space after `/*` and before `*/`.                                                                                  | n/a                                                                         |
+| `LINE_COMMENT_ADD_SPACE_ON_REFORMAT`    | bool | `false` | `true` / `false` | Add the space after `//` on reformat.                                                                                       | ✅                                                                          |
+| `LINE_COMMENT_ADD_SPACE_IN_SUPPRESSION` | bool | `false` | `true` / `false` | Add the space inside `// noinspection` suppression comments.                                                                | ✅                                                                          |
+| `DOCUMENTATION_LINE_COMMENT_PREFERRED`  | bool | `false` | `true` / `false` | Prefer documentation line comments where the language supports them.                                                        | n/a                                                                         |
+| `KEEP_LINE_BREAKS`                      | bool | `true`  | `true` / `false` | Keep existing line breaks in the code: a construct whose source spans rows keeps its canonical wrapped layout.              | ✅                                                                          |
+| `KEEP_FIRST_COLUMN_COMMENT`             | bool | `true`  | `true` / `false` | Keep comments that start in the first column at the first column.                                                           | ✅                                                                          |
+| `KEEP_CONTROL_STATEMENT_IN_ONE_LINE`    | bool | `true`  | `true` / `false` | Keep `if (…) …;` / `while (…) …;` / `for (…) …;` (without braces) on one line.                                              | ✅ (source-driven: a same-line body stays, an own-line body keeps its line) |
+| `WRAP_COMMENTS`                         | bool | `false` | `true` / `false` | Wrap long comments to the right margin.                                                                                     | ✅                                                                          |
+| `WRAP_LONG_LINES`                       | bool | `false` | `true` / `false` | Wrap lines longer than the right margin (hard wrap) at the last whitespace boundary; literals and comments are never split. | ✅                                                                          |
 
 ## Blank lines
 
@@ -236,12 +246,12 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 
 ### Extends / implements / throws
 
-| Option                 | Type | Default | Effect                                                   | Support |
-| ---------------------- | ---- | ------- | -------------------------------------------------------- | ------- |
-| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` lists.              | ✅      |
+| Option                 | Type | Default | Effect                                                                  | Support |
+| ---------------------- | ---- | ------- | ----------------------------------------------------------------------- | ------- |
+| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` lists.                             | ✅      |
 | `EXTENDS_KEYWORD_WRAP` | bool | `false` | Put the `extends` / `implements` keyword on its own line when wrapping. | ✅      |
-| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                              | ✅      |
-| `THROWS_KEYWORD_WRAP`  | bool | `false` | Put the `throws` keyword on its own line when wrapping.  | ✅      |
+| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                                             | ✅      |
+| `THROWS_KEYWORD_WRAP`  | bool | `false` | Put the `throws` keyword on its own line when wrapping.                 | ✅      |
 
 ### Expressions and statements
 
@@ -280,12 +290,12 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 
 ## Force braces
 
-| Option                | Type | Default | Values                                    | Effect                                   | Support |
-| --------------------- | ---- | ------- | ----------------------------------------- | ---------------------------------------- | ------- |
-| `IF_BRACE_FORCE`      | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `if` / `else` bodies.                     | ✅      |
-| `FOR_BRACE_FORCE`     | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `for` / enhanced-`for` bodies.            | ✅      |
-| `WHILE_BRACE_FORCE`   | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `while` bodies.                           | ✅      |
-| `DOWHILE_BRACE_FORCE` | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `do … while` bodies.                      | ✅      |
+| Option                | Type | Default | Values                                    | Effect                                             | Support |
+| --------------------- | ---- | ------- | ----------------------------------------- | -------------------------------------------------- | ------- |
+| `IF_BRACE_FORCE`      | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `if` / `else` bodies.          | ✅      |
+| `FOR_BRACE_FORCE`     | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `for` / enhanced-`for` bodies. | ✅      |
+| `WHILE_BRACE_FORCE`   | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `while` bodies.                | ✅      |
+| `DOWHILE_BRACE_FORCE` | int  | `0`     | [force codes](index.md#force-brace-codes) | Force braces around `do … while` bodies.           | ✅      |
 
 ## Annotations
 
@@ -333,13 +343,13 @@ The `<indentOptions>` child of `<codeStyleSettings language="JAVA">`:
 | `CONTINUATION_INDENT_SIZE`      | int  | `8`     | Continuation-line indent width in spaces.                                                             | ✅                                                          |
 | `TAB_SIZE`                      | int  | `4`     | Width a tab is displayed / counted as.                                                                | ✅ (tab-stop output model — see [R13](../requirements.md))  |
 | `USE_TAB_CHARACTER`             | bool | `false` | Indent with tab characters instead of spaces.                                                         | ✅ (tab indentation output — see [R13](../requirements.md)) |
-| `SMART_TABS`                    | bool | `false` | Use tabs only where they align to tab stops.                                                          | ✅ (tab output — off-stop indents stay spaces)                             |
-| `LABEL_INDENT_SIZE`             | int  | `0`     | Indent for `label:` statements.                                                                       | ✅ (relative and absolute)                                                |
-| `LABEL_INDENT_ABSOLUTE`         | bool | `false` | Indent labels by `LABEL_INDENT_SIZE` regardless of nesting.                                           | ✅                                                                      |
-| `USE_RELATIVE_INDENTS`          | bool | `false` | Use relative indentation for continuation lines.                                                      | ✅ (with `USE_TAB_CHARACTER`)                                             |
-| `KEEP_INDENTS_ON_EMPTY_LINES`   | bool | `false` | Keep the indent on empty lines.                                                                       | ✅                                                                      |
-| `DECLARATION_PARAMETER_INDENT`  | int  | `-1`    | Per-construct continuation indent for declaration parameters (`-1` = use `CONTINUATION_INDENT_SIZE`). | ✅                                                                      |
-| `GENERIC_TYPE_PARAMETER_INDENT` | int  | `-1`    | Per-construct continuation indent for generic type parameters.                                        | ✅ (parsed; inert — generic lists render flat)                           |
-| `CALL_PARAMETER_INDENT`         | int  | `-1`    | Per-construct continuation indent for call arguments.                                                 | ✅                                                                      |
-| `CHAINED_CALL_INDENT`           | int  | `-1`    | Per-construct continuation indent for chained calls.                                                  | ✅                                                                      |
-| `ARRAY_ELEMENT_INDENT`          | int  | `-1`    | Per-construct continuation indent for array elements.                                                 | ✅                                                                      |
+| `SMART_TABS`                    | bool | `false` | Use tabs only where they align to tab stops.                                                          | ✅ (tab output — off-stop indents stay spaces)              |
+| `LABEL_INDENT_SIZE`             | int  | `0`     | Indent for `label:` statements.                                                                       | ✅ (relative and absolute)                                  |
+| `LABEL_INDENT_ABSOLUTE`         | bool | `false` | Indent labels by `LABEL_INDENT_SIZE` regardless of nesting.                                           | ✅                                                          |
+| `USE_RELATIVE_INDENTS`          | bool | `false` | Use relative indentation for continuation lines.                                                      | ✅ (with `USE_TAB_CHARACTER`)                               |
+| `KEEP_INDENTS_ON_EMPTY_LINES`   | bool | `false` | Keep the indent on empty lines.                                                                       | ✅                                                          |
+| `DECLARATION_PARAMETER_INDENT`  | int  | `-1`    | Per-construct continuation indent for declaration parameters (`-1` = use `CONTINUATION_INDENT_SIZE`). | ✅                                                          |
+| `GENERIC_TYPE_PARAMETER_INDENT` | int  | `-1`    | Per-construct continuation indent for generic type parameters.                                        | ✅ (parsed; inert — generic lists render flat)              |
+| `CALL_PARAMETER_INDENT`         | int  | `-1`    | Per-construct continuation indent for call arguments.                                                 | ✅                                                          |
+| `CHAINED_CALL_INDENT`           | int  | `-1`    | Per-construct continuation indent for chained calls.                                                  | ✅                                                          |
+| `ARRAY_ELEMENT_INDENT`          | int  | `-1`    | Per-construct continuation indent for array elements.                                                 | ✅                                                          |

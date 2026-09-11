@@ -3,7 +3,8 @@ type: ChangeRequest
 kind: feature
 title: Honour the formatter control tags (FORMATTER_TAGS_ENABLED, @formatter:off / @formatter:on)
 description: Implement the IntelliJ formatter-tag feature — a // @formatter:off … // @formatter:on region is preserved byte-for-byte, gated by FORMATTER_TAGS_ENABLED with configurable tags and optional regexp matching.
-state: planned
+state: done
+verified: { by: maintainer, at: 2026-09-11T00:00:00Z }
 priority: medium
 tags: [dev, comments]
 owner: maintainer
