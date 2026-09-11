@@ -9,6 +9,7 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 | State    | Priority | Kind        | Change request                                                                                                                           |
 | -------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | proposed | medium   | feature     | [Format a directory in parallel across CPU cores](parallel-directory-formatting.md)                                                      |
+| proposed | medium   | feature     | [Honour the formatter control tags (FORMATTER_TAGS_ENABLED, @formatter:off / @formatter:on)](formatter-tags.md)                          |
 | done     | high     | bug         | [Comments in comma-separated lists get a list separator, corrupt the construct, or vanish](comments-in-comma-separated-lists.md)         |
 | done     | low      | improvement | [Show a progress bar when formatting a directory](directory-progress-bar.md)                                                             |
 | done     | high     | bug         | [Array creation new T[expr] is rendered with doubled brackets (new T[[expr]])](array-creation-double-brackets.md)                        |

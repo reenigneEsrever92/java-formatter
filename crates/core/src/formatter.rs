@@ -69,6 +69,13 @@ pub fn format_java_diagnosed(source: &str, style: &JavaStyle) -> (String, Vec<Pa
 
     let diagnostics = collect_parse_diagnostics(tree.root_node(), src);
 
+    // `// @formatter:off` / `// @formatter:on` control regions: a lexical scan
+    // of the ORIGINAL source (independent of the parse, so a broken file still
+    // protects its tagged regions) yields the byte ranges whose content is
+    // emitted verbatim. Constructed before `Fmt` so every emission site can
+    // consult it.
+    let protected = prepare_protected_ranges(source, style);
+
     // The formatter reads the ORIGINAL source for node text and byte-gap
     // spacing, so the blanked module lines neither leak into the output nor
     // count as preserved blank lines; only tree-sitter parses the masked text.
@@ -76,14 +83,17 @@ pub fn format_java_diagnosed(source: &str, style: &JavaStyle) -> (String, Vec<Pa
         src: source.as_bytes(),
         style,
         module_imports,
+        protected,
+        protected_out: std::cell::RefCell::new(Vec::new()),
     };
     let mut out = fmt.program(tree.root_node());
 
     // `WRAP_LONG_LINES` post-pass: hard-wrap lines past the right margin at
     // the rightmost safe whitespace. Runs on the LF-normal text, before the
-    // separator substitution below.
+    // separator substitution below. Protected output lines (recorded while
+    // `program` emitted the verbatim slices) are left untouched.
     if style.wrap_long_lines {
-        out = wrap_long_lines(&out, style);
+        out = wrap_long_lines(&out, style, &fmt.protected_out.borrow());
     }
 
     // Finalisation: collapse any `\r\n` that arrived via verbatim echoes of a
@@ -302,6 +312,221 @@ fn prepare_module_imports<'a>(
     (Cow::Owned(masked), kept)
 }
 
+/// One protected region of the source: everything from `start` (the start of
+/// the line carrying the off marker) through `end` (the start of the line
+/// carrying the matching on marker, or the end of the file for an unmatched
+/// off) is emitted byte-for-byte by the formatter instead of re-synthesized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ProtectedRange {
+    start: usize,
+    end: usize,
+}
+
+/// Byte offset of the start of the source line containing `byte`.
+fn line_start(src: &str, byte: usize) -> usize {
+    src[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0)
+}
+
+/// Scan `source` for the formatter control tags and return the protected byte
+/// ranges per the four root-level options (`FORMATTER_TAGS_ENABLED`,
+/// `FORMATTER_OFF_TAG`, `FORMATTER_ON_TAG`, `FORMATTER_TAGS_ACCEPT_REGEXP`):
+///
+/// * the feature is gated — off, no region is protected and output is
+///   byte-identical to a formatter that knows nothing of the tags;
+/// * markers are recognised **comment-scoped**: only the content of a `//`
+///   line comment or a `/* */` block comment, trimmed of surrounding
+///   whitespace, is compared to the tag (case-insensitively in literal mode,
+///   by regex `find` in regexp mode), so a tag inside a string literal or
+///   prose is never a marker (a deliberate divergence from IntelliJ's raw
+///   substring scan);
+/// * an off marker opens a region at the start of its line, an on marker
+///   closes it at the start of its line, a second off while off and an on
+///   without a preceding off are ignored, and an unmatched off protects to
+///   the end of the file.
+///
+/// The scan is lexical (string / char / comment / text-block state tracked
+/// per line), independent of the tree-sitter parse, so a parse error never
+/// disables protection. Ranges come out sorted and non-overlapping.
+fn prepare_protected_ranges(src: &str, style: &JavaStyle) -> Vec<ProtectedRange> {
+    if !style.formatter_tags_enabled {
+        return Vec::new();
+    }
+    let off_tag = style.formatter_off_tag.as_str();
+    let on_tag = style.formatter_on_tag.as_str();
+    // Regexp mode compiles each tag once; a malformed regex falls back to
+    // literal comparison (like IntelliJ). An empty tag never matches.
+    let (off_rx, on_rx) = if style.formatter_tags_accept_regexp {
+        (
+            regex::Regex::new(off_tag).ok(),
+            regex::Regex::new(on_tag).ok(),
+        )
+    } else {
+        (None, None)
+    };
+
+    let is_marker = |comment_text: &str, tag: &str, rx: &Option<regex::Regex>| -> bool {
+        if comment_text.is_empty() || tag.is_empty() {
+            return false;
+        }
+        match rx {
+            Some(rx) => rx.is_match(comment_text),
+            None => comment_text.eq_ignore_ascii_case(tag),
+        }
+    };
+
+    let mut ranges: Vec<ProtectedRange> = Vec::new();
+    let mut open: Option<usize> = None; // region start byte, when a region is open
+    let mut state = ScanState::Code;
+    let bytes = src.as_bytes();
+    let mut i = 0usize;
+    let line_len = |i: usize| {
+        bytes[i..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .map(|p| p + 1)
+            .unwrap_or(bytes.len() - i)
+    };
+    while i < bytes.len() {
+        let b = bytes[i];
+        match state {
+            ScanState::Code => match b {
+                b'"' if bytes[i..].starts_with(b"\"\"\"") => {
+                    state = ScanState::TextBlock;
+                    i += 3;
+                }
+                b'"' => {
+                    state = ScanState::Str;
+                    i += 1;
+                }
+                b'\'' => {
+                    state = ScanState::Char;
+                    i += 1;
+                }
+                b'/' if bytes[i..].starts_with(b"//") => {
+                    // A line comment runs to the end of its line; its content
+                    // is the text after `//`.
+                    let comment_start = i;
+                    let line_end = i + line_len(i);
+                    let content = src[comment_start + 2..line_end]
+                        .trim_end_matches(['\r', '\n'])
+                        .trim();
+                    check_marker(
+                        src,
+                        content,
+                        comment_start,
+                        &off_rx,
+                        &on_rx,
+                        off_tag,
+                        on_tag,
+                        &mut open,
+                        &mut ranges,
+                        &is_marker,
+                    );
+                    i = line_end;
+                }
+                b'/' if bytes[i..].starts_with(b"/*") => {
+                    // A block comment may span lines; its content is the text
+                    // between `/*` and `*/`.
+                    let comment_start = i;
+                    let close = bytes[i + 2..]
+                        .windows(2)
+                        .position(|w| w == b"*/")
+                        .map(|p| i + 2 + p);
+                    match close {
+                        Some(c) => {
+                            let content = src[comment_start + 2..c].trim();
+                            check_marker(
+                                src,
+                                content,
+                                comment_start,
+                                &off_rx,
+                                &on_rx,
+                                off_tag,
+                                on_tag,
+                                &mut open,
+                                &mut ranges,
+                                &is_marker,
+                            );
+                            i = c + 2;
+                        }
+                        None => {
+                            // Unterminated block comment: treat the rest of the
+                            // file as its interior (no marker inside).
+                            break;
+                        }
+                    }
+                }
+                _ => i += utf8_len(b),
+            },
+            ScanState::Str | ScanState::Char => match b {
+                b'\\' => i = (i + 2).min(bytes.len()),
+                b'"' if state == ScanState::Str => {
+                    state = ScanState::Code;
+                    i += 1;
+                }
+                b'\'' if state == ScanState::Char => {
+                    state = ScanState::Code;
+                    i += 1;
+                }
+                _ => i += utf8_len(b),
+            },
+            ScanState::LineComment | ScanState::BlockComment => unreachable!(),
+            ScanState::TextBlock => {
+                if b == b'\\' {
+                    i = (i + 2).min(bytes.len());
+                } else if b == b'"' && bytes[i..].starts_with(b"\"\"\"") {
+                    state = ScanState::Code;
+                    i += 3;
+                } else {
+                    i += utf8_len(b);
+                }
+            }
+        }
+    }
+    // An unmatched off protects the rest of the file.
+    if let Some(start) = open {
+        ranges.push(ProtectedRange {
+            start,
+            end: src.len(),
+        });
+    }
+    ranges
+}
+
+/// Examine one comment's content against the off / on tags and advance the
+/// region state machine. `comment_start` is the comment token's byte offset;
+/// a region opens / closes at the start of the comment's source line.
+#[allow(clippy::too_many_arguments)]
+fn check_marker(
+    src: &str,
+    content: &str,
+    comment_start: usize,
+    off_rx: &Option<regex::Regex>,
+    on_rx: &Option<regex::Regex>,
+    off_tag: &str,
+    on_tag: &str,
+    open: &mut Option<usize>,
+    ranges: &mut Vec<ProtectedRange>,
+    is_marker: &dyn Fn(&str, &str, &Option<regex::Regex>) -> bool,
+) {
+    let region_line_start = line_start(src, comment_start);
+    if is_marker(content, on_tag, on_rx) {
+        // An on marker closes a region when one is open; a lone on is ignored.
+        if let Some(start) = open.take() {
+            ranges.push(ProtectedRange {
+                start,
+                end: region_line_start,
+            });
+        }
+    } else if is_marker(content, off_tag, off_rx) {
+        // A second off while already off is ignored; a fresh off opens a
+        // region at the start of its line.
+        if open.is_none() {
+            *open = Some(region_line_start);
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -311,6 +536,15 @@ struct Fmt<'s> {
     style: &'s JavaStyle,
     /// The preserved `import module …;` lines (see [`prepare_module_imports`]).
     module_imports: Vec<ModuleImport>,
+    /// Byte ranges whose content is emitted verbatim (see
+    /// [`prepare_protected_ranges`])
+    protected: Vec<ProtectedRange>,
+    /// Output line ranges (start, end) of the protected slices emitted so
+    /// far — filled while `out` is assembled, consumed by the
+    /// `WRAP_LONG_LINES` post-pass. A small interior-mutable accumulator so
+    /// the whole recursive emitter can record without threading a `&mut Vec`
+    /// through every call.
+    protected_out: std::cell::RefCell<Vec<(usize, usize)>>,
 }
 
 // A chain link: one `.method(args)` piece
@@ -344,6 +578,14 @@ struct BodyLine {
     indented: bool,
     /// The line content (statement/member text or a full comment).
     text: String,
+    /// `Some(slice_end)` when this line is a protected (formatter-control
+    /// region) verbatim slice: the text carries its own indentation and
+    /// interior newlines, is emitted byte-for-byte via [`Fmt::push_protected`]
+    /// (which records its output line span for the `WRAP_LONG_LINES` skip and
+    /// appends the terminating newline), and `slice_end` is the byte offset
+    /// where the emitted content ended (used for the following gap and the
+    /// closing gap). `None` for ordinary lines.
+    protected: Option<usize>,
     /// Columnar-alignment candidate info: the run kind, the column (within
     /// `text`) of the element to align, and the offset (within `text`) where
     /// padding is inserted. `None` for comments and other non-candidates,
@@ -713,6 +955,49 @@ impl<'s> Fmt<'s> {
         n.child_by_field_name(f)
     }
 
+    // ── formatter-control protected regions ────────────────────────────────
+
+    /// The whole source as a `str`.
+    fn src_str(&self) -> &'s str {
+        std::str::from_utf8(self.src).unwrap_or("")
+    }
+
+    /// Byte offset of the start of the source line containing byte `b`.
+    fn line_start(&self, b: usize) -> usize {
+        self.src_str()[..b].rfind('\n').map(|i| i + 1).unwrap_or(0)
+    }
+
+    /// Byte offset just past the `\n` of the source line containing byte `b`
+    /// (or `src.len()` when the file ends without a newline).
+    fn line_end(&self, b: usize) -> usize {
+        match self.src_str()[b..].find('\n') {
+            Some(i) => b + i + 1,
+            None => self.src.len(),
+        }
+    }
+
+    /// Whether `node` **starts** inside a protected region (its first byte is
+    /// within a region's `[start, end)`). A unit is protected when the region
+    /// begins at or before it — the off-marker comment itself, and every unit
+    /// on a line at or after that line. A merely *overlapping* span is not
+    /// enough: the enclosing top-level type / method whose body contains the
+    /// region must keep its normal layout so the region is honoured at unit
+    /// granularity inside it (the off marker being a trailing comment on a
+    /// line still freezes that whole line, because the slice is line-aligned
+    /// from the marker's line start).
+    fn node_protected(&self, node: Node<'s>) -> bool {
+        let s = node.start_byte();
+        self.protected.iter().any(|r| s >= r.start && s < r.end)
+    }
+
+    /// The protected region whose `[start, end)` contains byte `b`, if any.
+    fn region_containing(&self, b: usize) -> Option<ProtectedRange> {
+        self.protected
+            .iter()
+            .copied()
+            .find(|r| b >= r.start && b < r.end)
+    }
+
     /// The separator emitted for a spacing toggle: one space when on, nothing
     /// when off.
     fn sep(on: bool) -> &'static str {
@@ -1043,6 +1328,54 @@ impl<'s> Fmt<'s> {
             let blanks = self.spacing(existing, keep_cap, required_min);
             self.push_blanks(out, blanks);
         }
+    }
+
+    /// Append a protected (formatter-control region) slice to `out`: the
+    /// text is the verbatim source content (`text` may end with a line ending
+    /// or not). The output line span the emitted content occupies is recorded
+    /// in [`Fmt::protected_out`] so the `WRAP_LONG_LINES` post-pass leaves the
+    /// protected lines untouched.
+    fn push_protected(&self, out: &mut String, text: &str) {
+        let start_line = out.bytes().filter(|&b| b == b'\n').count();
+        let nl = text.bytes().filter(|&b| b == b'\n').count();
+        let ends_nl = text.ends_with('\n');
+        out.push_str(text);
+        let end_line = start_line + nl + usize::from(!ends_nl);
+        // The recorded range covers every line the text produced: `nl`
+        // newlines close `nl` lines, and the final unterminated line (when
+        // the text has no trailing newline) is one more line.
+        self.protected_out.borrow_mut().push((start_line, end_line));
+    }
+
+    /// The unit-list run starting at index `i` when `units[i]` lies inside a
+    /// protected region: `(count, slice_start_byte, slice_end_byte)` — the
+    /// number of consecutive units emitted verbatim, and the raw-source slice
+    /// covering them line-aligned (from the first unit's line start through
+    /// the last joined unit's line end). A unit joins the run when its byte
+    /// span overlaps the region, or when it is a comment whose bytes fall
+    /// inside the run's current line span (a trailing on-marker sharing the
+    /// last protected line stays with it, so no byte is emitted twice). A
+    /// unit straddling the region's start line freezes from its own line
+    /// start (the accepted whole-unit divergence). Returns `None` when the
+    /// unit at `i` is not protected.
+    fn protected_run(&self, units: &[Node<'s>], i: usize) -> Option<(usize, usize, usize)> {
+        if self.protected.is_empty() || !self.node_protected(units[i]) {
+            return None;
+        }
+        let first = units[i];
+        let mut slice_end = self.line_end(first.end_byte());
+        let mut j = i + 1;
+        while j < units.len() {
+            let u = units[j];
+            let covered =
+                self.node_protected(u) || (self.is_comment_node(u) && u.start_byte() < slice_end);
+            if !covered {
+                break;
+            }
+            slice_end = self.line_end(u.end_byte());
+            j += 1;
+        }
+        Some((j - i, self.line_start(first.start_byte()), slice_end))
     }
 
     /// True when `node` carries an annotation among its modifiers.
@@ -1846,81 +2179,284 @@ impl<'s> Fmt<'s> {
         // Byte offset of the end of the content emitted so far (None when the
         // file does not yet contain anything, so no leading gap is inserted).
         let mut prev_end: Option<usize> = None;
-        if has_pkg || has_imports {
+
+        // A formatter-control region covering the package / import / header
+        // zone (it starts before the first top-level type): the import engine
+        // cannot reorder protected imports, so the whole affected leading
+        // section — the header comments at or after the region's start, the
+        // package, the imports and any top-level content up to the region's
+        // end — is emitted verbatim as one slice. Header comments before the
+        // region keep the normal path; the type loop skips anything covered.
+        let header_region = self.protected.iter().copied().find(|r| {
+            match top_types.first() {
+                // A region starting at or before the first top-level unit
+                // covers header / package / import content (the off-marker
+                // comment itself may be the first unit, at the same byte).
+                Some(t) => r.start <= t.start_byte(),
+                None => true, // no type: any region is in the header zone
+            }
+        });
+        let region_end_byte = match header_region {
+            Some(r) => r.end,
+            None => 0,
+        };
+
+        if let Some(region) = header_region {
+            if has_pkg || has_imports {
+                // Header comments strictly before the region (source order:
+                // they precede everything else) keep the normal emission.
+                for c in &header_comments {
+                    if c.end_byte() <= region.start {
+                        out.push_str(&self.comment(*c, 0));
+                        out.push('\n');
+                        prev_end = Some(c.end_byte());
+                    }
+                }
+                // The package, when it sits entirely before the region.
+                if let Some(p) = pkg.filter(|p| p.end_byte() <= region.start) {
+                    self.insert_gap(
+                        &mut out,
+                        prev_end,
+                        p.start_byte(),
+                        s.keep_blank_lines_between_package_declaration_and_header,
+                        s.blank_lines_before_package,
+                    );
+                    out.push_str(&self.package_decl(p));
+                    prev_end = Some(p.end_byte());
+                }
+            } else {
+                for c in &header_comments {
+                    if c.end_byte() <= region.start {
+                        pending.push(*c);
+                    }
+                }
+            }
+            // Imports entirely before the region keep the import engine (their
+            // layout is unaffected by the tags), so a file that has tags only
+            // around some imports still orders the rest normally.
+            let pre_imports: Vec<Node<'s>> = imports
+                .iter()
+                .filter(|i| i.end_byte() <= region.start)
+                .copied()
+                .collect();
+            if !pre_imports.is_empty() {
+                let local_types: Vec<String> = top_types
+                    .iter()
+                    .filter_map(|n| self.fld(*n, "name").map(|nm| self.txt(nm).to_string()))
+                    .collect();
+                let section_start = pre_imports.first().map(|n| n.start_byte());
+                if let Some(start) = section_start {
+                    self.insert_gap(
+                        &mut out,
+                        prev_end,
+                        start,
+                        s.keep_blank_lines_in_declarations,
+                        if has_pkg {
+                            s.blank_lines_after_package
+                                .max(s.blank_lines_before_imports)
+                        } else {
+                            s.blank_lines_before_imports
+                        },
+                    );
+                }
+                let own_package = pkg.map(|p| self.package_name(p));
+                let pre_end = pre_imports.last().map(|n| n.end_byte());
+                out.push_str(&self.imports(pre_imports, &local_types, own_package.as_deref()));
+                prev_end = pre_end;
+            }
+            // The region itself: from its start through its end.
+            self.insert_gap(
+                &mut out,
+                prev_end,
+                region.start.max(prev_end.unwrap_or(region.start)),
+                s.keep_blank_lines_in_declarations,
+                0,
+            );
+            // The verbatim slice spans [region.start, region.end); extend it
+            // to cover the full source through to the byte right before the
+            // first non-covered top-level type, so a region starting in the
+            // imports and ending inside a class still emits the whole tail
+            // verbatim and the type loop never double-emits covered types.
+            let slice_end = top_types
+                .iter()
+                .find(|t| t.start_byte() >= region.end)
+                .map(|t| self.line_start(t.start_byte()))
+                .unwrap_or(region.end)
+                .max(region.end);
+            self.push_protected(&mut out, &self.src_str()[region.start..slice_end]);
+            prev_end = Some(slice_end);
+            // Imports entirely after the region keep the import engine too
+            // (module-import region and own-package handled as above).
+            let post_imports: Vec<Node<'s>> = imports
+                .iter()
+                .filter(|i| i.start_byte() >= region.end)
+                .copied()
+                .collect();
+            if !post_imports.is_empty() {
+                let local_types: Vec<String> = top_types
+                    .iter()
+                    .filter_map(|n| self.fld(*n, "name").map(|nm| self.txt(nm).to_string()))
+                    .collect();
+                let section_start = post_imports.first().map(|n| n.start_byte());
+                if let Some(start) = section_start {
+                    self.insert_gap(
+                        &mut out,
+                        prev_end,
+                        start,
+                        s.keep_blank_lines_in_declarations,
+                        if has_pkg {
+                            s.blank_lines_after_package
+                                .max(s.blank_lines_before_imports)
+                        } else {
+                            s.blank_lines_before_imports
+                        },
+                    );
+                }
+                let own_package = pkg.map(|p| self.package_name(p));
+                let post_end = post_imports.last().map(|n| n.end_byte());
+                out.push_str(&self.imports(post_imports, &local_types, own_package.as_deref()));
+                prev_end = post_end;
+            }
+            // Types fully before the region (none, by construction of
+            // `header_region` — the region starts before the first type) and
+            // types covered by the region are inside the slice; the type loop
+            // below starts at the first uncovered type.
+        } else if has_pkg || has_imports {
+            // No header-zone region: the ordinary header / package / import
+            // emission.
             for c in &header_comments {
                 out.push_str(&self.comment(*c, 0));
                 out.push('\n');
                 prev_end = Some(c.end_byte());
             }
+
+            if let Some(p) = pkg {
+                self.insert_gap(
+                    &mut out,
+                    prev_end,
+                    p.start_byte(),
+                    s.keep_blank_lines_between_package_declaration_and_header,
+                    s.blank_lines_before_package,
+                );
+                out.push_str(&self.package_decl(p));
+                prev_end = Some(p.end_byte());
+            }
+
+            if has_imports {
+                // Names of top-level types declared in this file; on-demand
+                // imports are shadowed by them, so merging must not mask a
+                // local type.
+                let local_types: Vec<String> = top_types
+                    .iter()
+                    .filter_map(|n| self.fld(*n, "name").map(|nm| self.txt(nm).to_string()))
+                    .collect();
+                // The section's first byte in the source: the topmost import
+                // content — the first real import node, or a preserved module
+                // line when one sits above the imports.
+                let section_start = imports
+                    .first()
+                    .map(|n| n.start_byte())
+                    .into_iter()
+                    .chain(self.module_imports.first().map(|m| m.start))
+                    .min();
+                if let Some(start) = section_start {
+                    self.insert_gap(
+                        &mut out,
+                        prev_end,
+                        start,
+                        s.keep_blank_lines_in_declarations,
+                        if has_pkg {
+                            s.blank_lines_after_package
+                                .max(s.blank_lines_before_imports)
+                        } else {
+                            s.blank_lines_before_imports
+                        },
+                    );
+                }
+                let own_package = pkg.map(|p| self.package_name(p));
+                let section_end = if imports.is_empty() {
+                    self.module_imports.last().map(|m| m.end)
+                } else {
+                    Some(imports[imports.len() - 1].end_byte())
+                };
+                out.push_str(&self.imports(imports, &local_types, own_package.as_deref()));
+                prev_end = section_end;
+            }
         } else {
             pending.extend(header_comments.iter().copied());
         }
 
-        if let Some(p) = pkg {
-            self.insert_gap(
-                &mut out,
-                prev_end,
-                p.start_byte(),
-                s.keep_blank_lines_between_package_declaration_and_header,
-                s.blank_lines_before_package,
-            );
-            out.push_str(&self.package_decl(p));
-            prev_end = Some(p.end_byte());
-        }
-
-        if has_imports {
-            // Names of top-level types declared in this file; on-demand imports
-            // are shadowed by them, so merging must not mask a local type.
-            let local_types: Vec<String> = top_types
-                .iter()
-                .filter_map(|n| self.fld(*n, "name").map(|nm| self.txt(nm).to_string()))
-                .collect();
-            // The section's first byte in the source: the topmost import
-            // content — the first real import node, or a preserved module line
-            // when one sits above the imports (module lines above the section
-            // otherwise leak their surrounding blank lines into the gap).
-            let section_start = imports
-                .first()
-                .map(|n| n.start_byte())
-                .into_iter()
-                .chain(self.module_imports.first().map(|m| m.start))
-                .min();
-            if let Some(start) = section_start {
-                self.insert_gap(
-                    &mut out,
-                    prev_end,
-                    start,
-                    s.keep_blank_lines_in_declarations,
-                    if has_pkg {
-                        s.blank_lines_after_package
-                            .max(s.blank_lines_before_imports)
-                    } else {
-                        s.blank_lines_before_imports
-                    },
-                );
-            }
-            // The file's own package name (from `package …;`), used by
-            // `LAYOUT_ON_DEMAND_IMPORT_FROM_SAME_PACKAGE_FIRST`.
-            let own_package = pkg.map(|p| self.package_name(p));
-            // The end of the emitted import content in the source: the last
-            // real import, or the preserved module region when none. Computed
-            // before `imports()` consumes the node list.
-            let section_end = if imports.is_empty() {
-                self.module_imports.last().map(|m| m.end)
-            } else {
-                Some(imports[imports.len() - 1].end_byte())
-            };
-            out.push_str(&self.imports(imports, &local_types, own_package.as_deref()));
-            prev_end = section_end;
-        }
-
         let mut first_type = true;
-        for ty in top_types.iter() {
-            if self.is_comment_node(*ty) {
+        let mut i = 0;
+        while i < top_types.len() {
+            let ty = top_types[i];
+            // Types covered by a header-zone region were already emitted
+            // verbatim by the slice above; do not emit them (or their leading
+            // comments) again.
+            if region_end_byte > 0 && self.region_containing(ty.start_byte()).is_some() {
+                i += 1;
+                continue;
+            }
+            // A protected run (a formatter-control region spanning top-level
+            // content) is emitted as one verbatim slice, byte-for-byte.
+            if let Some((count, slice_start, slice_end)) = self.protected_run(&top_types, i) {
+                for c in pending.drain(..) {
+                    if let Some(pe) = prev_end {
+                        self.push_blanks(
+                            &mut out,
+                            self.spacing(
+                                self.blank_lines_between(pe, c.start_byte()),
+                                s.keep_blank_lines_in_declarations,
+                                if first_type {
+                                    if has_imports {
+                                        s.blank_lines_after_imports
+                                    } else if has_pkg {
+                                        s.blank_lines_after_package
+                                    } else {
+                                        s.blank_lines_around_class
+                                    }
+                                } else {
+                                    s.blank_lines_around_class
+                                },
+                            ),
+                        );
+                    }
+                    out.push_str(&self.comment(c, 0));
+                    out.push('\n');
+                    prev_end = Some(c.end_byte());
+                }
+                if let Some(pe) = prev_end {
+                    self.push_blanks(
+                        &mut out,
+                        self.spacing(
+                            self.blank_lines_between(pe, slice_start),
+                            s.keep_blank_lines_in_declarations,
+                            if first_type {
+                                if has_imports {
+                                    s.blank_lines_after_imports
+                                } else if has_pkg {
+                                    s.blank_lines_after_package
+                                } else {
+                                    s.blank_lines_around_class
+                                }
+                            } else {
+                                s.blank_lines_around_class
+                            },
+                        ),
+                    );
+                }
+                self.push_protected(&mut out, &self.src_str()[slice_start..slice_end]);
+                prev_end = Some(slice_end);
+                first_type = false;
+                i += count;
+                continue;
+            }
+            if self.is_comment_node(ty) {
                 // Comments between the header and a type are attached to that
                 // type (see below); a trailing run with no following type is
                 // flushed after the loop.
-                pending.push(*ty);
+                pending.push(ty);
+                i += 1;
                 continue;
             }
             // The gap before the first top-level type is the section boundary
@@ -1963,14 +2499,15 @@ impl<'s> Fmt<'s> {
             // A javadoc block between the header and a top-level type is laid
             // out by the javadoc engine when the gate is on; every other node
             // (and any comment with the gate off) keeps the verbatim echo.
-            if let Some(j) = self.javadoc(*ty, 0) {
+            if let Some(j) = self.javadoc(ty, 0) {
                 out.push_str(&j);
             } else {
-                out.push_str(&self.type_decl(*ty, 0));
+                out.push_str(&self.type_decl(ty, 0));
             }
             out.push('\n');
             prev_end = Some(ty.end_byte());
             first_type = false;
+            i += 1;
         }
 
         // A trailing comment run with no following type keeps its current
@@ -2625,6 +3162,32 @@ impl<'s> Fmt<'s> {
     }
 
     fn enum_body(&self, _enum_node: Node<'s>, body: Node<'s>, indent: usize) -> String {
+        // A formatter-control region inside an enum body: the constant-list
+        // comma layout and the member loop cannot carry a verbatim slice
+        // without corrupting the comma structure, so the whole body keeps its
+        // source lines verbatim (the accepted whole-enclosing-construct
+        // granularity for this site; the region's marker comments and content
+        // stay byte-for-byte).
+        if let Some(region) = self
+            .named(body)
+            .iter()
+            .find_map(|c| self.region_containing(c.start_byte()))
+        {
+            // A formatter-control region inside an enum body: the
+            // constant-list comma layout / member loop cannot carry a verbatim
+            // slice without corrupting the comma structure, so the body keeps
+            // the region verbatim inside its normal braces (the accepted
+            // whole-enclosing-construct granularity for this site). The part
+            // of the body before the region is left out deliberately — the
+            // enum header and `{` are rendered by the caller — so emit from
+            // the region start through the body's end, then close the brace.
+            let mut out = String::from("{\n");
+            let slice_end = self.line_end(body.end_byte());
+            self.push_protected(&mut out, &self.src_str()[region.start..slice_end]);
+            out.push_str(&self.ind(indent));
+            out.push('}');
+            return out;
+        }
         // Collect enum constants and member declarations. Constants keep their
         // original text and comma layout; the member declarations after the
         // `;` are routed through the same member-spacing path as class bodies.
@@ -3125,6 +3688,11 @@ impl<'s> Fmt<'s> {
         let anchor = node.start_byte(); // the opening `{`
         let mut prev: Option<Node<'s>> = None;
         let mut last: Option<Node<'s>> = None;
+        // Byte offset where the last emitted content ended — a member's
+        // `end_byte()`, or a protected run's `slice_end` (which may sit past
+        // the last covered node, on the far side of its line ending). Gap
+        // measurement uses this; `prev` feeds the around-member minimums.
+        let mut emit_end: Option<usize> = None;
 
         let mut lines: Vec<BodyLine> = Vec::with_capacity(members.len());
         // Comments leading the next member are buffered: they are attached to
@@ -3132,19 +3700,77 @@ impl<'s> Fmt<'s> {
         // them and only the source's blank lines separate them from the
         // declaration.
         let mut leading: Vec<Node<'s>> = Vec::new();
-        for m in members {
+        let mut i = 0;
+        while i < members.len() {
+            let m = members[i];
+            // A protected run (a formatter-control region covering members /
+            // comments) is emitted as one verbatim slice: its own indentation
+            // and interior blank lines stay byte-for-byte, so it never enters
+            // the leading buffer or the member renderer.
+            if let Some((count, slice_start, slice_end)) = self.protected_run(&members, i) {
+                let (mut from, mut min) = match prev {
+                    None => (anchor, self.body_header_min(kind)),
+                    Some(p) => (
+                        emit_end.unwrap_or(p.end_byte()),
+                        self.member_around_min(p, kind)
+                            .max(self.member_around_min(m, kind)),
+                    ),
+                };
+                for c in leading.drain(..) {
+                    let blanks = self.decl_gap(from, c.start_byte(), min);
+                    lines.push(BodyLine {
+                        blanks,
+                        indented: false,
+                        text: self.comment(c, inner),
+                        protected: None,
+                        align: None,
+                    });
+                    from = c.end_byte();
+                    min = 0;
+                }
+                let blanks = self.decl_gap(from, slice_start, min);
+                lines.push(BodyLine {
+                    blanks,
+                    indented: false,
+                    protected: Some(slice_end),
+                    text: self.src_str()[slice_start..slice_end]
+                        .trim_end_matches(['\r', '\n'])
+                        .to_string(),
+                    align: None,
+                });
+                // The run is one unit ending at `slice_end` (the far side of
+                // its last line); `prev` stays the last covered node so the
+                // around-member minimums of a following member are still
+                // driven by real members.
+                prev = Some(members[i + count - 1]);
+                emit_end = Some(slice_end);
+                last = Some(members[i + count - 1]);
+                i += count;
+                continue;
+            }
             if self.is_comment_node(m) {
                 leading.push(m);
+                i += 1;
                 continue;
             }
 
-            let (mut from, mut min) = self.member_gap_bounds(prev, m, anchor, kind);
+            let (from, min) = match prev {
+                None => (anchor, self.body_header_min(kind)),
+                Some(p) => (
+                    emit_end.unwrap_or(p.end_byte()),
+                    self.member_around_min(p, kind)
+                        .max(self.member_around_min(m, kind)),
+                ),
+            };
+            let mut from = from;
+            let mut min = min;
             for c in leading.drain(..) {
                 let blanks = self.decl_gap(from, c.start_byte(), min);
                 lines.push(BodyLine {
                     blanks,
                     indented: false,
                     text: self.comment(c, inner),
+                    protected: None,
                     align: None,
                 });
                 from = c.end_byte();
@@ -3157,10 +3783,13 @@ impl<'s> Fmt<'s> {
                 blanks,
                 indented: true,
                 text,
+                protected: None,
                 align,
             });
             prev = Some(m);
+            emit_end = Some(m.end_byte());
             last = Some(m);
+            i += 1;
         }
         // A trailing comment run with no following member keeps its current
         // no-gap placement.
@@ -3169,6 +3798,7 @@ impl<'s> Fmt<'s> {
                 blanks: 0,
                 indented: false,
                 text: self.comment(c, inner),
+                protected: None,
                 align: None,
             });
             last = Some(c);
@@ -3181,19 +3811,28 @@ impl<'s> Fmt<'s> {
         let mut out = String::from("{\n");
         for l in lines {
             self.push_blanks(&mut out, l.blanks);
-            if l.indented {
-                out.push_str(&self.ind(inner));
+            if l.protected.is_some() {
+                // The verbatim slice carries its own indentation and interior
+                // newlines; the terminating newline is appended here and the
+                // output line span is recorded for the WRAP_LONG_LINES skip.
+                self.push_protected(&mut out, &l.text);
+                out.push('\n');
+            } else {
+                if l.indented {
+                    out.push_str(&self.ind(inner));
+                }
+                out.push_str(&l.text);
+                out.push('\n');
             }
-            out.push_str(&l.text);
-            out.push('\n');
         }
 
         // Closing gap: blank lines before the closing brace. Measured from
-        // the last emitted member (comments included) so re-formatting the
+        // the last emitted content (members and comments included, with a
+        // protected run's end being its slice's far side) so re-formatting the
         // output reproduces the same count.
         if let Some(l) = last {
-            let existing =
-                self.blank_lines_between(l.end_byte(), node.end_byte().saturating_sub(1));
+            let end_byte = emit_end.unwrap_or(l.end_byte());
+            let existing = self.blank_lines_between(end_byte, node.end_byte().saturating_sub(1));
             let blanks = self.spacing(
                 existing,
                 self.style.keep_blank_lines_before_rbrace,
@@ -4538,17 +5177,48 @@ impl<'s> Fmt<'s> {
         let keep = self.style.keep_blank_lines_in_code;
         let sc = self.col_after(0, &self.ind(inner));
         let mut lines: Vec<BodyLine> = Vec::with_capacity(stmts.len());
+        // Byte offset where the last emitted statement / protected run ended,
+        // for the gap to the next statement (a protected slice ends on the
+        // far side of its last line, past the last covered node's `end_byte`).
+        let mut prev_end: Option<usize> = None;
 
-        for (i, s) in stmts.iter().enumerate() {
+        let mut i = 0;
+        while i < stmts.len() {
+            let s = stmts[i];
+            // A protected run (a formatter-control region) is emitted as one
+            // verbatim slice, byte-for-byte, never through `stmt` / `comment`.
+            if let Some((count, slice_start, slice_end)) = self.protected_run(&stmts, i) {
+                let blanks = if i == 0 {
+                    // Leading gap after the opening brace.
+                    let existing = self.blank_lines_between(node.start_byte(), slice_start);
+                    self.spacing(existing, keep, body_lead_min)
+                } else {
+                    let prev_byte = prev_end.unwrap_or_else(|| stmts[i - 1].end_byte());
+                    let existing = self.blank_lines_between(prev_byte, slice_start);
+                    self.spacing(existing, keep, 0)
+                };
+                lines.push(BodyLine {
+                    blanks,
+                    indented: false,
+                    protected: Some(slice_end),
+                    text: self.src_str()[slice_start..slice_end]
+                        .trim_end_matches(['\r', '\n'])
+                        .to_string(),
+                    align: None,
+                });
+                prev_end = Some(slice_end);
+                i += count;
+                continue;
+            }
             let blanks = if i == 0 {
                 // Leading gap after the opening brace.
                 let existing = self.blank_lines_between(node.start_byte(), s.start_byte());
                 self.spacing(existing, keep, body_lead_min)
             } else {
                 // Gap between the previous statement/comment and this one.
-                let prev_end = stmts[i - 1].end_byte();
+                let prev_byte = prev_end.unwrap_or_else(|| stmts[i - 1].end_byte());
                 let cur_start = s.start_byte();
-                let existing = self.blank_lines_between(prev_end, cur_start);
+                let existing = self.blank_lines_between(prev_byte, cur_start);
                 self.spacing(existing, keep, 0)
             };
             if s.is_extra() {
@@ -4559,19 +5229,23 @@ impl<'s> Fmt<'s> {
                 lines.push(BodyLine {
                     blanks,
                     indented: false,
-                    text: self.comment(*s, inner),
+                    text: self.comment(s, inner),
+                    protected: None,
                     align: None,
                 });
             } else {
-                let text = self.stmt(*s, inner, sc);
-                let align = self.stmt_align_elem(*s, &text);
+                let text = self.stmt(s, inner, sc);
+                let align = self.stmt_align_elem(s, &text);
                 lines.push(BodyLine {
                     blanks,
                     indented: true,
                     text,
+                    protected: None,
                     align,
                 });
             }
+            prev_end = Some(s.end_byte());
+            i += 1;
         }
 
         // Columnar alignment over consecutive statements
@@ -4582,16 +5256,22 @@ impl<'s> Fmt<'s> {
         let mut out = String::from("{\n");
         for l in lines {
             self.push_indented_blanks(&mut out, l.blanks, inner);
-            if l.indented {
-                out.push_str(&self.ind(inner));
+            if l.protected.is_some() {
+                self.push_protected(&mut out, &l.text);
+                out.push('\n');
+            } else {
+                if l.indented {
+                    out.push_str(&self.ind(inner));
+                }
+                out.push_str(&l.text);
+                out.push('\n');
             }
-            out.push_str(&l.text);
-            out.push('\n');
         }
 
-        // Closing gap before the right brace.
-        let last = stmts[stmts.len() - 1];
-        let existing = self.blank_lines_between(last.end_byte(), node.end_byte().saturating_sub(1));
+        // Closing gap before the right brace: measured from the last emitted
+        // content (a protected run's end is its slice's far side).
+        let last_end = prev_end.unwrap_or_else(|| stmts[stmts.len() - 1].end_byte());
+        let existing = self.blank_lines_between(last_end, node.end_byte().saturating_sub(1));
         let blanks = self.spacing(existing, self.style.keep_blank_lines_before_rbrace, 0);
         self.push_indented_blanks(&mut out, blanks, inner);
 
@@ -6513,7 +7193,22 @@ impl<'s> Fmt<'s> {
         let statement_level = label_level + 1;
         let mut out = format!("switch{}{}{}{{\n", p_gap, cond, l_gap);
 
-        for ch in self.named(body) {
+        let children = self.named(body);
+        let mut i = 0;
+        while i < children.len() {
+            let ch = children[i];
+            // A protected run (a formatter-control region inside the switch)
+            // is emitted verbatim, whole — labels, groups and comments — so
+            // the region's bytes stay untouched.
+            if let Some((count, slice_start, slice_end)) = self.protected_run(&children, i) {
+                self.push_protected(
+                    &mut out,
+                    &self.src_str()[slice_start..slice_end].trim_end_matches(['\r', '\n']),
+                );
+                out.push('\n');
+                i += count;
+                continue;
+            }
             match ch.kind() {
                 "switch_block_statement_group" => {
                     self.switch_group(ch, label_level, statement_level, &mut out)
@@ -6527,6 +7222,7 @@ impl<'s> Fmt<'s> {
                     out.push('\n');
                 }
             }
+            i += 1;
         }
 
         out.push_str(&self.ind(indent));
@@ -9381,13 +10077,23 @@ fn hard_wrap_line(line: &str, style: &JavaStyle) -> String {
 /// governs comments and string content must stay verbatim), and hard-wraps
 /// every other line whose width exceeds the right margin. The break points
 /// are a pure function of the flat text, so re-formatting reproduces them.
-fn wrap_long_lines(text: &str, style: &JavaStyle) -> String {
+/// Lines inside a formatter-control protected region (`protected_lines`,
+/// recorded while [`Fmt::program`] emitted the verbatim slices) are pushed
+/// unchanged: protected content must stay byte-for-byte.
+fn wrap_long_lines(text: &str, style: &JavaStyle, protected_lines: &[(usize, usize)]) -> String {
     let tab = style.tab_size as usize;
     let margin = style.right_margin as usize;
     let text = text.replace("\r\n", "\n");
     let mut state = ScanState::Code;
     let mut out: Vec<String> = Vec::new();
-    for line in text.split('\n') {
+    for (line_no, line) in text.split('\n').enumerate() {
+        let protected = protected_lines
+            .iter()
+            .any(|&(start, end)| line_no >= start && line_no < end);
+        if protected {
+            out.push(line.to_string());
+            continue;
+        }
         let starts_in_span = matches!(state, ScanState::BlockComment | ScanState::TextBlock);
         let (_, end_state) = scan_line(line, state, margin, tab);
         state = end_state;

@@ -251,6 +251,12 @@ pub struct JavaStyle {
     pub wrap_long_lines: bool,
     pub keep_line_breaks: bool,
 
+    // --- formatter control tags (root-level options) ---
+    pub formatter_tags_enabled: bool,
+    pub formatter_off_tag: String,
+    pub formatter_on_tag: String,
+    pub formatter_tags_accept_regexp: bool,
+
     // --- comments ---
     pub line_comment_at_first_column: bool,
     pub block_comment_at_first_column: bool,
@@ -630,6 +636,10 @@ impl Default for JavaStyle {
             line_separator: LineSeparator::System,
             wrap_long_lines: false,
             keep_line_breaks: true,
+            formatter_tags_enabled: true,
+            formatter_off_tag: "@formatter:off".to_string(),
+            formatter_on_tag: "@formatter:on".to_string(),
+            formatter_tags_accept_regexp: false,
             line_comment_at_first_column: true,
             block_comment_at_first_column: true,
             line_comment_add_space_on_reformat: false,
@@ -914,6 +924,9 @@ pub enum Group {
     BlankLines,
     /// Comment layout.
     Comments,
+    /// Formatter control tags (`// @formatter:off` … `// @formatter:on`),
+    /// under [`Group::Comments`].
+    FormatterTags,
     /// Javadoc formatting.
     Javadoc,
     /// Keeping simple constructs on one line.
@@ -1107,6 +1120,11 @@ pub static GROUPS: &[GroupDef] = &[
         id: Group::Comments,
         title: "Comments",
         parent: None,
+    },
+    GroupDef {
+        id: Group::FormatterTags,
+        title: "Formatter tags",
+        parent: Some(Group::Comments),
     },
     GroupDef {
         id: Group::Javadoc,
@@ -3791,6 +3809,63 @@ pub static OPTIONS: &[OptionDef] = &[
         set: |s, v| {
             if let OptionValue::Bool(b) = v {
                 s.wrap_comments = b;
+            }
+        },
+    },
+    // --- formatter control tags (root-level) ---
+    OptionDef {
+        xml_name: "FORMATTER_TAGS_ENABLED",
+        section: Section::Root,
+        default: OptionValue::Bool(true),
+        group: Group::FormatterTags,
+        description: "Honour the formatter control tags (e.g. // @formatter:off … // @formatter:on).",
+        get: |s| OptionValue::Bool(s.formatter_tags_enabled),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.formatter_tags_enabled = b;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FORMATTER_OFF_TAG",
+        section: Section::Root,
+        // The real default (`"@formatter:off"`) lives in [`JavaStyle::default`];
+        // a `static` can only hold the const-constructible empty String, and
+        // serialize/parse compare against the real default style (like
+        // `BUILDER_METHODS`), so the round-trip stays exact.
+        default: OptionValue::String(String::new()),
+        group: Group::FormatterTags,
+        description: "Formatter-off marker text, recognised inside a // or /* */ comment.",
+        get: |s| OptionValue::String(s.formatter_off_tag.clone()),
+        set: |s, v| {
+            if let OptionValue::String(x) = v {
+                s.formatter_off_tag = x;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FORMATTER_ON_TAG",
+        section: Section::Root,
+        default: OptionValue::String(String::new()),
+        group: Group::FormatterTags,
+        description: "Formatter-on marker text, recognised inside a // or /* */ comment.",
+        get: |s| OptionValue::String(s.formatter_on_tag.clone()),
+        set: |s, v| {
+            if let OptionValue::String(x) = v {
+                s.formatter_on_tag = x;
+            }
+        },
+    },
+    OptionDef {
+        xml_name: "FORMATTER_TAGS_ACCEPT_REGEXP",
+        section: Section::Root,
+        default: OptionValue::Bool(false),
+        group: Group::FormatterTags,
+        description: "Treat the formatter tag texts as regular expressions matched against comment content.",
+        get: |s| OptionValue::Bool(s.formatter_tags_accept_regexp),
+        set: |s, v| {
+            if let OptionValue::Bool(b) = v {
+                s.formatter_tags_accept_regexp = b;
             }
         },
     },

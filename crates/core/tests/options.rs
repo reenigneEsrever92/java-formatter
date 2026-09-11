@@ -173,6 +173,8 @@ mod for_statement_lparen_on_next_line;
 mod for_statement_rparen_on_next_line;
 #[path = "options/for_statement_wrap.rs"]
 mod for_statement_wrap;
+#[path = "options/formatter_tags.rs"]
+mod formatter_tags;
 #[path = "options/generic_type_parameter_indent.rs"]
 mod generic_type_parameter_indent;
 #[path = "options/if_brace_force.rs"]

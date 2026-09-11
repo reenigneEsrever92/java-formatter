@@ -1793,6 +1793,7 @@ name = "java-formatter-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "criterion",
  "indicatif",
  "java-formatter-core",
  "rayon",
@@ -1805,7 +1806,9 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "quick-xml",
+ "regex",
  "serde",
+ "tempfile",
  "tree-sitter",
  "tree-sitter-java",
 ]
