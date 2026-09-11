@@ -6994,7 +6994,18 @@ impl<'s> Fmt<'s> {
         if rp.kind() != "record_pattern" {
             return None;
         }
-        let named = self.named(*rp);
+        self.record_pattern_parts(*rp)
+    }
+
+    /// The record-type text and trimmed component texts of a bare
+    /// `record_pattern` node (the shape `deconstruction_parts` unwraps from
+    /// the `switch_label` chain, and the `pattern`-fielded child of an
+    /// `instanceof_expression`): `Type(` + components + `)`. `None` when the
+    /// node is not exactly that shape — anything else (a `type_pattern`, a
+    /// nested or malformed structure, comments or other extras) keeps the
+    /// verbatim echo (R4).
+    fn record_pattern_parts(&self, rp: Node<'s>) -> Option<(String, Vec<String>)> {
+        let named = self.named(rp);
         let [ty, body] = named.as_slice() else {
             return None;
         };
@@ -7011,6 +7022,63 @@ impl<'s> Fmt<'s> {
             comps.push(self.txt(c).trim().to_string());
         }
         Some((self.txt(*ty).trim().to_string(), comps))
+    }
+
+    /// The flat pattern text of a deconstruction record pattern: `Type(A, B)`
+    /// with `SPACE_BEFORE_DECONSTRUCTION_LIST` between the type and the `(`
+    /// and `SPACE_WITHIN_DECONSTRUCTION_LIST` just inside the parens — the
+    /// `deconstruction_flat_label` body without the `case ` prefix. `None`
+    /// when `rp` is not the modelled record-pattern shape (verbatim echo, R4).
+    fn record_pattern_flat(&self, rp: Node<'s>) -> Option<String> {
+        let (ty, comps) = self.record_pattern_parts(rp)?;
+        let lead = format!(
+            "{}{}",
+            ty,
+            self.sp(self.style.space_before_deconstruction_list)
+        );
+        if comps.is_empty() {
+            return Some(format!("{}()", lead));
+        }
+        let pad = Self::sep(self.style.space_within_deconstruction_list);
+        Some(format!(
+            "{}({}{}{})",
+            lead,
+            pad,
+            comps.join(self.comma_sep(self.style.space_after_comma)),
+            pad
+        ))
+    }
+
+    /// The tail after `left instanceof ` of an `instanceof_expression`: the
+    /// optional `final` keyword (an anonymous token between `instanceof` and
+    /// the type), then either the reference/primitive type with its optional
+    /// pattern-variable name (`String value`, `Point p`) or the flat record
+    /// pattern (`Point(int x, int y)`). Every source token is preserved;
+    /// anything outside the two modelled shapes echoes verbatim (R4).
+    fn instanceof_tail(&self, node: Node<'s>) -> String {
+        let mut tail = String::new();
+        if self
+            .all_ch(node)
+            .iter()
+            .any(|c| !c.is_named() && self.txt(*c) == "final")
+        {
+            tail.push_str("final ");
+        }
+        if let Some(ty) = self.fld(node, "right") {
+            tail.push_str(&self.flat_type(ty));
+            if let Some(name) = self.fld(node, "name") {
+                tail.push(' ');
+                tail.push_str(self.txt(name));
+            }
+        } else if let Some(pat) = self.fld(node, "pattern") {
+            match self.record_pattern_flat(pat) {
+                Some(p) => tail.push_str(&p),
+                None => tail.push_str(self.txt(pat).trim()),
+            }
+        } else {
+            tail.push_str(self.txt(node).trim());
+        }
+        tail
     }
 
     /// The single-line rendering of a record-pattern label (used by
@@ -7664,11 +7732,7 @@ impl<'s> Fmt<'s> {
                     .fld(node, "left")
                     .map(|n| self.expr_ac(n, indent, c, acol))
                     .unwrap_or_default();
-                let right = self
-                    .fld(node, "right")
-                    .map(|n| self.flat_type(n))
-                    .unwrap_or_default();
-                format!("{} instanceof {}", left, right)
+                format!("{} instanceof {}", left, self.instanceof_tail(node))
             }
             "lambda_expression" => self.lambda(node, indent, c),
             "method_reference" => self.method_ref(node),
@@ -9580,11 +9644,7 @@ impl<'s> Fmt<'s> {
                     .fld(node, "left")
                     .map(|n| self.flat(n))
                     .unwrap_or_default();
-                let right = self
-                    .fld(node, "right")
-                    .map(|n| self.flat_type(n))
-                    .unwrap_or_default();
-                format!("{} instanceof {}", left, right)
+                format!("{} instanceof {}", left, self.instanceof_tail(node))
             }
             "parenthesized_expression" => {
                 let inner = node

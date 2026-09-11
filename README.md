@@ -717,6 +717,14 @@ braces when the body spans multiple lines, `3` = always force braces.
   echo (R4). A switch expression whose label cannot stay on the single line
   (wrap-always, or an over-margin list under codes `1` / `5`) falls back to
   the multi-line switch layout, where the label wraps.
+- `instanceof` patterns are preserved: `o instanceof String value` keeps the
+  pattern variable `value`, `o instanceof final String s` keeps `final` and
+  the name, and a record pattern (`o instanceof Point(int x, int y)`) renders
+  flat with the same deconstruction-list spacing options as a `case` label
+  (`SPACE_BEFORE_DECONSTRUCTION_LIST` / `SPACE_WITHIN_DECONSTRUCTION_LIST`).
+  A named record pattern (`o instanceof Point(int x, int y) p`) is valid Java
+  but a tree-sitter-java 0.23.5 grammar gap: it parses as an error (reported
+  as a warning) and the best-effort output drops the trailing name.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
   (naming the construct and its line:column), while the best-effort formatted

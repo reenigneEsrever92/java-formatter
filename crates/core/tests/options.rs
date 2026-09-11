@@ -187,6 +187,8 @@ mod indent_break_from_case;
 mod indent_case_from_switch;
 #[path = "options/indent_size.rs"]
 mod indent_size;
+#[path = "options/instanceof_patterns.rs"]
+mod instanceof_patterns;
 #[path = "options/javadoc_formatting.rs"]
 mod javadoc_formatting;
 #[path = "options/keep_blank_lines_before_rbrace.rs"]

@@ -9,6 +9,15 @@ tags: [dev, changelog]
 
 ## 2026-09-11
 
+- **`instanceof` patterns are preserved instead of silently dropped
+  (instanceof-patterns-vanish)**: both `instanceof_expression` renderers in
+  `crates/core/src/formatter.rs` now render the full pattern tail through the
+  shared `instanceof_tail` helper — the optional `final` keyword, the type
+  with its pattern-variable name (`String value`, `Point p`), or the record
+  pattern rendered flat (`Point(int x, int y)`) under the deconstruction-list
+  spacing options. See
+  [instanceof pattern matching loses the pattern variable, final, or the whole record pattern](backlog/instanceof-patterns-vanish.md).
+
 - **Sealed type `permits` clauses are preserved instead of dropped
   (sealed-permits-clause-vanishes)**: formatting a sealed class or sealed
   interface silently dropped its `permits` list, turning valid Java into

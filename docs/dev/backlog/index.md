@@ -9,6 +9,7 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 | State    | Priority | Kind        | Change request                                                                                                                           |
 | -------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | done     | high     | bug         | [The permits clause of sealed classes and interfaces vanishes when formatting](sealed-permits-clause-vanishes.md)                        |
+| done     | high     | bug         | [instanceof pattern matching loses the pattern variable, final, or the whole record pattern](instanceof-patterns-vanish.md)              |
 | proposed | medium   | feature     | [Format a directory in parallel across CPU cores](parallel-directory-formatting.md)                                                      |
 | done     | medium   | feature     | [Honour the formatter control tags (FORMATTER_TAGS_ENABLED, @formatter:off / @formatter:on)](formatter-tags.md)                          |
 | done     | high     | bug         | [Comments in comma-separated lists get a list separator, corrupt the construct, or vanish](comments-in-comma-separated-lists.md)         |
