@@ -846,7 +846,20 @@ braces when the body spans multiple lines, `3` = always force braces.
   it forces the list onto its wrapped layout, while a single-line block comment
   stays inline before its element. Type arguments, lambda parameters, a
   multi-declarator list and a commented record pattern have no wrapped form, so
-  their construct keeps its source text verbatim (R4).
+  their construct keeps its source text verbatim (R4). A comment in a
+  declaration's modifier area — between its annotations and its keyword
+  modifiers, between a modifier and the type, or as an extra child of the
+  declaration — is content, never a modifier: it keeps its source position on
+  its own line (a `//` never shares its line with code), so `@A @B // c\nprivate
+int x;` stays `@A` / `@B` / `// c` / `private int x;` instead of gluing the
+  comment onto the declaration. Where a construct has no own-line form (an
+  enum constant, a single parameter rendered flat) the comment keeps the
+  construct's source text verbatim (R4). A comment that trails code on the same
+  source line — behind a statement, a member, a top-level type, an opening `{`
+  or a list element — stays on that line (IntelliJ's behaviour); the column
+  options do not apply to it, and a `//` trailing a list element is placed after
+  the separator comma so it cannot swallow list syntax. A comment on a
+  `package` / `import` line is the one exception: it keeps its own line.
 - Javadoc is reformatted only when a scheme sets `ENABLE_JAVADOC_FORMATTING`
   explicitly (the built-in default is `false` — a recorded divergence, see
   docs/settings/java.md — so absent and default schemes keep every comment

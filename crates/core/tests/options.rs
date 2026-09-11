@@ -133,6 +133,8 @@ mod class_annotation_wrap;
 mod class_brace_style;
 #[path = "options/class_count_to_use_import_on_demand.rs"]
 mod class_count_to_use_import_on_demand;
+#[path = "options/comment_in_modifiers.rs"]
+mod comment_in_modifiers;
 #[path = "options/comments_in_lists.rs"]
 mod comments_in_lists;
 #[path = "options/continuation_indent_size.rs"]
@@ -475,6 +477,8 @@ mod ternary_operation_wrap;
 mod throws_keyword_wrap;
 #[path = "options/throws_list_wrap.rs"]
 mod throws_list_wrap;
+#[path = "options/trailing_comments.rs"]
+mod trailing_comments;
 #[path = "options/use_relative_indents.rs"]
 mod use_relative_indents;
 #[path = "options/use_single_class_imports.rs"]

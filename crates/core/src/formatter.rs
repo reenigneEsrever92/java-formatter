@@ -567,6 +567,17 @@ enum BodyKind {
     Anonymous,
 }
 
+/// One part of a declaration's modifier area, in source order: an annotation,
+/// a keyword modifier (`public`, `static`, …), or a comment that sits between
+/// them. Comments are content, never modifiers — keeping them in their own
+/// variant is what stops them being joined onto the declaration.
+#[derive(Debug, Clone)]
+enum ModPart<'s> {
+    Annotation(Node<'s>),
+    Keyword(String),
+    Comment(Node<'s>),
+}
+
 /// One emitted statement / member line, buffered so the columnar
 /// `ALIGN_CONSECUTIVE_*` / `ALIGN_GROUP_*` / `ALIGN_SUBSEQUENT_*` options can
 /// pad runs of consecutive lines before they are written.
@@ -1409,20 +1420,58 @@ impl<'s> Fmt<'s> {
     }
 
     /// Partition a comma-separated list node's named children into entries —
-    /// each element with the run of comment extras that immediately precede it
+    /// each element with the run of comment extras that precede it and the run
+    /// of same-line comments that trail it (`//` or a single-line `/* … */`)
     /// — plus the trailing comment run after the last element.
     #[allow(clippy::type_complexity)]
-    fn list_entries(&self, node: Node<'s>) -> (Vec<(Vec<Node<'s>>, Node<'s>)>, Vec<Node<'s>>) {
-        let mut entries: Vec<(Vec<Node<'s>>, Node<'s>)> = Vec::new();
+    fn list_entries(
+        &self,
+        node: Node<'s>,
+    ) -> (Vec<(Vec<Node<'s>>, Node<'s>, Vec<Node<'s>>)>, Vec<Node<'s>>) {
+        let mut entries: Vec<(Vec<Node<'s>>, Node<'s>, Vec<Node<'s>>)> = Vec::new();
         let mut comments: Vec<Node<'s>> = Vec::new();
+        let mut prev_end_row: Option<usize> = None;
         for ch in self.named(node) {
             if self.is_comment_node(ch) {
-                comments.push(ch);
+                if prev_end_row == Some(ch.start_position().row) && self.is_trailing_comment(ch) {
+                    if let Some(last) = entries.last_mut() {
+                        last.2.push(ch);
+                    }
+                } else {
+                    comments.push(ch);
+                }
             } else {
-                entries.push((std::mem::take(&mut comments), ch));
+                entries.push((std::mem::take(&mut comments), ch, Vec::new()));
+                prev_end_row = Some(ch.end_position().row);
             }
         }
         (entries, comments)
+    }
+
+    /// The suffix of a list entry's trailing comments that sits after the
+    /// element and before the separator comma: a single-line block comment
+    /// stays next to the element it trails.
+    fn trailing_before_comma(&self, trailing: &[Node<'s>]) -> String {
+        let mut out = String::new();
+        for c in trailing {
+            if c.kind() != "line_comment" {
+                out.push_str(&self.trailing_suffix(*c));
+            }
+        }
+        out
+    }
+
+    /// The suffix of a list entry's trailing comments that sits after the
+    /// separator comma: a `//` must not swallow the comma (or the following
+    /// element).
+    fn trailing_after_comma(&self, trailing: &[Node<'s>]) -> String {
+        let mut out = String::new();
+        for c in trailing {
+            if c.kind() == "line_comment" {
+                out.push_str(&self.trailing_suffix(*c));
+            }
+        }
+        out
     }
 
     /// True when any comment child of `node` forces the wrapped layout.
@@ -1432,16 +1481,22 @@ impl<'s> Fmt<'s> {
             .any(|&c| self.is_comment_node(c) && self.comment_forces_break(c))
     }
 
-    /// Flat text of one list element with its leading comments: a single-line
-    /// block comment is inlined before the element. The caller must have
+    /// Flat text of one list element with its leading and trailing comments: a
+    /// single-line block comment is inlined before the element and its
+    /// same-line trailing block comments follow it. The caller must have
     /// checked `list_forces_wrap` — a break-forcing comment is never flattened.
-    fn flat_entry(&self, comments: &[Node<'s>], elem: String) -> String {
+    fn flat_entry(&self, comments: &[Node<'s>], elem: String, trailing: &[Node<'s>]) -> String {
         let mut out = String::new();
         for c in comments {
             out.push_str(self.comment_text(*c));
             out.push(' ');
         }
         out.push_str(&elem);
+        for c in trailing {
+            if c.kind() != "line_comment" {
+                out.push_str(&self.trailing_suffix(*c));
+            }
+        }
         out
     }
 
@@ -1538,13 +1593,6 @@ impl<'s> Fmt<'s> {
         }
         let is_line = node.kind() == "line_comment";
 
-        // A CRLF source leaves a trailing `\r` inside the comment token text
-        // (tree-sitter's `//[^\n]*` matches the `\r`), which would defeat the
-        // single-line checks below — drop it, matching the javadoc and
-        // string-literal renderers; `finalise_line_endings` re-applies the
-        // configured separator at the end.
-        let text = text.trim_end_matches('\r');
-
         // 1. Column placement: a first-column source comment is kept there by
         //    KEEP_FIRST_COLUMN_COMMENT, and the per-kind *_AT_FIRST_COLUMN
         //    toggle pins the comment to column 1; otherwise the contextual
@@ -1558,19 +1606,7 @@ impl<'s> Fmt<'s> {
 
         // 2. Optional space after `//`: ON_REFORMAT for ordinary line
         //    comments, IN_SUPPRESSION for `//noinspection` comments only.
-        let mut body = text.to_string();
-        if is_line {
-            let suppression = body.starts_with("//noinspection");
-            let add_space = if suppression {
-                self.style.line_comment_add_space_in_suppression
-            } else {
-                self.style.line_comment_add_space_on_reformat
-            };
-            let rest = &body[2..];
-            if add_space && !rest.is_empty() && !rest.starts_with(' ') {
-                body = format!("// {}", rest);
-            }
-        }
+        let body = self.comment_body_text(node);
 
         // 3. WRAP_COMMENTS: break an over-margin single-line comment at word
         //    boundaries. Multi-line comments (block comments spanning rows)
@@ -1587,6 +1623,51 @@ impl<'s> Fmt<'s> {
         }
 
         format!("{}{}", pad, body)
+    }
+
+    /// The comment's text with the optional space after `//` applied — no
+    /// column placement and no wrapping. A CRLF source leaves a trailing `\r`
+    /// inside the token text (tree-sitter's `//[^\n]*` matches the `\r`), so it
+    /// is dropped here; `finalise_line_endings` re-applies the configured
+    /// separator.
+    fn comment_body_text(&self, node: Node<'s>) -> String {
+        let mut body = self.txt(node).trim_end_matches(['\r', '\n']).to_string();
+        if node.kind() == "line_comment" {
+            let suppression = body.starts_with("//noinspection");
+            let add_space = if suppression {
+                self.style.line_comment_add_space_in_suppression
+            } else {
+                self.style.line_comment_add_space_on_reformat
+            };
+            let rest = &body[2..];
+            if add_space && !rest.is_empty() && !rest.starts_with(' ') {
+                body = format!("// {}", rest);
+            }
+        }
+        body
+    }
+
+    /// True when a comment can share a line with preceding code: a `//` (it
+    /// ends the line) or a `/* … */` with no newline. A multi-line block
+    /// comment cannot trail — it would span rows — and keeps its own line.
+    fn is_trailing_comment(&self, node: Node<'s>) -> bool {
+        node.kind() == "line_comment" || !self.txt(node).contains('\n')
+    }
+
+    /// The `" text"` suffix that places `node` behind the line it trails,
+    /// without column placement or wrapping (see [`Self::is_trailing_comment`]).
+    fn trailing_suffix(&self, node: Node<'s>) -> String {
+        format!(" {}", self.comment_body_text(node))
+    }
+
+    /// The 0-based source row of byte `offset` (the number of newlines before
+    /// it), for the "is this comment on the same line as the previous unit?"
+    /// test where only the byte offset is tracked.
+    fn row_at(&self, offset: usize) -> usize {
+        self.src_str()[..offset]
+            .bytes()
+            .filter(|b| *b == b'\n')
+            .count()
     }
 
     /// `WRAP_COMMENTS` for a single-line `//…` comment: words are moved onto
@@ -2179,6 +2260,10 @@ impl<'s> Fmt<'s> {
         // Byte offset of the end of the content emitted so far (None when the
         // file does not yet contain anything, so no leading gap is inserted).
         let mut prev_end: Option<usize> = None;
+        // Whether the content ending at `prev_end` was a top-level type (a
+        // trailing comment only attaches to a type, never to an import the
+        // import engine may have reordered).
+        let mut prev_is_type = false;
 
         // A formatter-control region covering the package / import / header
         // zone (it starts before the first top-level type): the import engine
@@ -2445,12 +2530,31 @@ impl<'s> Fmt<'s> {
                 }
                 self.push_protected(&mut out, &self.src_str()[slice_start..slice_end]);
                 prev_end = Some(slice_end);
+                prev_is_type = false;
                 first_type = false;
                 boundary_consumed = false;
                 i += count;
                 continue;
             }
             if self.is_comment_node(ty) {
+                // A comment on the same source line as the previous top-level
+                // type's closing brace trails it.
+                if prev_is_type {
+                    if let Some(pe) = prev_end {
+                        if self.is_trailing_comment(ty)
+                            && self.row_at(pe) == ty.start_position().row
+                        {
+                            if out.ends_with('\n') {
+                                out.pop();
+                            }
+                            out.push_str(&self.trailing_suffix(ty));
+                            out.push('\n');
+                            prev_end = Some(ty.end_byte());
+                            i += 1;
+                            continue;
+                        }
+                    }
+                }
                 // Comments between the header and a type are attached to that
                 // type (see below); a trailing run with no following type is
                 // flushed after the loop.
@@ -2508,6 +2612,7 @@ impl<'s> Fmt<'s> {
             }
             out.push('\n');
             prev_end = Some(ty.end_byte());
+            prev_is_type = true;
             first_type = false;
             i += 1;
         }
@@ -2912,11 +3017,12 @@ impl<'s> Fmt<'s> {
 
     fn class_decl(&self, node: Node<'s>, indent: usize) -> String {
         let c = self.col_after(0, &self.ind(indent));
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         // The post-modifier header tail (class keyword, name, type
         // parameters, extends / implements) is built per modifier form; the
@@ -2961,21 +3067,22 @@ impl<'s> Fmt<'s> {
             header
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.class_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.class_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         let header = if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: a body whose members are all
@@ -2996,11 +3103,12 @@ impl<'s> Fmt<'s> {
 
     fn iface_decl(&self, node: Node<'s>, indent: usize) -> String {
         let c = self.col_after(0, &self.ind(indent));
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut header = String::new();
@@ -3034,21 +3142,22 @@ impl<'s> Fmt<'s> {
             header
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.class_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.class_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         let header = if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`.
@@ -3067,11 +3176,12 @@ impl<'s> Fmt<'s> {
 
     fn enum_decl(&self, node: Node<'s>, indent: usize) -> String {
         let c = self.col_after(0, &self.ind(indent));
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut header = String::new();
@@ -3088,21 +3198,22 @@ impl<'s> Fmt<'s> {
             header
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.class_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.class_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         let header = if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         };
 
         // Enum body: keep original text for enum constants; format methods
@@ -3327,6 +3438,12 @@ impl<'s> Fmt<'s> {
     /// echoes the rest of the constant — name, `(arguments)` and any constant
     /// class `body` — verbatim from the source bytes.
     fn enum_constant(&self, node: Node<'s>, indent: usize) -> String {
+        // A comment anywhere in the constant (its modifier area or a direct
+        // extra) has no layout of its own, so the constant echoes verbatim
+        // (R4) rather than dropping the comment.
+        if self.named(node).iter().any(|n| self.is_comment_node(*n)) {
+            return self.txt(node).to_string();
+        }
         let mods = match self.get_mods(node) {
             Some(m) => m,
             None => return self.txt(node).to_string(),
@@ -3367,11 +3484,12 @@ impl<'s> Fmt<'s> {
 
     fn record_decl(&self, node: Node<'s>, indent: usize) -> String {
         let c = self.col_after(0, &self.ind(indent));
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut header = String::new();
@@ -3403,21 +3521,22 @@ impl<'s> Fmt<'s> {
             header
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.class_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.class_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         let header = if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         };
 
         // `KEEP_SIMPLE_CLASSES_IN_ONE_LINE`: same collapse as `class_decl`
@@ -3466,7 +3585,7 @@ impl<'s> Fmt<'s> {
 
         let parts: Vec<String> = entries
             .iter()
-            .map(|(cm, p)| self.flat_entry(cm, self.flat_param(*p)))
+            .map(|(cm, p, tr)| self.flat_entry(cm, self.flat_param(*p), tr))
             .collect();
         let mut inner = parts.join(self.comma_sep(self.style.space_after_comma));
         inner.push_str(&self.flat_trailing(&trailing));
@@ -3476,7 +3595,15 @@ impl<'s> Fmt<'s> {
         // the header may carry indentation from annotation lines).
         let open_col = self.col_after(c, header);
 
-        let forces = self.list_forces_wrap(node);
+        let forces = self.list_forces_wrap(node)
+            || entries
+                .iter()
+                .any(|(_, p, _)| self.named(*p).iter().any(|n| self.is_comment_node(*n)));
+        // A `//` trailing the last component cannot share its line with a glued
+        // `)`.
+        let last_line_trailing = entries
+            .last()
+            .is_some_and(|(_, _, tr)| tr.iter().any(|c| c.kind() == "line_comment"));
         let should_wrap = forces
             || match self.style.record_components_wrap {
                 WrapStyle::DoNotWrap => false,
@@ -3491,10 +3618,7 @@ impl<'s> Fmt<'s> {
         // wrapped components `n` bare blank lines — the inter-block `,\n`
         // becomes `,` followed by `n + 1` newlines. Inert on a header that
         // is not wrapped (the flat return above).
-        let sep = format!(
-            ",{}",
-            "\n".repeat(self.style.blank_lines_between_record_components as usize + 1)
-        );
+        let sep = "\n".repeat(self.style.blank_lines_between_record_components as usize + 1);
         // Annotation-rendering level for an own-line component's annotations.
         let level = indent + 1;
 
@@ -3510,8 +3634,9 @@ impl<'s> Fmt<'s> {
             };
             let lines: Vec<String> = entries
                 .iter()
-                .map(|(cm, p)| {
-                    format!(
+                .enumerate()
+                .map(|(i, (cm, p, tr))| {
+                    let mut line = format!(
                         "{}{}",
                         pref,
                         self.wrapped_entry(
@@ -3519,7 +3644,13 @@ impl<'s> Fmt<'s> {
                             self.record_component_block(*p, &pref, level, true),
                             &pref
                         )
-                    )
+                    );
+                    line.push_str(&self.trailing_before_comma(tr));
+                    if i + 1 < entries.len() {
+                        line.push(',');
+                    }
+                    line.push_str(&self.trailing_after_comma(tr));
+                    line
                 })
                 .collect();
             let post = self.wrapped_trailing(&trailing, &pref);
@@ -3536,12 +3667,18 @@ impl<'s> Fmt<'s> {
             } else {
                 self.cont(indent)
             };
-            let (cm, p) = &entries[0];
-            let line = format!(
+            let (cm, p, tr) = &entries[0];
+            let mut line = format!(
                 "{}{}",
                 pref,
-                self.wrapped_entry(cm, self.flat_param(*p), &pref)
+                self.wrapped_entry(
+                    cm,
+                    self.record_component_block(*p, &pref, level, true),
+                    &pref
+                )
             );
+            line.push_str(&self.trailing_before_comma(tr));
+            line.push_str(&self.trailing_after_comma(tr));
             let post = self.wrapped_trailing(&trailing, &pref);
             format!("(\n{}{}\n{})", line, post, self.ind(indent))
         } else {
@@ -3555,13 +3692,18 @@ impl<'s> Fmt<'s> {
             } else {
                 self.cont(indent)
             };
-            let (first_cm, first_p) = &entries[0];
+            let (first_cm, first_p, first_tr) = &entries[0];
             let mut out = format!(
                 "({}{}",
                 pad,
                 self.wrapped_entry(first_cm, self.flat_param(*first_p), &pref)
             );
-            for (cm, p) in &entries[1..] {
+            out.push_str(&self.trailing_before_comma(first_tr));
+            if entries.len() > 1 {
+                out.push(',');
+            }
+            out.push_str(&self.trailing_after_comma(first_tr));
+            for (i, (cm, p, tr)) in entries[1..].iter().enumerate() {
                 out.push_str(&sep);
                 out.push_str(&pref);
                 out.push_str(&self.wrapped_entry(
@@ -3569,12 +3711,18 @@ impl<'s> Fmt<'s> {
                     self.record_component_block(*p, &pref, level, true),
                     &pref,
                 ));
+                out.push_str(&self.trailing_before_comma(tr));
+                if i + 2 < entries.len() {
+                    out.push(',');
+                }
+                out.push_str(&self.trailing_after_comma(tr));
             }
             out.push_str(&self.wrapped_trailing(&trailing, &pref));
             // `RPAREN_ON_NEW_LINE_IN_RECORD_HEADER`: `)` closes on its own
             // line at the record indent; otherwise it glues to the last
-            // component's line (padded when the pad is on).
-            if self.style.rparen_on_new_line_in_record_header {
+            // component's line (padded when the pad is on). A `//` trailing the
+            // last component also forces the `)` onto its own line.
+            if self.style.rparen_on_new_line_in_record_header || last_line_trailing {
                 out.push('\n');
                 out.push_str(&self.ind(indent));
                 out.push(')');
@@ -3602,6 +3750,9 @@ impl<'s> Fmt<'s> {
         level: usize,
         own_line: bool,
     ) -> String {
+        if self.decl_has_comment(node) {
+            return self.wrapped_param(node, prefix, level);
+        }
         if own_line
             && self.style.annotation_new_line_in_record_component
             && node.kind() == "formal_parameter"
@@ -3708,6 +3859,8 @@ impl<'s> Fmt<'s> {
         // them and only the source's blank lines separate them from the
         // declaration.
         let mut leading: Vec<Node<'s>> = Vec::new();
+        // Trailing comments on the body's own `{` line.
+        let mut brace_suffix = String::new();
         let mut i = 0;
         while i < members.len() {
             let m = members[i];
@@ -3757,6 +3910,25 @@ impl<'s> Fmt<'s> {
                 continue;
             }
             if self.is_comment_node(m) {
+                // A comment on the same source line as the last member (or the
+                // body's `{`) trails it: append it to that line rather than
+                // giving it its own, so it does not pick up the next member's
+                // around-minimum.
+                let row = m.start_position().row;
+                let on_brace = i == 0 && row == node.start_position().row;
+                let on_prev = prev.is_some_and(|p| p.end_position().row == row)
+                    && lines.last().is_some_and(|l| l.protected.is_none());
+                if self.is_trailing_comment(m) && (on_brace || on_prev) {
+                    if on_brace {
+                        brace_suffix.push_str(&self.trailing_suffix(m));
+                    } else if let Some(last_line) = lines.last_mut() {
+                        last_line.text.push_str(&self.trailing_suffix(m));
+                    }
+                    emit_end = Some(m.end_byte());
+                    last = Some(m);
+                    i += 1;
+                    continue;
+                }
                 leading.push(m);
                 i += 1;
                 continue;
@@ -3816,7 +3988,7 @@ impl<'s> Fmt<'s> {
         // (`ALIGN_GROUP_FIELD_DECLARATIONS`, `ALIGN_SUBSEQUENT_SIMPLE_METHODS`).
         pad_column_runs(&mut lines);
 
-        let mut out = String::from("{\n");
+        let mut out = format!("{{{}\n", brace_suffix);
         for l in lines {
             self.push_blanks(&mut out, l.blanks);
             if l.protected.is_some() {
@@ -3977,11 +4149,12 @@ impl<'s> Fmt<'s> {
     // ── method / constructor / field ──────────────────────────────────────────
 
     fn method_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         // The full declaration is built per modifier form (its column
         // arithmetic — parameter paren column, throws clause column, one-line
@@ -4042,30 +4215,32 @@ impl<'s> Fmt<'s> {
             out
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.method_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.method_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         }
     }
 
     fn constructor_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut out = String::new();
@@ -4112,31 +4287,32 @@ impl<'s> Fmt<'s> {
             out
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.method_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.method_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         }
     }
 
-    /// Compact constructor of a record (`Foo { ... }`): no parameter list.
     fn compact_constructor_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        if self.has_nonleading_comment(node) {
+            return self.txt(node).to_string();
+        }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut out = String::new();
@@ -4151,21 +4327,22 @@ impl<'s> Fmt<'s> {
             out
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.method_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.method_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         }
     }
 
@@ -4198,17 +4375,16 @@ impl<'s> Fmt<'s> {
     }
 
     fn field_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        // A comment between the modifiers, the type or the declarators has no
+        // A comment after the type / among the declarators has no
         // per-declarator layout to carry it (the declarator list is joined on
         // one line), so the declaration keeps its source text verbatim (R4).
-        if self.named(node).iter().any(|n| self.is_comment_node(*n)) {
+        // A comment in the modifier area is laid out on its own line below.
+        if self.has_nonleading_comment(node) {
             return self.txt(node).to_string();
         }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         let tail_with = |prefix: &str, has_mods: bool| -> String {
             let mut out = String::new();
@@ -4291,21 +4467,22 @@ impl<'s> Fmt<'s> {
             out
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.field_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.field_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         }
     }
 
@@ -4325,23 +4502,176 @@ impl<'s> Fmt<'s> {
     // ── modifiers ─────────────────────────────────────────────────────────────
 
     /// Split a `modifiers` node into its annotations (in source order) and its
-    /// keyword modifiers. All children participate: keyword modifiers
-    /// (public, static, …) are UNNAMED nodes.
+    /// keyword modifiers. Comments are content, not modifiers, and are skipped
+    /// (see [`Self::mods_parts_ordered`] for the comment-aware view). All other
+    /// children participate: keyword modifiers (public, static, …) are UNNAMED
+    /// nodes.
     fn mods_parts(&self, node: Node<'s>) -> (Vec<Node<'s>>, Vec<String>) {
         let mut anns: Vec<Node<'s>> = Vec::new();
         let mut keywords: Vec<String> = Vec::new();
-        for ch in self.all_ch(node) {
-            match ch.kind() {
-                "annotation" | "marker_annotation" => anns.push(ch),
-                _ => {
-                    let t = self.txt(ch).trim().to_string();
-                    if !t.is_empty() {
-                        keywords.push(t);
-                    }
-                }
+        for part in self.mods_parts_ordered(node) {
+            match part {
+                ModPart::Annotation(a) => anns.push(a),
+                ModPart::Keyword(k) => keywords.push(k),
+                ModPart::Comment(_) => {}
             }
         }
         (anns, keywords)
+    }
+
+    /// The `modifiers` node's children in source order, each classified as an
+    /// annotation, a keyword modifier, or a comment. Comment children are kept
+    /// as their own variant so a renderer can place them without joining them
+    /// onto the declaration.
+    fn mods_parts_ordered(&self, node: Node<'s>) -> Vec<ModPart<'s>> {
+        let mut parts: Vec<ModPart<'s>> = Vec::new();
+        for ch in self.all_ch(node) {
+            if self.is_comment_node(ch) {
+                parts.push(ModPart::Comment(ch));
+            } else if matches!(ch.kind(), "annotation" | "marker_annotation") {
+                parts.push(ModPart::Annotation(ch));
+            } else {
+                let t = self.txt(ch).trim();
+                if !t.is_empty() {
+                    parts.push(ModPart::Keyword(t.to_string()));
+                }
+            }
+        }
+        parts
+    }
+
+    /// The declaration's own comment children that appear before its first
+    /// non-modifier child (its type / keyword): what tree-sitter attaches
+    /// between the `modifiers` node and the type. Comments after the type
+    /// (e.g. between declarators) are not leading and keep the verbatim
+    /// fallback.
+    fn decl_leading_comments(&self, node: Node<'s>) -> Vec<Node<'s>> {
+        let mut out: Vec<Node<'s>> = Vec::new();
+        for ch in self.all_ch(node) {
+            if ch.kind() == "modifiers" {
+                continue;
+            }
+            if self.is_comment_node(ch) {
+                out.push(ch);
+                continue;
+            }
+            break;
+        }
+        out
+    }
+
+    /// The declaration's whole modifier area in source order: the `modifiers`
+    /// node's parts (annotations, keyword modifiers, and the comments between
+    /// them) followed by the declaration's leading comment children.
+    fn decl_mod_parts(&self, node: Node<'s>) -> Vec<ModPart<'s>> {
+        let mut parts = match self.get_mods(node) {
+            Some(m) => self.mods_parts_ordered(m),
+            None => Vec::new(),
+        };
+        for c in self.decl_leading_comments(node) {
+            parts.push(ModPart::Comment(c));
+        }
+        parts
+    }
+
+    /// True when the declaration carries a comment in its modifier area — in
+    /// the `modifiers` node or between it and the type.
+    fn decl_has_comment(&self, node: Node<'s>) -> bool {
+        if !self.decl_leading_comments(node).is_empty() {
+            return true;
+        }
+        self.get_mods(node)
+            .is_some_and(|m| self.all_ch(m).into_iter().any(|c| self.is_comment_node(c)))
+    }
+
+    /// True when the declaration carries a direct comment child that is not
+    /// part of its modifier area (a comment after the type / among the
+    /// declarators), which no own-line layout can carry.
+    fn has_nonleading_comment(&self, node: Node<'s>) -> bool {
+        let leading = self.decl_leading_comments(node);
+        self.named(node)
+            .iter()
+            .any(|n| self.is_comment_node(*n) && !leading.contains(n))
+    }
+
+    /// The comment-aware one-annotation/one-comment-per-line form of a
+    /// declaration's modifier area. Each annotation and each comment occupies
+    /// its own line (a `//` can never be followed by code on its line), and
+    /// keyword modifiers between breaks are joined with single spaces. The
+    /// first line is returned **without** its indentation — the caller
+    /// (`class_body`, `program`) prefixes the member indent — while every
+    /// later line carries `ind(indent)`. A keyword-terminated block ends
+    /// without a trailing break so `mods_tail` still supplies the pre-type
+    /// gap; an annotation/comment-terminated block ends on a fresh indented
+    /// line so the type starts there.
+    fn decl_mods_per_line(&self, node: Node<'s>, indent: usize) -> String {
+        let parts = self.decl_mod_parts(node);
+        let ind = self.ind(indent);
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut last_was_keyword = false;
+        for part in &parts {
+            match part {
+                ModPart::Annotation(a) => {
+                    if !cur.is_empty() {
+                        lines.push(format!("{}{}", ind, cur));
+                        cur.clear();
+                    }
+                    lines.push(format!("{}{}", ind, self.annotation(*a, indent)));
+                    last_was_keyword = false;
+                }
+                ModPart::Comment(c) => {
+                    if !cur.is_empty() {
+                        lines.push(format!("{}{}", ind, cur));
+                        cur.clear();
+                    }
+                    lines.push(self.comment(*c, indent));
+                    last_was_keyword = false;
+                }
+                ModPart::Keyword(k) => {
+                    if !cur.is_empty() {
+                        cur.push(' ');
+                    }
+                    cur.push_str(k);
+                    last_was_keyword = true;
+                }
+            }
+        }
+        if !cur.is_empty() {
+            lines.push(format!("{}{}", ind, cur));
+        }
+        let mut out = lines.join("\n");
+        // Strip the first line's indent: callers add the member indent.
+        if let Some(rest) = out.strip_prefix(ind.as_str()) {
+            out = rest.to_string();
+        }
+        if !out.is_empty() && !last_was_keyword {
+            out.push('\n');
+            out.push_str(&ind);
+        }
+        out
+    }
+
+    /// The declaration's modifier area in its inline form (annotations and
+    /// keyword modifiers joined with single spaces). `None` when any part is a
+    /// comment — a comment cannot share its line with following code, so the
+    /// own-line form is forced.
+    fn decl_mods_inline(&self, node: Node<'s>, indent: usize) -> Option<String> {
+        let parts = self.decl_mod_parts(node);
+        let mut out: Vec<String> = Vec::new();
+        for part in &parts {
+            match part {
+                ModPart::Annotation(a) => {
+                    if self.annotation(*a, indent).contains('\n') {
+                        return None;
+                    }
+                    out.push(self.flat_annotation(*a));
+                }
+                ModPart::Keyword(k) => out.push(k.clone()),
+                ModPart::Comment(_) => return None,
+            }
+        }
+        Some(out.join(" "))
     }
 
     /// True when a `modifiers` node carries exactly one annotation — the case
@@ -4370,22 +4700,6 @@ impl<'s> Fmt<'s> {
         }
         parts.extend(keywords);
         Some(parts.join(" "))
-    }
-
-    /// The one-annotation-per-line form of a `modifiers` node: each
-    /// annotation on its own line (already including the trailing
-    /// newline+indent), followed by the keyword modifiers joined by spaces —
-    /// exactly the historical `modifiers()` shape (the wrap-always layout).
-    fn mods_per_line(&self, node: Node<'s>, indent: usize) -> String {
-        let (anns, keywords) = self.mods_parts(node);
-        let mut out = String::new();
-        for ann in &anns {
-            out.push_str(&self.annotation(*ann, indent));
-            out.push('\n');
-            out.push_str(&self.ind(indent));
-        }
-        out.push_str(&keywords.join(" "));
-        out
     }
 
     /// The single-annotation exemption at the member / type / local-variable
@@ -4563,7 +4877,7 @@ impl<'s> Fmt<'s> {
         let (entries, trailing) = self.list_entries(node);
         let mut out = entries
             .iter()
-            .map(|(cm, c)| self.flat_entry(cm, self.flat_ann_arg(*c)))
+            .map(|(cm, c, tr)| self.flat_entry(cm, self.flat_ann_arg(*c), tr))
             .collect::<Vec<_>>()
             .join(self.comma_sep(self.style.space_after_comma));
         out.push_str(&self.flat_trailing(&trailing));
@@ -4578,12 +4892,21 @@ impl<'s> Fmt<'s> {
         let ind = self.ind(level);
         let mut lines: Vec<String> = entries
             .iter()
-            .map(|(cm, e)| format!("{}{}", ind, self.wrapped_entry(cm, self.flat(*e), &ind)))
+            .enumerate()
+            .map(|(i, (cm, e, tr))| {
+                let mut line = format!("{}{}", ind, self.wrapped_entry(cm, self.flat(*e), &ind));
+                line.push_str(&self.trailing_before_comma(tr));
+                if i + 1 < entries.len() {
+                    line.push(',');
+                }
+                line.push_str(&self.trailing_after_comma(tr));
+                line
+            })
             .collect();
         if let Some(last) = lines.last_mut() {
             last.push_str(&self.wrapped_trailing(&trailing, &ind));
         }
-        lines.join(",\n")
+        lines.join("\n")
     }
 
     fn flat_ann_arg(&self, node: Node<'s>) -> String {
@@ -4705,22 +5028,39 @@ impl<'s> Fmt<'s> {
         let body = if self.style.new_line_after_lparen_in_annotation {
             let lines: Vec<String> = entries
                 .iter()
-                .map(|(cm, p)| {
-                    format!(
+                .enumerate()
+                .map(|(i, (cm, p, tr))| {
+                    let mut line = format!(
                         "{}{}",
                         element_prefix,
                         self.wrapped_entry(cm, self.flat_ann_arg(*p), &element_prefix)
-                    )
+                    );
+                    line.push_str(&self.trailing_before_comma(tr));
+                    if i + 1 < entries.len() {
+                        line.push(',');
+                    }
+                    line.push_str(&self.trailing_after_comma(tr));
+                    line
                 })
                 .collect();
-            format!("\n{}", lines.join(",\n"))
+            format!("\n{}", lines.join("\n"))
         } else {
-            let (cm0, c0) = &entries[0];
+            let (cm0, c0, tr0) = &entries[0];
             let mut s = self.wrapped_entry(cm0, self.flat_ann_arg(*c0), &element_prefix);
-            for (cm, p) in &entries[1..] {
-                s.push_str(",\n");
+            s.push_str(&self.trailing_before_comma(tr0));
+            if entries.len() > 1 {
+                s.push(',');
+            }
+            s.push_str(&self.trailing_after_comma(tr0));
+            for (i, (cm, p, tr)) in entries[1..].iter().enumerate() {
+                s.push('\n');
                 s.push_str(&element_prefix);
                 s.push_str(&self.wrapped_entry(cm, self.flat_ann_arg(*p), &element_prefix));
+                s.push_str(&self.trailing_before_comma(tr));
+                if i + 2 < entries.len() {
+                    s.push(',');
+                }
+                s.push_str(&self.trailing_after_comma(tr));
             }
             s
         };
@@ -4784,7 +5124,7 @@ impl<'s> Fmt<'s> {
 
         let flat_parts: Vec<String> = entries
             .iter()
-            .map(|(cm, p)| self.flat_entry(cm, self.flat_param(*p)))
+            .map(|(cm, p, tr)| self.flat_entry(cm, self.flat_param(*p), tr))
             .collect();
         let mut flat_inner = flat_parts.join(self.comma_sep(self.style.space_after_comma));
         flat_inner.push_str(&self.flat_trailing(&trailing));
@@ -4803,7 +5143,7 @@ impl<'s> Fmt<'s> {
         // list when the flat form overflows the margin.
         let ann_demand = if is_call {
             false
-        } else if entries.iter().any(|(_, p)| {
+        } else if entries.iter().any(|(_, p, _)| {
             p.kind() == "formal_parameter"
                 && self
                     .get_mods(*p)
@@ -4818,9 +5158,16 @@ impl<'s> Fmt<'s> {
             false
         };
 
+        // A parameter carrying a comment has no flat form (the verbatim echo
+        // may span lines), so the list takes its wrapped one-per-line layout.
+        let comment_demand = entries
+            .iter()
+            .any(|(_, p, _)| self.named(*p).iter().any(|n| self.is_comment_node(*n)));
+
         let should_wrap = self.list_forces_wrap(node)
             || self.keep_wrapped(node)
             || ann_demand
+            || comment_demand
             || match wrap {
                 WrapStyle::DoNotWrap => false,
                 WrapStyle::WrapAlways => true,
@@ -4859,60 +5206,81 @@ impl<'s> Fmt<'s> {
             self.style.align_multiline_parameters
         };
         let first_inline = !lparen_nl && rparen_nl;
+        // A `//` trailing the last parameter cannot share its line with a glued
+        // `)`.
+        let last_line_trailing = entries
+            .last()
+            .is_some_and(|(_, _, tr)| tr.iter().any(|c| c.kind() == "line_comment"));
         let wrapped = if first_inline && align_on {
             let pref = self.align_prefix(c + 1);
             let parts: Vec<String> = entries
                 .iter()
-                .map(|(cm, p)| self.wrapped_entry(cm, self.wrapped_param(*p, &pref, inner), &pref))
+                .enumerate()
+                .map(|(i, (cm, p, tr))| {
+                    let mut line =
+                        self.wrapped_entry(cm, self.wrapped_param(*p, &pref, inner), &pref);
+                    line.push_str(&self.trailing_before_comma(tr));
+                    if i + 1 < entries.len() {
+                        line.push(',');
+                    }
+                    line.push_str(&self.trailing_after_comma(tr));
+                    line
+                })
                 .collect();
-            let mut s = String::new();
-            let mut it = parts.iter();
-            if let Some(first) = it.next() {
-                s.push_str(first);
-            }
-            for p in it {
-                s.push_str(",\n");
-                s.push_str(&pref);
-                s.push_str(p);
-            }
+            let mut s = parts.join(&format!("\n{}", pref));
             s.push_str(&self.wrapped_trailing(&trailing, &pref));
             s
         } else if first_inline {
             // The lparen stays and the rparen moves to its own line, alignment
             // off: the first parameter is glued straight after `(`, the rest
             // stay at the continuation indent.
-            let mut s = self.wrapped_entry(
-                &entries[0].0,
-                self.wrapped_param(entries[0].1, &ind, inner),
-                &ind,
-            );
-            for (cm, p) in &entries[1..] {
-                s.push_str(",\n");
+            let (cm0, p0, tr0) = &entries[0];
+            let mut s = self.wrapped_entry(cm0, self.wrapped_param(*p0, &ind, inner), &ind);
+            s.push_str(&self.trailing_before_comma(tr0));
+            if entries.len() > 1 {
+                s.push(',');
+            }
+            s.push_str(&self.trailing_after_comma(tr0));
+            for (i, (cm, p, tr)) in entries[1..].iter().enumerate() {
+                s.push('\n');
                 s.push_str(&ind);
                 s.push_str(&self.wrapped_entry(cm, self.wrapped_param(*p, &ind, inner), &ind));
+                s.push_str(&self.trailing_before_comma(tr));
+                if i + 2 < entries.len() {
+                    s.push(',');
+                }
+                s.push_str(&self.trailing_after_comma(tr));
             }
             s.push_str(&self.wrapped_trailing(&trailing, &ind));
             s
         } else {
             let mut s = entries
                 .iter()
-                .map(|(cm, p)| {
-                    format!(
+                .enumerate()
+                .map(|(i, (cm, p, tr))| {
+                    let mut line = format!(
                         "{}{}",
                         ind,
                         self.wrapped_entry(cm, self.wrapped_param(*p, &ind, inner), &ind)
-                    )
+                    );
+                    line.push_str(&self.trailing_before_comma(tr));
+                    if i + 1 < entries.len() {
+                        line.push(',');
+                    }
+                    line.push_str(&self.trailing_after_comma(tr));
+                    line
                 })
                 .collect::<Vec<_>>()
-                .join(",\n");
+                .join("\n");
             s.push_str(&self.wrapped_trailing(&trailing, &ind));
             s
         };
 
         // `ALIGN_MULTILINE_METHOD_BRACKETS`: a closing paren on its own line
         // aligns under the opening paren's column instead of the declaration
-        // indent.
-        let tail = if rparen_nl {
+        // indent. A `//` trailing the last parameter also forces the `)` onto
+        // its own line.
+        let tail = if rparen_nl || last_line_trailing {
             if self.style.align_multiline_method_brackets {
                 format!("\n{}", self.align_prefix(c))
             } else {
@@ -4936,6 +5304,11 @@ impl<'s> Fmt<'s> {
     }
 
     fn flat_param(&self, node: Node<'s>) -> String {
+        // A parameter carrying a comment keeps its source text verbatim (R4):
+        // there is no own-line form for the comment inside a flat parameter.
+        if self.named(node).iter().any(|n| self.is_comment_node(*n)) {
+            return self.txt(node).trim().to_string();
+        }
         match node.kind() {
             "formal_parameter" => {
                 let mods = self
@@ -4989,6 +5362,57 @@ impl<'s> Fmt<'s> {
             Some(m) => m,
             None => return self.flat_param(node),
         };
+        // A comment in the parameter's modifier area keeps its position: the
+        // annotation / keyword-modifier lines and each comment get their own
+        // line at `prefix`, then the type / name core. The comment text is the
+        // list convention (no column option), matching the rest of the
+        // parameter-list comment handling.
+        let parts = self.mods_parts_ordered(mods);
+        let leading = self.decl_leading_comments(node);
+        if parts.iter().any(|p| matches!(p, ModPart::Comment(_))) || !leading.is_empty() {
+            let ty = self
+                .fld(node, "type")
+                .map(|n| self.flat_type(n))
+                .unwrap_or_default();
+            let nm = self.fld(node, "name").map(|n| self.txt(n)).unwrap_or("");
+            let mut lines: Vec<String> = Vec::new();
+            let mut cur = String::new();
+            for part in &parts {
+                match part {
+                    ModPart::Annotation(a) => {
+                        if !cur.is_empty() {
+                            lines.push(std::mem::take(&mut cur));
+                        }
+                        lines.push(self.annotation(*a, level));
+                    }
+                    ModPart::Comment(c) => {
+                        if !cur.is_empty() {
+                            lines.push(std::mem::take(&mut cur));
+                        }
+                        lines.push(self.comment_text(*c).to_string());
+                    }
+                    ModPart::Keyword(k) => {
+                        if !cur.is_empty() {
+                            cur.push(' ');
+                        }
+                        cur.push_str(k);
+                    }
+                }
+            }
+            for c in &leading {
+                if !cur.is_empty() {
+                    lines.push(std::mem::take(&mut cur));
+                }
+                lines.push(self.comment_text(*c).to_string());
+            }
+            let core = if cur.is_empty() {
+                format!("{} {}", ty, nm)
+            } else {
+                format!("{} {} {}", cur, ty, nm)
+            };
+            lines.push(core);
+            return lines.join(&format!("\n{}", prefix));
+        }
         let (anns, _) = self.mods_parts(mods);
         if anns.is_empty() {
             return self.flat_param(node);
@@ -5021,15 +5445,17 @@ impl<'s> Fmt<'s> {
     }
 
     fn flat_mods(&self, node: Node<'s>) -> String {
-        // All children: keyword modifiers are unnamed nodes.
+        // All children: keyword modifiers are unnamed nodes; comments are not
+        // modifiers and are skipped (they are content).
         self.all_ch(node)
             .into_iter()
+            .filter(|c| !self.is_comment_node(*c))
             .filter_map(|c| {
-                let t = self.txt(c).trim().to_string();
+                let t = self.txt(c).trim();
                 if t.is_empty() {
                     None
                 } else {
-                    Some(t)
+                    Some(t.to_string())
                 }
             })
             .collect::<Vec<_>>()
@@ -5189,6 +5615,11 @@ impl<'s> Fmt<'s> {
         // for the gap to the next statement (a protected slice ends on the
         // far side of its last line, past the last covered node's `end_byte`).
         let mut prev_end: Option<usize> = None;
+        // Row of the last emitted content's end, for same-line trailing comments.
+        let mut prev_row: Option<usize> = None;
+        // Trailing comments on the block's own `{` line (before the first
+        // statement).
+        let mut brace_suffix = String::new();
 
         let mut i = 0;
         while i < stmts.len() {
@@ -5215,8 +5646,30 @@ impl<'s> Fmt<'s> {
                     align: None,
                 });
                 prev_end = Some(slice_end);
+                prev_row = Some(stmts[i + count - 1].end_position().row);
                 i += count;
                 continue;
+            }
+            // A comment on the same source line as the last emitted content (or
+            // the block's `{`) trails it: append it to that line instead of
+            // giving it its own.
+            if s.is_extra() && self.is_trailing_comment(s) {
+                let row = s.start_position().row;
+                let on_brace = i == 0 && row == node.start_position().row;
+                let on_prev = i > 0
+                    && prev_row == Some(row)
+                    && lines.last().is_some_and(|l| l.protected.is_none());
+                if on_brace || on_prev {
+                    if on_brace {
+                        brace_suffix.push_str(&self.trailing_suffix(s));
+                    } else if let Some(last) = lines.last_mut() {
+                        last.text.push_str(&self.trailing_suffix(s));
+                    }
+                    prev_end = Some(s.end_byte());
+                    prev_row = Some(s.end_position().row);
+                    i += 1;
+                    continue;
+                }
             }
             let blanks = if i == 0 {
                 // Leading gap after the opening brace.
@@ -5253,6 +5706,7 @@ impl<'s> Fmt<'s> {
                 });
             }
             prev_end = Some(s.end_byte());
+            prev_row = Some(s.end_position().row);
             i += 1;
         }
 
@@ -5261,7 +5715,7 @@ impl<'s> Fmt<'s> {
         // `ALIGN_CONSECUTIVE_ASSIGNMENTS`).
         pad_column_runs(&mut lines);
 
-        let mut out = String::from("{\n");
+        let mut out = format!("{{{}\n", brace_suffix);
         for l in lines {
             self.push_indented_blanks(&mut out, l.blanks, inner);
             if l.protected.is_some() {
@@ -5537,17 +5991,16 @@ impl<'s> Fmt<'s> {
     }
 
     fn local_var(&self, node: Node<'s>, indent: usize, c: usize) -> String {
-        // A comment between the type or the declarators has no per-declarator
-        // layout to carry it (the declarator list is joined on one line), so
-        // the declaration keeps its source text verbatim (R4).
-        if self.named(node).iter().any(|n| self.is_comment_node(*n)) {
+        // A comment after the type / among the declarators has no
+        // per-declarator layout to carry it (the declarator list is joined on
+        // one line), so the declaration keeps its source text verbatim (R4).
+        // A comment in the modifier area is laid out on its own line below.
+        if self.has_nonleading_comment(node) {
             return self.txt(node).to_string();
         }
         let mods = self.get_mods(node);
-        let per_line = mods
-            .map(|m| self.mods_per_line(m, indent))
-            .unwrap_or_default();
-        let inline = mods.and_then(|m| self.mods_inline(m, indent));
+        let per_line = self.decl_mods_per_line(node, indent);
+        let inline = self.decl_mods_inline(node, indent);
 
         // The declaration is built per modifier form; the inline form's first
         // line is measured for codes 1/5. Local variables join the modifiers
@@ -5575,7 +6028,10 @@ impl<'s> Fmt<'s> {
 
             // Single declarator whose initialiser can be wrapped at the operator
             // (always under `KEEP_LINE_BREAKS` when the declaration spans rows).
+            // A comment in the modifier area keeps the declaration flat,
+            // matching `field_decl`; annotation-only wrapping is unaffected.
             if decls.len() == 1
+                && !self.decl_has_comment(node)
                 && (self.style.assignment_wrap != WrapStyle::DoNotWrap || self.keep_wrapped(node))
             {
                 if let Some(val) = self.fld(decls[0], "value") {
@@ -5620,21 +6076,22 @@ impl<'s> Fmt<'s> {
             out
         };
 
-        let use_inline = match mods {
-            Some(m) => self.mods_inline_decision(
-                m,
-                indent,
-                self.style.variable_annotation_wrap,
-                &self.inline_tail_first(&tail_with, &inline, c, indent, true),
-                c,
-            ),
-            None => false,
-        };
+        let use_inline = !self.decl_has_comment(node)
+            && match mods {
+                Some(m) => self.mods_inline_decision(
+                    m,
+                    indent,
+                    self.style.variable_annotation_wrap,
+                    &self.inline_tail_first(&tail_with, &inline, c, indent, true),
+                    c,
+                ),
+                None => false,
+            };
 
         if use_inline {
             tail_with(inline.as_deref().unwrap_or(""), true)
         } else {
-            tail_with(&per_line, mods.is_some())
+            tail_with(&per_line, !self.decl_mod_parts(node).is_empty())
         }
     }
 
@@ -7878,7 +8335,7 @@ impl<'s> Fmt<'s> {
         let (entries, trailing) = self.list_entries(node);
         let mut inner = entries
             .iter()
-            .map(|(cm, a)| self.flat_entry(cm, self.flat(*a)))
+            .map(|(cm, a, tr)| self.flat_entry(cm, self.flat(*a), tr))
             .collect::<Vec<_>>()
             .join(self.comma_sep(self.style.space_after_comma));
         inner.push_str(&self.flat_trailing(&trailing));
@@ -7927,12 +8384,12 @@ impl<'s> Fmt<'s> {
         let mut col = c + 1 + usize::from(pad);
         let mut inner = String::new();
         let (entries, trailing) = self.list_entries(node);
-        for (i, (cm, a)) in entries.iter().enumerate() {
+        for (i, (cm, a, tr)) in entries.iter().enumerate() {
             if i > 0 {
                 inner.push_str(sep);
                 col += sep.chars().count();
             }
-            let rendered = self.flat_entry(cm, self.flat_arg_chain(*a, indent, col));
+            let rendered = self.flat_entry(cm, self.flat_arg_chain(*a, indent, col), tr);
             col = self.col_after(col, &rendered);
             inner.push_str(&rendered);
         }
@@ -8121,12 +8578,19 @@ impl<'s> Fmt<'s> {
         let ac = self.col_after(0, &ind);
         let mut arg_strs: Vec<String> = entries
             .iter()
-            .map(|(cm, a)| {
-                format!(
+            .enumerate()
+            .map(|(i, (cm, a, tr))| {
+                let mut line = format!(
                     "{}{}",
                     ind,
                     self.wrapped_entry(cm, self.expr(*a, inner, ac), &ind)
-                )
+                );
+                line.push_str(&self.trailing_before_comma(tr));
+                if i + 1 < entries.len() {
+                    line.push(',');
+                }
+                line.push_str(&self.trailing_after_comma(tr));
+                line
             })
             .collect();
 
@@ -8135,6 +8599,11 @@ impl<'s> Fmt<'s> {
             self.style.call_parameters_rparen_on_next_line,
         );
         let pad = self.style.space_within_method_call_parentheses;
+        // A `//` trailing the last argument cannot share its line with a glued
+        // `)`.
+        let last_line_trailing = entries
+            .last()
+            .is_some_and(|(_, _, tr)| tr.iter().any(|c| c.kind() == "line_comment"));
         // `ALIGN_MULTILINE_PARAMETERS_IN_CALLS`: in the arm that keeps the
         // first argument on the header line after `(`, the first argument is
         // glued right after `(` and the remaining argument lines pad to the
@@ -8143,12 +8612,22 @@ impl<'s> Fmt<'s> {
         // column and stay unchanged.
         if !lp && rp && self.style.align_multiline_parameters_in_calls {
             let pref = self.align_prefix(c + 1);
-            let (cm0, a0) = &entries[0];
+            let (cm0, a0, tr0) = &entries[0];
             let mut body = self.wrapped_entry(cm0, self.expr(*a0, inner, c + 1), &pref);
-            for (cm, a) in &entries[1..] {
-                body.push_str(",\n");
+            body.push_str(&self.trailing_before_comma(tr0));
+            if entries.len() > 1 {
+                body.push(',');
+            }
+            body.push_str(&self.trailing_after_comma(tr0));
+            for (i, (cm, a, tr)) in entries[1..].iter().enumerate() {
+                body.push('\n');
                 body.push_str(&pref);
                 body.push_str(&self.wrapped_entry(cm, self.expr(*a, inner, c + 1), &pref));
+                body.push_str(&self.trailing_before_comma(tr));
+                if i + 2 < entries.len() {
+                    body.push(',');
+                }
+                body.push_str(&self.trailing_after_comma(tr));
             }
             body.push_str(&self.wrapped_trailing(&trailing, &pref));
             let inner_txt = format!("{}\n{}", body, self.ind(indent));
@@ -8162,24 +8641,41 @@ impl<'s> Fmt<'s> {
                 '(',
                 ')',
                 pad,
-                &format!("\n{}\n{}", arg_strs.join(",\n"), self.ind(indent)),
+                &format!("\n{}\n{}", arg_strs.join("\n"), self.ind(indent)),
             ),
-            (true, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join(",\n"))),
+            (true, false) if last_line_trailing => Self::within(
+                '(',
+                ')',
+                pad,
+                &format!("\n{}\n{}", arg_strs.join("\n"), self.ind(indent)),
+            ),
+            (true, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join("\n"))),
             (false, true) => {
                 // The lparen stays and the rparen moves to its own line:
                 // the first argument is glued straight after `(` (no
                 // continuation indent), the rest stay at the continuation
                 // indent.
-                let (cm0, a0) = &entries[0];
+                let (cm0, a0, tr0) = &entries[0];
                 let mut body =
                     self.wrapped_entry(cm0, self.expr(*a0, inner, c + 1 + usize::from(pad)), &ind);
+                body.push_str(&self.trailing_before_comma(tr0));
+                if entries.len() > 1 {
+                    body.push(',');
+                }
+                body.push_str(&self.trailing_after_comma(tr0));
                 for rest in arg_strs.iter().skip(1) {
-                    body.push_str(",\n");
+                    body.push('\n');
                     body.push_str(rest);
                 }
                 Self::within('(', ')', pad, &format!("{}\n{}", body, self.ind(indent)))
             }
-            (false, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join(",\n"))),
+            (false, false) if last_line_trailing => Self::within(
+                '(',
+                ')',
+                pad,
+                &format!("\n{}\n{}", arg_strs.join("\n"), self.ind(indent)),
+            ),
+            (false, false) => Self::within('(', ')', pad, &format!("\n{}", arg_strs.join("\n"))),
         }
     }
 
@@ -8896,7 +9392,7 @@ impl<'s> Fmt<'s> {
                         let (entries, trailing) = self.list_entries(n);
                         let mut inner = entries
                             .iter()
-                            .map(|(cm, p)| self.flat_entry(cm, self.txt(*p).to_string()))
+                            .map(|(cm, p, tr)| self.flat_entry(cm, self.txt(*p).to_string(), tr))
                             .collect::<Vec<_>>()
                             .join(self.comma_sep(self.style.space_after_comma));
                         inner.push_str(&self.flat_trailing(&trailing));
@@ -8989,7 +9485,7 @@ impl<'s> Fmt<'s> {
         let (entries, trailing) = self.list_entries(node);
         let mut inner = entries
             .iter()
-            .map(|(cm, p)| self.flat_entry(cm, self.flat_param(*p)))
+            .map(|(cm, p, tr)| self.flat_entry(cm, self.flat_param(*p), tr))
             .collect::<Vec<_>>()
             .join(self.comma_sep(self.style.space_after_comma));
         inner.push_str(&self.flat_trailing(&trailing));
@@ -9067,6 +9563,11 @@ impl<'s> Fmt<'s> {
         // `ind(inner)` byte-for-byte.
         let ind = self.construct_ind(indent, self.style.array_element_indent, &self.ind(inner));
         let (entries, trailing) = self.list_entries(node);
+        // A `//` trailing the last element cannot share its line with a glued
+        // `}`.
+        let last_line_trailing = entries
+            .last()
+            .is_some_and(|(_, _, tr)| tr.iter().any(|c| c.kind() == "line_comment"));
         let pad = self.style.space_within_array_initializer_braces;
 
         // `ARRAY_INITIALIZER_LBRACE/RBRACE_ON_NEXT_LINE` (default false): the
@@ -9093,34 +9594,42 @@ impl<'s> Fmt<'s> {
             let elem_col = brace_col + 1 + if pad { 1 } else { 0 };
             let pref = self.align_prefix(elem_col);
             let mut first = true;
-            for (cm, e) in &entries {
+            for (i, (cm, e, tr)) in entries.iter().enumerate() {
                 if first {
                     if pad {
                         out.push(' ');
                     }
                     first = false;
                 } else {
-                    out.push_str(",\n");
+                    out.push('\n');
                     out.push_str(&pref);
                 }
                 out.push_str(&self.wrapped_entry(cm, self.expr(*e, inner, elem_col), &pref));
+                out.push_str(&self.trailing_before_comma(tr));
+                if i + 1 < entries.len() {
+                    out.push(',');
+                }
+                out.push_str(&self.trailing_after_comma(tr));
             }
             out.push_str(&self.wrapped_trailing(&trailing, &pref));
         } else {
             out.push('\n');
             let elem_col = self.col_after(0, &ind);
-            let mut first = true;
-            for (cm, e) in &entries {
-                if !first {
-                    out.push_str(",\n");
+            for (i, (cm, e, tr)) in entries.iter().enumerate() {
+                if i > 0 {
+                    out.push('\n');
                 }
-                first = false;
                 out.push_str(&ind);
                 out.push_str(&self.wrapped_entry(cm, self.expr(*e, inner, elem_col), &ind));
+                out.push_str(&self.trailing_before_comma(tr));
+                if i + 1 < entries.len() {
+                    out.push(',');
+                }
+                out.push_str(&self.trailing_after_comma(tr));
             }
             out.push_str(&self.wrapped_trailing(&trailing, &ind));
         }
-        if r_next {
+        if r_next || last_line_trailing {
             out.push('\n');
             out.push_str(&self.ind(indent));
         } else if pad {
@@ -9219,7 +9728,7 @@ impl<'s> Fmt<'s> {
         let (entries, trailing) = self.list_entries(node);
         let inner: Vec<String> = entries
             .iter()
-            .map(|(cm, n)| self.flat_entry(cm, self.flat_type(*n)))
+            .map(|(cm, n, tr)| self.flat_entry(cm, self.flat_type(*n), tr))
             .collect();
         let mut body = inner.join(self.comma_sep(self.style.space_after_comma_in_type_arguments));
         body.push_str(&self.flat_trailing(&trailing));
@@ -9334,7 +9843,7 @@ impl<'s> Fmt<'s> {
             let (entries, trailing) = self.list_entries(tl);
             let inner: Vec<String> = entries
                 .iter()
-                .map(|(cm, n)| self.flat_entry(cm, self.flat_type(*n)))
+                .map(|(cm, n, tr)| self.flat_entry(cm, self.flat_type(*n), tr))
                 .collect();
             if !inner.is_empty() {
                 let mut body = inner.join(self.comma_sep(self.style.space_after_comma));
@@ -9446,7 +9955,7 @@ impl<'s> Fmt<'s> {
         let forces = self.list_forces_wrap(node);
         let flat_items: Vec<String> = entries
             .iter()
-            .map(|(cm, n)| self.flat_entry(cm, render(*n)))
+            .map(|(cm, n, tr)| self.flat_entry(cm, render(*n), tr))
             .collect();
         let mut flat_inner = flat_items.join(self.comma_sep(self.style.space_after_comma));
         flat_inner.push_str(&self.flat_trailing(&trailing));
@@ -9501,14 +10010,17 @@ impl<'s> Fmt<'s> {
 
         let mut lines: Vec<String> = entries
             .iter()
-            .map(|(cm, n)| self.wrapped_entry(cm, render(*n), &item_pref))
+            .enumerate()
+            .map(|(i, (cm, n, tr))| {
+                let mut line = self.wrapped_entry(cm, render(*n), &item_pref);
+                line.push_str(&self.trailing_before_comma(tr));
+                if i + 1 < entries.len() {
+                    line.push_str(comma);
+                }
+                line.push_str(&self.trailing_after_comma(tr));
+                line
+            })
             .collect();
-        let n = lines.len();
-        for (i, line) in lines.iter_mut().enumerate() {
-            if i + 1 < n {
-                line.push_str(comma);
-            }
-        }
         if let Some(last) = lines.last_mut() {
             last.push_str(&self.wrapped_trailing(&trailing, &item_pref));
         }
@@ -9754,7 +10266,7 @@ impl<'s> Fmt<'s> {
                         let (entries, trailing) = self.list_entries(n);
                         let mut inner = entries
                             .iter()
-                            .map(|(cm, p)| self.flat_entry(cm, self.txt(*p).to_string()))
+                            .map(|(cm, p, tr)| self.flat_entry(cm, self.txt(*p).to_string(), tr))
                             .collect::<Vec<_>>()
                             .join(self.comma_sep(self.style.space_after_comma));
                         inner.push_str(&self.flat_trailing(&trailing));
@@ -9814,7 +10326,7 @@ impl<'s> Fmt<'s> {
         }
         let mut inner = entries
             .iter()
-            .map(|(cm, e)| self.flat_entry(cm, self.flat(*e)))
+            .map(|(cm, e, tr)| self.flat_entry(cm, self.flat(*e), tr))
             .collect::<Vec<_>>()
             .join(self.comma_sep(self.style.space_after_comma));
         inner.push_str(&self.flat_trailing(&trailing));

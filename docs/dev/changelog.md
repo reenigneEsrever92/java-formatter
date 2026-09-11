@@ -9,6 +9,32 @@ tags: [dev, changelog]
 
 ## 2026-09-11
 
+- **A trailing comment stays behind its code (trailing-comments)**: a `//` or
+  single-line `/* … */` comment on the same source line as the code it follows
+  is no longer moved onto its own line — `int x = 0; // c` stays put for
+  statements, class / enum members and their `{` lines, top-level types and
+  comma-separated list elements. `crates/core/src/formatter.rs` tracks the last
+  emitted row at each emit site, places a list element's `//` after the
+  separator comma, and forces the closing delimiter onto its own line when the
+  last element trails a `//`; a `package` / `import` trailing comment is out of
+  scope. See
+  [A trailing comment is moved onto its own line instead of staying behind the code](backlog/trailing-comments.md).
+
+- **A comment in a declaration's modifier area is preserved on its own line
+  (comment-in-modifiers)**: a `//` / `/* */` comment sitting between a
+  declaration's annotations, keyword modifiers and its type (or attached as an
+  extra child of the declaration) is no longer treated as a keyword modifier,
+  so it is no longer joined onto the declaration and commented out (as in
+  `@Ann @Other // c` swallowing `private int x;`) nor silently dropped from a
+  method, type or parameter. `crates/core/src/formatter.rs` now models the
+  modifier area as
+  ordered annotation / keyword / comment parts and lays each comment out on its
+  own line at its source position, forcing the own-line modifier form so no
+  code shares a line with a `//`; constructs with no own-line form (an enum
+  constant, a single parameter rendered flat) keep their source verbatim (R4).
+  See
+  [A comment in a declaration's modifier area is joined onto the code or silently dropped](backlog/comment-in-modifiers.md).
+
 - **`instanceof` patterns are preserved instead of silently dropped
   (instanceof-patterns-vanish)**: both `instanceof_expression` renderers in
   `crates/core/src/formatter.rs` now render the full pattern tail through the

@@ -8,6 +8,8 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 
 | State    | Priority | Kind        | Change request                                                                                                                           |
 | -------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| done     | high     | bug         | [A trailing comment is moved onto its own line instead of staying behind the code](trailing-comments.md)                                 |
+| done     | high     | bug         | [A comment in a declaration's modifier area is joined onto the code or silently dropped](comment-in-modifiers.md)                        |
 | done     | high     | bug         | [The permits clause of sealed classes and interfaces vanishes when formatting](sealed-permits-clause-vanishes.md)                        |
 | done     | high     | bug         | [instanceof pattern matching loses the pattern variable, final, or the whole record pattern](instanceof-patterns-vanish.md)              |
 | proposed | medium   | feature     | [Format a directory in parallel across CPU cores](parallel-directory-formatting.md)                                                      |
