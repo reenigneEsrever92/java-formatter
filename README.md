@@ -156,8 +156,8 @@ The options currently honoured are:
 | `MODIFIER_LIST_WRAP`                                      | Wrap after the modifier / annotation list of a declaration                                                                                                    |
 | `PARENTHESES_EXPRESSION_LPAREN_WRAP`                      | Whether a wrapped parenthesized expression's `(` goes on its own line                                                                                         |
 | `PARENTHESES_EXPRESSION_RPAREN_WRAP`                      | Whether a wrapped parenthesized expression's `)` goes on its own line                                                                                         |
-| `EXTENDS_LIST_WRAP`                                       | Wrapping of `extends` / `implements` lists of type declarations                                                                                               |
-| `EXTENDS_KEYWORD_WRAP`                                    | Whether a wrapped list's `extends` / `implements` keyword goes on its own line                                                                                |
+| `EXTENDS_LIST_WRAP`                                       | Wrapping of `extends` / `implements` / `permits` lists of type declarations                                                                                   |
+| `EXTENDS_KEYWORD_WRAP`                                    | Whether a wrapped list's `extends` / `implements` / `permits` keyword goes on its own line                                                                    |
 | `THROWS_LIST_WRAP`                                        | Wrapping of method / constructor `throws` lists                                                                                                               |
 | `THROWS_KEYWORD_WRAP`                                     | Whether a wrapped `throws` list's keyword goes on its own line                                                                                                |
 | `SWITCH_EXPRESSIONS_WRAP`                                 | Wrapping of switch expressions used as values                                                                                                                 |
@@ -235,7 +235,7 @@ The options currently honoured are:
 | `ALIGN_MULTILINE_TERNARY_OPERATION`                       | Align the `?` / `:` lines of a wrapped ternary under the condition                                                                                            |
 | `ALIGN_MULTILINE_THROWS_LIST`                             | Align wrapped `throws` list entries under the first exception                                                                                                 |
 | `ALIGN_THROWS_KEYWORD`                                    | Align a wrapped `throws` keyword at its natural header column                                                                                                 |
-| `ALIGN_MULTILINE_EXTENDS_LIST`                            | Align wrapped `extends` / `implements` entries under the first entry                                                                                          |
+| `ALIGN_MULTILINE_EXTENDS_LIST`                            | Align wrapped `extends` / `implements` / `permits` entries under the first entry                                                                              |
 | `ALIGN_MULTILINE_METHOD_BRACKETS`                         | Align a wrapped declaration's `)` under its `(`                                                                                                               |
 | `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`                | Align a wrapped parenthesized expression's continuation under the `(`                                                                                         |
 | `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION`            | Align a wrapped array initializer's entries under the first entry                                                                                             |
@@ -462,8 +462,8 @@ braces when the body spans multiple lines, `3` = always force braces.
   `RESOURCE_LIST_WRAP` (with `RESOURCE_LIST_LPAREN_ON_NEXT_LINE` /
   `RESOURCE_LIST_RPAREN_ON_NEXT_LINE`) breaks an over-margin
   try-with-resources list into one resource per line, and `EXTENDS_LIST_WRAP` /
-  `THROWS_LIST_WRAP` break over-margin `extends` / `implements` and `throws`
-  lists into one type per line at the continuation indent — with
+  `THROWS_LIST_WRAP` break over-margin `extends` / `implements` / `permits`
+  and `throws` lists into one type per line at the continuation indent — with
   `EXTENDS_KEYWORD_WRAP` / `THROWS_KEYWORD_WRAP` moving the keyword to its own
   line. A class's single `extends Base` supertype is not a list and never
   wraps; code `5` (chop down) lays these atomic list elements out exactly like
@@ -640,9 +640,10 @@ braces when the body spans multiple lines, `3` = always force braces.
   construct's continuation lines with spaces to the first element's column,
   exactly like the record-header alignment (`ALIGN_MULTILINE_RECORDS` aligns
   wrapped record components under the opening paren): with the toggle on, the
-  wrapped parameter / argument / resource / `throws` / `extends`-`implements`
-  list lines pad to the first element's column (the first element stays on the
-  header line after `(` / the keyword); the parts of a wrapped `for` header pad
+  wrapped parameter / argument / resource / `throws` / `extends`-`implements`-
+  `permits` list lines pad to the first element's column (the first element
+  stays on the header line after `(` / the keyword); the parts of a wrapped
+  `for` header pad
   to its first slot; wrapped binary / ternary / parenthesized-expression
   continuation lines pad to the first operand / condition / `(`; a wrapped
   chained call's link lines pad to the first link's dot; and a wrapped
@@ -830,7 +831,7 @@ braces when the body spans multiple lines, `3` = always force braces.
   and re-formatting the output reproduces the layout (R6). A comment between
   the elements of a comma-separated list — record components, parameters, call
   arguments, array and annotation elements, type arguments, a `throws` /
-  `implements` / `extends` list, enum constants, a record pattern — is likewise
+  `implements` / `extends` / `permits` list, enum constants, a record pattern — is likewise
   preserved as its own item: it is attached to the element it precedes (or to
   the closing delimiter) and never receives the list's separator comma. A line
   comment (or a multi-line block comment) cannot share its line with code, so

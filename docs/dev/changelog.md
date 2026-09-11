@@ -9,6 +9,17 @@ tags: [dev, changelog]
 
 ## 2026-09-11
 
+- **Sealed type `permits` clauses are preserved instead of dropped
+  (sealed-permits-clause-vanishes)**: formatting a sealed class or sealed
+  interface silently dropped its `permits` list, turning valid Java into
+  un-compilable output with no warning. `class_decl` and `iface_decl` in
+  `crates/core/src/formatter.rs` now render the `permits` field via the
+  shared clause-list machinery, so the clause stays on the header line under
+  the defaults (` permits A, B`) and long lists wrap per `EXTENDS_LIST_WRAP` /
+  `EXTENDS_KEYWORD_WRAP` / `ALIGN_MULTILINE_EXTENDS_LIST` exactly like
+  `implements` / `extends`. See
+  [The permits clause of sealed classes and interfaces vanishes when formatting](backlog/sealed-permits-clause-vanishes.md).
+
 - **`// @formatter:off` / `// @formatter:on` regions are preserved
   byte-for-byte (formatter-tags)**: the four root-level options
   (`FORMATTER_TAGS_ENABLED`, `FORMATTER_OFF_TAG`, `FORMATTER_ON_TAG`,

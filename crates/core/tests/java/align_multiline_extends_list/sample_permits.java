@@ -1,0 +1,2 @@
+sealed class Alpha extends AbstractAlpha implements Named, Sized, Registry<Alpha> permits FirstPermitted, SecondPermitted, ThirdLongPermitted {}
+sealed interface Beta extends FirstInterface, SecondInterface, ThirdInterface permits FirstImpl, SecondImpl, ThirdLongImpl {}

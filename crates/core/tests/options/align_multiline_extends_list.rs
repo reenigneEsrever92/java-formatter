@@ -20,6 +20,14 @@ const SAMPLE_DEFAULT_OUT: &str =
 const SELF_ALIGNED: &str = include_str!("../java/align_multiline_extends_list/self_aligned.java");
 const SELF_ALIGNED_OUT: &str =
     include_str!("../java/align_multiline_extends_list/self_aligned.out.java");
+const SAMPLE_PERMITS: &str =
+    include_str!("../java/align_multiline_extends_list/sample_permits.java");
+const SAMPLE_PERMITS_ALIGN_OUT: &str =
+    include_str!("../java/align_multiline_extends_list/sample_permits_align.out.java");
+const SAMPLE_PERMITS_CONT_OUT: &str =
+    include_str!("../java/align_multiline_extends_list/sample_permits_cont.out.java");
+const SAMPLE_PERMITS_DEFAULT_OUT: &str =
+    include_str!("../java/align_multiline_extends_list/sample_permits_default.out.java");
 
 fn wrap(align: bool) -> JavaStyle {
     style(|s| {
@@ -54,4 +62,33 @@ fn reformatting_the_aligned_layout_is_a_no_op() {
     // A self-golden: the aligned fixture formats to itself under the option
     // (R6).
     assert_eq!(format_with(SELF_ALIGNED, &wrap(true)), SELF_ALIGNED_OUT);
+}
+
+#[test]
+fn align_on_aligns_wrapped_permits_entries_under_the_first_entry() {
+    assert_eq!(
+        format_with(SAMPLE_PERMITS, &wrap(true)),
+        SAMPLE_PERMITS_ALIGN_OUT
+    );
+}
+
+#[test]
+fn align_off_keeps_wrapped_permits_entries_at_the_continuation_indent() {
+    assert_eq!(
+        format_with(SAMPLE_PERMITS, &wrap(false)),
+        SAMPLE_PERMITS_CONT_OUT
+    );
+}
+
+#[test]
+fn absent_default_aligns_wrapped_permits_entries_at_the_continuation_indent() {
+    // The option defaults to false; the style sets only the wrap toggle.
+    let style = style(|s| {
+        s.right_margin = 60;
+        s.extends_list_wrap = WrapStyle::WrapIfLong;
+    });
+    assert_eq!(
+        format_with(SAMPLE_PERMITS, &style),
+        SAMPLE_PERMITS_DEFAULT_OUT
+    );
 }

@@ -125,7 +125,7 @@ align under the first element instead of using the continuation indent.
 | `ALIGN_MULTILINE_TERNARY_OPERATION`            | bool | `false` | Align wrapped ternary expression operands.                                   | ✅      |
 | `ALIGN_MULTILINE_THROWS_LIST`                  | bool | `false` | Align wrapped `throws` list entries.                                         | ✅      |
 | `ALIGN_THROWS_KEYWORD`                         | bool | `false` | Align the `throws` keyword itself.                                           | ✅      |
-| `ALIGN_MULTILINE_EXTENDS_LIST`                 | bool | `false` | Align wrapped `extends` / `implements` list entries.                         | ✅      |
+| `ALIGN_MULTILINE_EXTENDS_LIST`                 | bool | `false` | Align wrapped `extends` / `implements` / `permits` list entries.             | ✅      |
 | `ALIGN_MULTILINE_METHOD_BRACKETS`              | bool | `false` | Align method declaration parentheses (`(` / `)`) when wrapped.               | ✅      |
 | `ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION`     | bool | `false` | Align wrapped parenthesized expressions.                                     | ✅      |
 | `ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION` | bool | `false` | Align wrapped array initializer entries.                                     | ✅      |
@@ -246,12 +246,12 @@ All `*_WRAP` options use the [wrap codes](index.md#wrap-codes).
 
 ### Extends / implements / throws
 
-| Option                 | Type | Default | Effect                                                                  | Support |
-| ---------------------- | ---- | ------- | ----------------------------------------------------------------------- | ------- |
-| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` lists.                             | ✅      |
-| `EXTENDS_KEYWORD_WRAP` | bool | `false` | Put the `extends` / `implements` keyword on its own line when wrapping. | ✅      |
-| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                                             | ✅      |
-| `THROWS_KEYWORD_WRAP`  | bool | `false` | Put the `throws` keyword on its own line when wrapping.                 | ✅      |
+| Option                 | Type | Default | Effect                                                                              | Support |
+| ---------------------- | ---- | ------- | ----------------------------------------------------------------------------------- | ------- |
+| `EXTENDS_LIST_WRAP`    | int  | `0`     | Wrapping of `extends` / `implements` / `permits` lists.                             | ✅      |
+| `EXTENDS_KEYWORD_WRAP` | bool | `false` | Put the `extends` / `implements` / `permits` keyword on its own line when wrapping. | ✅      |
+| `THROWS_LIST_WRAP`     | int  | `0`     | Wrapping of `throws` lists.                                                         | ✅      |
+| `THROWS_KEYWORD_WRAP`  | bool | `false` | Put the `throws` keyword on its own line when wrapping.                             | ✅      |
 
 ### Expressions and statements
 

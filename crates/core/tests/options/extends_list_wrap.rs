@@ -25,6 +25,13 @@ const SHORT_HEADERS_WRAP_ALWAYS_OUT: &str =
     include_str!("../java/extends_list_wrap/short_headers_wrap_always.out.java");
 const SELF_WRAPPED: &str = include_str!("../java/extends_list_wrap/self_wrapped.java");
 const SELF_WRAPPED_OUT: &str = include_str!("../java/extends_list_wrap/self_wrapped.out.java");
+const LONG_PERMITS: &str = include_str!("../java/extends_list_wrap/long_permits.java");
+const LONG_PERMITS_WRAP_IF_LONG_OUT: &str =
+    include_str!("../java/extends_list_wrap/long_permits_wrap_if_long.out.java");
+const LONG_PERMITS_CHOP_DOWN_OUT: &str =
+    include_str!("../java/extends_list_wrap/long_permits_chop_down.out.java");
+const LONG_PERMITS_DEFAULT_OUT: &str =
+    include_str!("../java/extends_list_wrap/long_permits_default.out.java");
 
 /// A narrow margin so the long fixture's extends / implements lists overflow.
 fn narrow(wrap: WrapStyle) -> JavaStyle {
@@ -83,4 +90,30 @@ fn reformatting_wrapped_extends_output_is_a_no_op() {
         format_with(SELF_WRAPPED, &narrow(WrapStyle::WrapIfLong)),
         SELF_WRAPPED_OUT
     );
+}
+
+#[test]
+fn wrap_if_long_breaks_the_permits_list_of_sealed_types() {
+    // A sealed class / interface `permits` list wraps like `implements` /
+    // `extends` under the same option (the clause shares the clause-list
+    // machinery).
+    assert_eq!(
+        format_with(LONG_PERMITS, &narrow(WrapStyle::WrapIfLong)),
+        LONG_PERMITS_WRAP_IF_LONG_OUT
+    );
+}
+
+#[test]
+fn chop_down_uses_the_same_layout_for_wrapped_permits_lists() {
+    // The atomic list types split no further, so code 5 equals code 1 here
+    // (as with the other clause lists).
+    assert_eq!(
+        format_with(LONG_PERMITS, &narrow(WrapStyle::ChopDownIfLong)),
+        LONG_PERMITS_CHOP_DOWN_OUT
+    );
+}
+
+#[test]
+fn default_style_keeps_the_permits_clause_on_the_header_line() {
+    assert_eq!(format(LONG_PERMITS), LONG_PERMITS_DEFAULT_OUT);
 }

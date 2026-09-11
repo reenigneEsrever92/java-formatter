@@ -14,6 +14,11 @@ const LONG_HEADERS_KEYWORD_OUT: &str =
     include_str!("../java/extends_keyword_wrap/long_headers.out.java");
 const LONG_HEADERS_KEYWORD_OFF_OUT: &str =
     include_str!("../java/extends_keyword_wrap/long_headers_keyword_off.out.java");
+const LONG_PERMITS: &str = include_str!("../java/extends_keyword_wrap/long_permits.java");
+const LONG_PERMITS_KEYWORD_ON_OUT: &str =
+    include_str!("../java/extends_keyword_wrap/long_permits_keyword_on.out.java");
+const LONG_PERMITS_KEYWORD_OFF_OUT: &str =
+    include_str!("../java/extends_keyword_wrap/long_permits_keyword_off.out.java");
 
 fn style_with(keyword_on_next_line: bool) -> JavaStyle {
     style(|s| {
@@ -36,5 +41,21 @@ fn keyword_off_keeps_the_keyword_with_the_first_type() {
     assert_eq!(
         format_with(LONG_HEADERS, &style_with(false)),
         LONG_HEADERS_KEYWORD_OFF_OUT
+    );
+}
+
+#[test]
+fn the_permits_keyword_moves_to_its_own_line_when_the_list_wraps() {
+    assert_eq!(
+        format_with(LONG_PERMITS, &style_with(true)),
+        LONG_PERMITS_KEYWORD_ON_OUT
+    );
+}
+
+#[test]
+fn the_permits_keyword_stays_with_the_first_type_when_off() {
+    assert_eq!(
+        format_with(LONG_PERMITS, &style_with(false)),
+        LONG_PERMITS_KEYWORD_OFF_OUT
     );
 }

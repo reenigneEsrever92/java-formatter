@@ -293,6 +293,8 @@ mod rparen_on_new_line_in_annotation;
 mod rparen_on_new_line_in_deconstruction_pattern;
 #[path = "options/rparen_on_new_line_in_record_header.rs"]
 mod rparen_on_new_line_in_record_header;
+#[path = "options/sealed_permits.rs"]
+mod sealed_permits;
 #[path = "options/smart_tabs.rs"]
 mod smart_tabs;
 #[path = "options/soft_margins.rs"]

@@ -2955,6 +2955,9 @@ impl<'s> Fmt<'s> {
             if let Some(ifaces) = self.fld(node, "interfaces") {
                 self.append_type_clause(&mut header, "implements", ifaces, indent, c);
             }
+            if let Some(pt) = self.fld(node, "permits") {
+                self.append_type_clause(&mut header, "permits", pt, indent, c);
+            }
             header
         };
 
@@ -3024,6 +3027,9 @@ impl<'s> Fmt<'s> {
                 .find(|c| c.kind() == "extends_interfaces")
             {
                 self.append_type_clause(&mut header, "extends", ext, indent, c);
+            }
+            if let Some(pt) = self.fld(node, "permits") {
+                self.append_type_clause(&mut header, "permits", pt, indent, c);
             }
             header
         };
@@ -9275,6 +9281,7 @@ impl<'s> Fmt<'s> {
         let t = self.txt(node).trim();
         t.strip_prefix("implements")
             .or_else(|| t.strip_prefix("extends"))
+            .or_else(|| t.strip_prefix("permits"))
             .unwrap_or(t)
             .trim()
             .to_string()
