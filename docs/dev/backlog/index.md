@@ -8,6 +8,7 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 
 | State | Priority | Kind        | Change request                                                                                                                           |
 | ----- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| done  | medium   | feature     | [Format all Java files in a directory in place (-d/--dir, -r/--recursive)](directory-formatting.md)                                      |
 | done  | high     | bug         | [Prefer breaking a call chain over wrapping its parameters when PREFER_PARAMETERS_WRAP is off](prefer-chain-wrap-over-parameter-wrap.md) |
 | done  | high     | bug         | [Place the around-member blank lines before a member's leading comment](blank-line-before-member-comment.md)                             |
 | done  | high     | bug         | [Wrap chain-link arguments and fix the lparen-stays / rparen-alone indentation](chain-link-args-and-lparen-layout.md)                    |

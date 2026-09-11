@@ -7,6 +7,31 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-11
+
+- **The CLI can format every Java file in a directory in place
+  (directory-formatting)**: `-d` / `--dir DIR` formats each `*.java` file
+  directly under `DIR` and `-r` / `--recursive` descends into subdirectories
+  (hidden dot-directories such as `.git` are skipped, directory symlinks are
+  not followed, entries are processed in sorted order), so a whole team scheme
+  can be applied to a source tree in one invocation instead of the
+  per-file `format > tmp && mv` shell dance. The `--style` scheme is parsed
+  once and shared across the run, nothing is written to stdout, a file is
+  rewritten only when its content changes (preserving timestamps and keeping
+  the R6 no-op a no-write), per-file problems — unreadable files, invalid
+  Java, failed in-place writes — are logged to stderr without stopping the
+  run, and the process exits 1 if any file failed else 0. Diverging from
+  R15's single-file contract (warn on parse errors, exit 0), a parse-error
+  file in directory mode still gets best-effort output but counts as a
+  failure so a batch run reports files that were not cleanly formatted. The
+  positional `FILE` / stdin behaviour is unchanged; `-r` without `-d` is a
+  usage error and `-d` conflicts with `FILE`. Added `crates/cli/tests/directory_mode.rs`
+  (12 CLI integration tests driving the built binary, with `tempfile` added
+  as a dev-dependency). Verified with `cargo test --workspace` (817 core
+  golden tests plus 12 new CLI tests and 6 GUI tests, core untouched),
+  `cargo clippy --workspace --lib --bins --tests -- -D warnings`, and
+  `cargo fmt --all -- --check`.
+
 ## 2026-09-10
 
 - **`PREFER_PARAMETERS_WRAP` off now prefers the chain break

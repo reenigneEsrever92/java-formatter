@@ -23,16 +23,26 @@ Usage: java-formatter [OPTIONS] [FILE]
 
 Arguments:
   [FILE]  Path to the Java source file to format. Reads from standard input
-          when omitted or when '-' is given
+          when omitted or when '-' is given. Cannot be combined with --dir
 
 Options:
   -s, --style <STYLE>  Path to an IntelliJ codestyle XML file
                        (e.g. .idea/codeStyles/Project.xml).
                        Defaults to IntelliJ built-in settings when omitted
+  -d, --dir <DIR>      Format every *.java file in DIR in place, rewriting
+                       each file instead of writing to stdout. Cannot be
+                       combined with FILE
+  -r, --recursive      With --dir, descend into subdirectories (skipping
+                       hidden dot-directories such as .git). Requires --dir
   -h, --help           Print help
 ```
 
-The formatted source is written to stdout.
+The formatted source is written to stdout. In directory mode (`--dir`)
+nothing is written to stdout: each `*.java` file is rewritten in place (only
+when its content changes), and per-file problems are reported on stderr
+without stopping the run. The process exits 1 if any file failed — unreadable
+file, invalid Java (a warning in single-file mode), or a failed write — and 0
+otherwise.
 
 ### Examples
 
@@ -60,6 +70,19 @@ Update a file (format to a new file, then replace):
 ```sh
 java-formatter --style codestyle.xml Foo.java > Foo.formatted.java
 mv Foo.formatted.java Foo.java
+```
+
+Format every Java file in a directory in place:
+
+```sh
+java-formatter --style codestyle.xml -d src/main/java
+```
+
+Recursively format a whole source tree (hidden dot-directories like `.git`
+are skipped):
+
+```sh
+java-formatter --style codestyle.xml -d src -r
 ```
 
 ## Style files
