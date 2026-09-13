@@ -135,6 +135,8 @@ mod class_brace_style;
 mod class_count_to_use_import_on_demand;
 #[path = "options/comment_in_modifiers.rs"]
 mod comment_in_modifiers;
+#[path = "options/commented_conditions.rs"]
+mod commented_conditions;
 #[path = "options/comments_in_lists.rs"]
 mod comments_in_lists;
 #[path = "options/continuation_indent_size.rs"]

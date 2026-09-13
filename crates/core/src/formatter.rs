@@ -1063,18 +1063,50 @@ impl<'s> Fmt<'s> {
     /// `parenthesized_expression`: the condition's inner expression is
     /// rendered and the paren pair rebuilt with the keyword's own
     /// `SPACE_WITHIN_*` toggle, so plain `SPACE_WITHIN_PARENTHESES` does not
-    /// leak into `if` / `while` / `switch` / `synchronized` conditions.
+    /// leak into `if` / `while` / `switch` / `synchronized` conditions. When
+    /// the parens hold comments the inner expression is no longer the first
+    /// named child — tree-sitter attaches comments as named extras inside the
+    /// parens — so the comments are laid out around the real expression
+    /// ([`Self::commented_parens`]); a comment nested inside the expression
+    /// itself keeps the whole condition verbatim (R4), since the expression
+    /// renderers cannot carry it.
     fn keyword_cond(&self, node: Node<'s>, indent: usize, c: usize, pad: bool) -> String {
-        let inner = node
-            .named_child(0)
-            .map(|n| self.expr(n, indent, c + 1))
-            .unwrap_or_default();
-        Self::within('(', ')', pad, &inner)
+        let named = self.named(node);
+        let comments: Vec<Node<'s>> = named
+            .iter()
+            .filter(|&&n| self.is_comment_node(n))
+            .copied()
+            .collect();
+        let inner_node = named.iter().find(|&&n| !self.is_comment_node(n)).copied();
+        if comments.is_empty() && !inner_node.is_some_and(|n| self.subtree_has_comment(n)) {
+            let inner = inner_node
+                .map(|n| self.expr(n, indent, c + 1))
+                .unwrap_or_default();
+            return Self::within('(', ')', pad, &inner);
+        }
+        let Some(inner_node) = inner_node else {
+            // A paren holding only comments has no expression to render.
+            return self.txt(node).to_string();
+        };
+        if self.subtree_has_comment(inner_node) {
+            return self.txt(node).to_string();
+        }
+        let inner = self.expr(inner_node, indent, c + 1);
+        let (leading, trailing): (Vec<Node<'s>>, Vec<Node<'s>>) = comments
+            .into_iter()
+            .partition(|c| c.end_byte() <= inner_node.start_byte());
+        self.commented_parens(&leading, &trailing, &inner, indent, pad)
     }
 
     /// Flat variant of [`Self::keyword_cond`] for the one-line collapse
-    /// paths, so a collapsed candidate matches the multi-line padding.
+    /// paths, so a collapsed candidate matches the multi-line padding. A
+    /// commented condition is echoed verbatim: its source spans source rows for
+    /// a break-forcing comment, so the callers' `contains('\n')` check bails
+    /// the collapse, while a single-line `/* … */` stays safely inline.
     fn flat_keyword_cond(&self, node: Node<'s>, pad: bool) -> String {
+        if self.paren_has_comment(node) {
+            return self.txt(node).to_string();
+        }
         let inner = node
             .named_child(0)
             .map(|n| self.flat(n))
@@ -1550,6 +1582,106 @@ impl<'s> Fmt<'s> {
                 out.push_str(self.comment_text(*c));
             }
         }
+        out
+    }
+
+    /// True when a comment node appears anywhere under `node`, not only as a
+    /// direct child. The expression renderers visit only the expression's own
+    /// children, so a comment nested deeper (e.g. between the operands of a
+    /// binary expression) would otherwise be dropped silently.
+    fn subtree_has_comment(&self, node: Node<'s>) -> bool {
+        if self.is_comment_node(node) {
+            return true;
+        }
+        let mut cur = node.walk();
+        for ch in node.children(&mut cur) {
+            if self.subtree_has_comment(ch) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// True when a `parenthesized_expression` carries a comment anywhere: as a
+    /// direct extra (before or after the inner expression — tree-sitter
+    /// attaches comments as named extras inside the parens, so a leading
+    /// comment is `named_child(0)` and would replace the inner expression) or
+    /// nested inside the expression itself. Both positions defeat the plain
+    /// `named_child(0)` rendering.
+    fn paren_has_comment(&self, node: Node<'s>) -> bool {
+        let named = self.named(node);
+        if named.iter().any(|&n| self.is_comment_node(n)) {
+            return true;
+        }
+        named
+            .iter()
+            .any(|&n| !self.is_comment_node(n) && self.subtree_has_comment(n))
+    }
+
+    /// Render a `( … )` whose parens hold comment extras. The leading comments
+    /// precede the inner expression in the source, the trailing comments follow
+    /// it (the split is decided by the caller from the byte ranges). When only
+    /// single-line `/* … */` comments are present they stay inline, joined with
+    /// single spaces and passed through [`Self::within`] so the `SPACE_WITHIN_*`
+    /// pad toggle still applies. With a break-forcing comment (`//` or a
+    /// multi-line `/* … */`) the parens open on the head line with the first
+    /// leading comment glued right after `(` — a `//` there ends its line with
+    /// nothing after it, so nothing is swallowed — and every following comment
+    /// and the inner text sit on their own line at the continuation indent,
+    /// trailing comments after the inner text, and the closing `)` alone at
+    /// `indent` (R5: no trailing whitespace, no comment sharing a line with
+    /// following code).
+    fn commented_parens(
+        &self,
+        leading: &[Node<'s>],
+        trailing: &[Node<'s>],
+        inner: &str,
+        indent: usize,
+        pad: bool,
+    ) -> String {
+        let breaks = leading
+            .iter()
+            .chain(trailing)
+            .any(|&c| self.comment_forces_break(c));
+        if !breaks {
+            let mut parts: Vec<String> = Vec::new();
+            for &c in leading {
+                parts.push(self.comment_text(c).to_string());
+            }
+            parts.push(inner.to_string());
+            for &c in trailing {
+                parts.push(self.comment_text(c).to_string());
+            }
+            return Self::within('(', ')', pad, &parts.join(" "));
+        }
+        let cont = self.cont(indent);
+        let mut out = String::from("(");
+        if leading.is_empty() {
+            out.push_str(inner);
+        } else {
+            let mut first = true;
+            for &c in leading {
+                if first {
+                    out.push_str(self.comment_text(c));
+                    first = false;
+                } else {
+                    out.push('\n');
+                    out.push_str(&cont);
+                    out.push_str(self.comment_text(c));
+                }
+            }
+            out.push('\n');
+            out.push_str(&cont);
+            out.push_str(inner);
+        }
+        for &c in trailing {
+            out.push('\n');
+            out.push_str(&cont);
+            out.push_str(self.comment_text(c));
+        }
+        out.push('\n');
+        out.push_str(&self.ind(indent));
+        out.push(')');
         out
     }
 
@@ -8204,11 +8336,33 @@ impl<'s> Fmt<'s> {
                 } else {
                     acol
                 };
-                let inner = node
-                    .named_child(0)
+                let pad = self.style.space_within_parentheses;
+                let named = self.named(node);
+                let comments: Vec<Node<'s>> = named
+                    .iter()
+                    .filter(|&&n| self.is_comment_node(n))
+                    .copied()
+                    .collect();
+                let inner_node = named.iter().find(|&&n| !self.is_comment_node(n)).copied();
+                if !comments.is_empty() || inner_node.is_some_and(|n| self.subtree_has_comment(n)) {
+                    // The parens hold a comment: lay it out around the real
+                    // expression; a comment nested inside the expression keeps
+                    // the whole paren verbatim (R4).
+                    let Some(inner_node) = inner_node else {
+                        return self.txt(node).to_string();
+                    };
+                    if self.subtree_has_comment(inner_node) {
+                        return self.txt(node).to_string();
+                    }
+                    let inner = self.expr_ac(inner_node, indent, c + 1, inner_acol);
+                    let (leading, trailing): (Vec<Node<'s>>, Vec<Node<'s>>) = comments
+                        .into_iter()
+                        .partition(|c| c.end_byte() <= inner_node.start_byte());
+                    return self.commented_parens(&leading, &trailing, &inner, indent, pad);
+                }
+                let inner = inner_node
                     .map(|n| self.expr_ac(n, indent, c + 1, inner_acol))
                     .unwrap_or_default();
-                let pad = self.style.space_within_parentheses;
                 if inner.contains('\n') {
                     // `PARENTHESES_EXPRESSION_LPAREN/RPAREN_WRAP`: when the
                     // inner expression wraps, the parens move to their own
@@ -10194,6 +10348,12 @@ impl<'s> Fmt<'s> {
                 format!("{} instanceof {}", left, self.instanceof_tail(node))
             }
             "parenthesized_expression" => {
+                // A comment anywhere in the parens cannot flatten safely (a
+                // `//` would swallow the closing `)`), so the paren keeps its
+                // source verbatim (R4).
+                if self.paren_has_comment(node) {
+                    return self.txt(node).to_string();
+                }
                 let inner = node
                     .named_child(0)
                     .map(|n| self.flat(n))

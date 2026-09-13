@@ -858,7 +858,16 @@ int x;` stays `@A` / `@B` / `// c` / `private int x;` instead of gluing the
   source line — behind a statement, a member, a top-level type, an opening `{`
   or a list element — stays on that line (IntelliJ's behaviour); the column
   options do not apply to it, and a `//` trailing a list element is placed after
-  the separator comma so it cannot swallow list syntax. A comment on a
+  the separator comma so it cannot swallow list syntax. A comment inside a
+  keyword condition — an `if` / `while` / `do`-`while` / `synchronized` /
+  `switch` parenthesized expression — or any other parenthesized expression is
+  laid out around the real expression: a line comment (or multi-line block
+  comment) goes on its own line at the continuation indent — the first one
+  glued right after `(` — the expression follows, and the closing `)` sits
+  alone on its line, so a `//` can never swallow it; a single-line block
+  comment stays inline. A comment nested inside the condition's expression
+  itself (e.g. between binary operands) keeps the whole parenthesized
+  expression's source text verbatim (R4). A comment on a
   `package` / `import` line is the one exception: it keeps its own line.
 - Javadoc is reformatted only when a scheme sets `ENABLE_JAVADOC_FORMATTING`
   explicitly (the built-in default is `false` — a recorded divergence, see

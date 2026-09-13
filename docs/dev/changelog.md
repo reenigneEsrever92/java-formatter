@@ -9,6 +9,23 @@ tags: [dev, changelog]
 
 ## 2026-09-13
 
+- **A comment inside an `if` / `while` / `do` / `synchronized` / `switch`
+  condition or a parenthesized expression is preserved and no longer corrupts
+  or loses the construct (comment-in-keyword-condition)**: the condition
+  renderers in `crates/core/src/formatter.rs` took `named_child(0)` of the
+  condition's `parenthesized_expression` for the whole inner expression, so a
+  leading comment replaced the real condition (which vanished), and the
+  closing `)` plus the following `{` / `;` landed inside the `//` comment and
+  were swallowed — the output was not valid Java. `keyword_cond` /
+  `flat_keyword_cond` and the `parenthesized_expression` arms of `expr_ac` /
+  `flat` are now comment-aware: a `//` or multi-line `/* … */` comment is
+  laid out on its own line at the continuation indent (the first one glued
+  right after `(`, the condition after it, the `)` alone on its line), a
+  single-line `/* … */` stays inline, a comment nested inside the condition's
+  expression keeps the whole paren verbatim (R4), and one-line collapses bail
+  on a commented condition. See
+  [A comment inside an if/while/do/synchronized/switch condition or a parenthesized expression is taken for the whole inner expression — the real condition vanishes and a `//` comment swallows the closing paren](backlog/comment-in-keyword-condition.md).
+
 - **A `//` comment or multi-line statement inside a lambda body no longer
   swallows or corrupts the following statement (lambda-body-flat-join)**: the
   flat / one-line rendering of a lambda block body joined every body child
