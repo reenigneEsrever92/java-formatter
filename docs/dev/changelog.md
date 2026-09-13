@@ -7,6 +7,25 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-13
+
+- **A `//` comment or multi-line statement inside a lambda body no longer
+  swallows or corrupts the following statement (lambda-body-flat-join)**: the
+  flat / one-line rendering of a lambda block body joined every body child
+  onto one line, so a `//` comment commented out the rest of the line
+  (silently deleting an `if` header and unbalancing the braces), multi-line
+  control-flow statements leaked their raw source into the "flat" call text,
+  and multi-statement bodies gained doubled semicolons. `flat_block` in
+  `crates/core/src/formatter.rs` now echoes blocks holding a `//` comment or
+  a non-flat statement verbatim (R4) and joins flattenable statements with a
+  single space; the `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE` collapse requires
+  exactly one simple statement; `args_wrapped` never emits multi-line "flat"
+  argument text and keeps a single multi-line lambda argument glued on the
+  call line (`list.forEach(item -> { … })`); and `chain_link_args` re-renders
+  multi-line chain-link arguments at the chain's indent even under
+  `CALL_PARAMETERS_WRAP = DoNotWrap`. See
+  [A `//` comment or multi-line statement in a lambda body swallows or corrupts the following statement when formatted](backlog/lambda-body-flat-join.md).
+
 ## 2026-09-11
 
 - **A trailing comment stays behind its code (trailing-comments)**: a `//` or

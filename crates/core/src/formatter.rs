@@ -8531,6 +8531,11 @@ impl<'s> Fmt<'s> {
         let keep = self.keep_wrapped(node);
         let forces = self.list_forces_wrap(node);
         let flat = self.flat_args(node);
+        // `flat` can carry a line break when an argument is itself a
+        // multi-line construct (a lambda block body with comments or control
+        // flow): such text must never be emitted by the "flat" shortcuts,
+        // which would paste an unfittable single-line form into the call.
+        let flat_ok = !flat.contains('\n');
 
         // A chain argument that must break is its own fixed point: render it
         // even when the parameter list itself is not being wrapped, and
@@ -8546,7 +8551,7 @@ impl<'s> Fmt<'s> {
             }
         }
 
-        if !keep && !forces && self.fits(c, &flat) {
+        if !keep && !forces && flat_ok && self.fits(c, &flat) {
             return flat;
         }
 
@@ -8566,11 +8571,33 @@ impl<'s> Fmt<'s> {
         }
 
         let wrap = self.style.call_parameters_wrap;
-        if !keep && !forces && wrap == WrapStyle::DoNotWrap {
+        if !keep && !forces && flat_ok && wrap == WrapStyle::DoNotWrap {
             return flat;
         }
 
+        let pad = self.style.space_within_method_call_parentheses;
+        // A single lambda argument whose block body cannot render flat
+        // (comments, control flow, several statements) stays glued after `(` —
+        // IntelliJ keeps `forEach(item -> { … })` on the call line with the
+        // body multi-line — instead of being pushed onto its own line by the
+        // wrapped-argument layout below. Only when nothing trails the
+        // argument, so a `//` cannot swallow the glued `)`.
         let inner = indent + 1;
+        if !keep
+            && !forces
+            && entries.len() == 1
+            && !flat_ok
+            && entries[0].1.kind() == "lambda_expression"
+            && entries[0].2.is_empty()
+            && trailing.is_empty()
+        {
+            let (cm0, a0, _) = &entries[0];
+            let pref = self.ind(indent);
+            let body =
+                self.wrapped_entry(cm0, self.expr(*a0, indent, c + 1 + usize::from(pad)), &pref);
+            return Self::within('(', ')', pad, &body);
+        }
+
         // `CALL_PARAMETER_INDENT`: an explicit width overrides the
         // continuation indent for call arguments only; `-1` (default)
         // inherits today's `ind(inner)` byte-for-byte.
@@ -8598,7 +8625,6 @@ impl<'s> Fmt<'s> {
             self.style.call_parameters_lparen_on_next_line,
             self.style.call_parameters_rparen_on_next_line,
         );
-        let pad = self.style.space_within_method_call_parentheses;
         // A `//` trailing the last argument cannot share its line with a glued
         // `)`.
         let last_line_trailing = entries
@@ -8943,7 +8969,14 @@ impl<'s> Fmt<'s> {
         stmt_indent: usize,
         c: usize,
     ) -> String {
-        if self.style.call_parameters_wrap == WrapStyle::DoNotWrap {
+        // A multi-line argument (a lambda block body with comments or control
+        // flow) has no flat form — `flat_args_chain` would paste its raw
+        // source at the original indent. Route it through `args_wrapped` so
+        // the argument is re-rendered at the chain's indent even when
+        // `CALL_PARAMETERS_WRAP` is off.
+        if self.style.call_parameters_wrap == WrapStyle::DoNotWrap
+            && !self.flat_args(args).contains('\n')
+        {
             return self.flat_args_chain(args, stmt_indent + 1, c);
         }
         let indent = if own_line {
@@ -9427,23 +9460,25 @@ impl<'s> Fmt<'s> {
                     } else {
                         None
                     }
-                } else {
+                } else if stmts.len() == 1 && !self.flat_unflattenable(stmts[0]) {
                     // One-line body presentation: `SPACES_INSIDE_BLOCK_BRACES_`
                     // `WHEN_BODY_IS_PRESENT` (padded / flush) and
                     // `NEW_LINE_WHEN_BODY_IS_PRESENTED` (block on its own
-                    // line) apply; the statements are joined like
-                    // `flat_block`'s inner text.
-                    let inner = stmts
-                        .iter()
-                        .map(|&s| self.flat(s))
-                        .collect::<Vec<_>>()
-                        .join("; ");
+                    // line) apply; the single statement's flat text is the
+                    // block's inner text.
+                    let inner = self.flat(stmts[0]);
                     let presented = self.present_block(&inner, indent);
                     if self.fits_lines(c + params.len() + arrow_col, &presented) {
                         Some(presented)
                     } else {
                         None
                     }
+                } else {
+                    // Only single-statement bodies collapse under
+                    // `KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE`; a `//` comment or a
+                    // multi-line statement has no safe one-line body either
+                    // (see `flat_block`) — keep the block multi-line.
+                    None
                 }
             } else {
                 None
@@ -10291,6 +10326,14 @@ impl<'s> Fmt<'s> {
         format!("{}{}->{}{}", params, sep, sep, body)
     }
 
+    /// Whether a block child has no safe flat rendering: a `//` line comment
+    /// would comment out everything joined after it (including the closing
+    /// `}`), and any text containing a newline would leak a line break into
+    /// the flat join. Single-line `/* */` block comments stay flattenable.
+    fn flat_unflattenable(&self, s: Node<'s>) -> bool {
+        s.kind() == "line_comment" || self.flat(s).contains('\n')
+    }
+
     fn flat_block(&self, node: Node<'s>) -> String {
         let stmts = self.named(node);
         if stmts.is_empty() {
@@ -10302,11 +10345,21 @@ impl<'s> Fmt<'s> {
                 "",
             );
         }
+        // A block holding a `//` comment or a statement that cannot render
+        // flat (control flow, multi-line text) has no safe one-line form:
+        // the join would let the comment swallow the rest of the line or
+        // leak newlines into the flat text. Echo the source verbatim (R4) so
+        // flat contexts stay byte-preserving for these blocks.
+        if stmts.iter().any(|&s| self.flat_unflattenable(s)) {
+            return self.txt(node).to_string();
+        }
+        // Statements are self-terminating (`;` or `}`), so a single space
+        // separates them; `"; "` would double every `;`.
         let inner = stmts
             .iter()
             .map(|&s| self.flat(s))
             .collect::<Vec<_>>()
-            .join("; ");
+            .join(" ");
         format!("{{ {} }}", inner)
     }
 

@@ -227,6 +227,8 @@ mod keep_simple_methods_in_one_line;
 mod label_indent_absolute;
 #[path = "options/label_indent_size.rs"]
 mod label_indent_size;
+#[path = "options/lambda_body_comments.rs"]
+mod lambda_body_comments;
 #[path = "options/lambda_brace_style.rs"]
 mod lambda_brace_style;
 #[path = "options/layout_on_demand_import_from_same_package_first.rs"]

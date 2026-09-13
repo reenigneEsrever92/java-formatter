@@ -8,6 +8,7 @@ moves them `proposed` → `planned` → `in-progress` → `done`.
 
 | State    | Priority | Kind        | Change request                                                                                                                           |
 | -------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| done     | high     | bug         | [A `//` comment or multi-line statement in a lambda body swallows or corrupts the following statement](lambda-body-flat-join.md)         |
 | done     | high     | bug         | [A trailing comment is moved onto its own line instead of staying behind the code](trailing-comments.md)                                 |
 | done     | high     | bug         | [A comment in a declaration's modifier area is joined onto the code or silently dropped](comment-in-modifiers.md)                        |
 | done     | high     | bug         | [The permits clause of sealed classes and interfaces vanishes when formatting](sealed-permits-clause-vanishes.md)                        |
