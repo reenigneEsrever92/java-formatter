@@ -10,3 +10,4 @@ class A {
             handle(item);
     }
 }
+

@@ -12,3 +12,4 @@ class A {
     @Anno
     class Nested {}
 }
+

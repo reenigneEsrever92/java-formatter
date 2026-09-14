@@ -3,3 +3,4 @@ class A {
         alpha(firstValue, secondValue, thirdValue, fourthValue);
     }
 }
+

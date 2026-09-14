@@ -13,3 +13,4 @@ class ScopedPatterns {
         } while (o instanceof Outer.Inner.Record(var value));
     }
 }
+

@@ -15,3 +15,4 @@ class MultiStatement {
         list.forEach(x -> { /* inline */ use(x); });
     }
 }
+

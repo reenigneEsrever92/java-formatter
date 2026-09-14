@@ -3,3 +3,4 @@ class A {
         int x = firstPart() + secondPart() + thirdPart() + fourthPart() + fifthPart() + sixthPart() + seventhPart() + eighthPart();
     }
 }
+

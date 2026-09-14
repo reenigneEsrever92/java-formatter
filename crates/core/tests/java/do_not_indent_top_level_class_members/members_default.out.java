@@ -11,3 +11,4 @@ class TopLevel {
         void nestedMethod() {}
     }
 }
+

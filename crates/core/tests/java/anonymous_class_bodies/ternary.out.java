@@ -7,3 +7,4 @@ class Ternary {
         } : null;
     }
 }
+

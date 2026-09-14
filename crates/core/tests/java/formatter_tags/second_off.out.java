@@ -7,3 +7,4 @@ class A {
 // @formatter:on
     int y = 4;
 }
+

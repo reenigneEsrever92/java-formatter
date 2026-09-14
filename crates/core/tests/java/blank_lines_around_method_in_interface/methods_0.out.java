@@ -3,3 +3,4 @@ interface I {
     void b();
     int X = 1;
 }
+

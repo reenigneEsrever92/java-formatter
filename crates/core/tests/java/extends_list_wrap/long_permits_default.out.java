@@ -5,3 +5,4 @@ sealed class Alpha extends AbstractAlpha implements Named, Sized, Registry<Alpha
 sealed interface Beta extends FirstInterface, SecondInterface, ThirdInterface permits FirstImpl, SecondImpl, ThirdLongImpl {
     void run();
 }
+

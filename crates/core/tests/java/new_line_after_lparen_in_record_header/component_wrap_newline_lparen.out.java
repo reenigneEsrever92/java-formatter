@@ -3,3 +3,4 @@ record R(
         int betaComponent,
         int gammaComponent
 ) {}
+

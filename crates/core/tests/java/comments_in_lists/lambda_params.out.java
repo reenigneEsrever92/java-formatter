@@ -3,3 +3,4 @@ class LambdaParams {
             // the second parameter
             String b) -> a;
 }
+

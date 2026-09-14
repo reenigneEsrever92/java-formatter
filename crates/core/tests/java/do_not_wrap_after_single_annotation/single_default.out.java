@@ -14,3 +14,4 @@ class F {
     @Deprecated
     class Nested {}
 }
+

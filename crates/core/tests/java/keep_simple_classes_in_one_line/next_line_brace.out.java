@@ -4,3 +4,4 @@ class Holder
 
     void set(int v) { this.value = v; }
 }
+

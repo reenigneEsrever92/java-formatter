@@ -5,3 +5,4 @@ class Local {
         int x = 1;
     }
 }
+

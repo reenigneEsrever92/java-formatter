@@ -4,3 +4,4 @@ class Alpha extends AbstractAlpha implements Named,
         Marked {
     int x;
 }
+

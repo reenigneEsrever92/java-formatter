@@ -9,3 +9,4 @@ interface I {
 enum E {
     A;
 }
+

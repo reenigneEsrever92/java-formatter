@@ -3,3 +3,4 @@ class F {
         @Deprecated int a,
         int b) {}
 }
+

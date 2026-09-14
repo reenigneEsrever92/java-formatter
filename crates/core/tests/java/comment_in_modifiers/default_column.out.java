@@ -3,3 +3,4 @@ class DefaultColumn {
 // comment
     private int x = 0;
 }
+

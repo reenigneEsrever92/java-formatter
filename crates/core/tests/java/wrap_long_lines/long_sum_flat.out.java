@@ -3,3 +3,4 @@ class A {
         int result = alpha + beta + gamma + delta;
     }
 }
+

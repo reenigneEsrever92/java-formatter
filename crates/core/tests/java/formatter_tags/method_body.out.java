@@ -9,3 +9,4 @@ class A {
         int b = 2;
     }
 }
+

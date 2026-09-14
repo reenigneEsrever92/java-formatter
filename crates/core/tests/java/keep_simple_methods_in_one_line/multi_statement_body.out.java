@@ -5,3 +5,4 @@ class A {
         use(a, b);
     }
 }
+

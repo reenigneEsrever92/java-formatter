@@ -5,3 +5,4 @@ record R(
 
         int gammaComponent
 ) {}
+

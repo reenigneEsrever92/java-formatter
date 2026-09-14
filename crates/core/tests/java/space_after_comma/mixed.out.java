@@ -9,3 +9,4 @@ class A implements I1,I2 {
 }
 
 record R(int a,int b) {}
+

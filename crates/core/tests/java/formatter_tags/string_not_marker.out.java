@@ -4,3 +4,4 @@ class A {
 // the @formatter:off tag is inert in prose
     int x = 1;
 }
+

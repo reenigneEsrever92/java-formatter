@@ -4,3 +4,4 @@ class A {
     int   weird   =    2;
     int   stillWeird  = 3;
 }
+

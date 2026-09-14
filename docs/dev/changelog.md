@@ -9,6 +9,15 @@ tags: [dev, changelog]
 
 ## 2026-09-14
 
+- **Every formatted file ends with exactly one trailing empty line** —
+  `finalise_line_endings` in `crates/core/src/formatter.rs` now appends the
+  configured separator twice, so output always ends with one trailing empty
+  line (LF `}\n\n`, CRLF `}\r\n\r\n`, CR `}\r\r`) instead of a single final
+  newline; all 871 `.out.java` goldens under `crates/core/tests/java/**` are
+  re-baselined and a new `trailing_empty_line` fixture suite pins the
+  gains-one, collapse-to-one, empty-input and whitespace-only cases. See
+  [Every formatted file ends with exactly one trailing empty line](backlog/trailing-empty-line-at-eof.md).
+
 - **An anonymous class body is preserved wherever the creation is rendered
   (anonymous-class-body-vanishes)**: `new X() { … }` lost its whole
   implementation block from every position rendered through the flat path — a

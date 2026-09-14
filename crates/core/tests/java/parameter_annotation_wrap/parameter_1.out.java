@@ -10,3 +10,4 @@ class F {
         SomeVeryLongTypeName parameter,
         int other) {}
 }
+

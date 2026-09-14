@@ -1,11 +1,10 @@
 <code_scheme name="Project" version="173">
-  <option name="RIGHT_MARGIN" value="80" />
-  <option name="SOFT_MARGINS" value="80" />
   <JavaCodeStyleSettings>
     <option name="CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND" value="300" />
     <option name="RECORD_COMPONENTS_WRAP" value="5" />
     <option name="ALIGN_MULTILINE_RECORDS" value="false" />
     <option name="NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER" value="true" />
+    <option name="SPACE_INSIDE_ONE_LINE_ENUM_BRACES" value="true" />
   </JavaCodeStyleSettings>
   <codeStyleSettings language="JAVA">
     <option name="CALL_PARAMETERS_WRAP" value="5" />
@@ -20,6 +19,7 @@
     <option name="LINE_COMMENT_AT_FIRST_COLUMN" value="false" />
     <option name="BLOCK_COMMENT_AT_FIRST_COLUMN" value="false" />
     <option name="KEEP_FIRST_COLUMN_COMMENT" value="false" />
+    <option name="ENUM_CONSTANTS_WRAP" value="5" />
     <indentOptions>
       <option name="CONTINUATION_INDENT_SIZE" value="4" />
     </indentOptions>

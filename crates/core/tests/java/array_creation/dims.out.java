@@ -6,3 +6,4 @@ class Creation {
     int[] e = new int[count];
     Object[] f = new Object[foo + bar];
 }
+

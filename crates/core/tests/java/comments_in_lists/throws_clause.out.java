@@ -3,3 +3,4 @@ class ThrowsClause {
             // the second exception
             java.sql.SQLException {}
 }
+

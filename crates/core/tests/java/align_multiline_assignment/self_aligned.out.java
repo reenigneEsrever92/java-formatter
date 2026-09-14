@@ -10,3 +10,4 @@ class A {
                         new Config();
     }
 }
+

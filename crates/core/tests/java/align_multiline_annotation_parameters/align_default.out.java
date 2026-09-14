@@ -6,3 +6,4 @@ class F {
         epsilon = {55555, 66666})
     void m() {}
 }
+

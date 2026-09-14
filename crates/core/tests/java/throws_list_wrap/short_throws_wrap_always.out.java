@@ -4,3 +4,4 @@ class Parser {
         return src.length();
     }
 }
+

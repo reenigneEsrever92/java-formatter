@@ -6,3 +6,4 @@ import   com.aaa.B;
 // @formatter:on
 
 class C {}
+

@@ -5,3 +5,4 @@ class F {
         delta = {4444, 5555})
     void m() {}
 }
+

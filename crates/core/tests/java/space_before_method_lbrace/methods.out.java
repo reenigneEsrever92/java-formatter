@@ -7,3 +7,4 @@ class A {
 
     void f(){}
 }
+

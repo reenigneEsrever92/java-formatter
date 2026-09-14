@@ -5,3 +5,4 @@ class F {
         single=Value.A)
     void m() {}
 }
+

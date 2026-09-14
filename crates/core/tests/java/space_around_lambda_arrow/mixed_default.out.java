@@ -6,3 +6,4 @@ class A {
         log((a, b) -> a + b);
     }
 }
+

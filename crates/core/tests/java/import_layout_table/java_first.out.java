@@ -6,3 +6,4 @@ import com.acme.Widget;
 import javax.swing.*;
 
 class Use {}
+

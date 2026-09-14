@@ -4,3 +4,4 @@ class Params {
         // the second parameter
         int b) {}
 }
+

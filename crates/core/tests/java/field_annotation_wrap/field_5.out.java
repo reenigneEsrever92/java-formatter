@@ -10,3 +10,4 @@ class F {
     @VeryLongAnnotationName(someArgument = "a long value here")
     private static final SomeVeryLongTypeNameWithLongLength A_REALLY_LONG_FIELD_NAME = new SomeVeryLongTypeNameWithLongLength();
 }
+

@@ -5,3 +5,4 @@ interface I {
 
     int X = 1;
 }
+

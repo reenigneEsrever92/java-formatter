@@ -5,3 +5,4 @@ class Alpha extends AbstractAlpha implements Named, Sized, Registry<Alpha>, Mark
 interface Beta extends FirstInterface, SecondInterface, ThirdInterface {
     void run();
 }
+

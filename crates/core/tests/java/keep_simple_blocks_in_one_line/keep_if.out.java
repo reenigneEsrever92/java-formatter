@@ -3,3 +3,4 @@ class A {
         if (x) { foo(); }
     }
 }
+

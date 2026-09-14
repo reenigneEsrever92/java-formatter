@@ -4,3 +4,4 @@ class ArrayInit {
         // the second element
         2};
 }
+

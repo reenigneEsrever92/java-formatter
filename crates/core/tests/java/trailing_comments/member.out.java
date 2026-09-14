@@ -4,3 +4,4 @@ class Member { // class brace trailing
     void m() { // method brace trailing
     } // method end trailing
 } // class end trailing
+

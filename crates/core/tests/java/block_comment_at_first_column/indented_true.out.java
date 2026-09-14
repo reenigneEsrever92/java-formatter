@@ -5,3 +5,4 @@ class A {
         int y = 2;
     }
 }
+

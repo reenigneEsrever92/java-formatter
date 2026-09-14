@@ -10,3 +10,4 @@ class ArgumentAmongOthers {
             2);
     }
 }
+

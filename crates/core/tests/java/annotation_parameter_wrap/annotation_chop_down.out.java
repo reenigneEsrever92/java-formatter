@@ -8,3 +8,4 @@ class F {
         consumes = {"application/json", "application/xml"})
     void handler() {}
 }
+

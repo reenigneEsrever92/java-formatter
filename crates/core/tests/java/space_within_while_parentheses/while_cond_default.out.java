@@ -9,3 +9,4 @@ class A {
         } while (i > 0);
     }
 }
+

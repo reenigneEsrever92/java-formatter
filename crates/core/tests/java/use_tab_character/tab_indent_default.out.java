@@ -15,3 +15,4 @@ class TabIndent {
         return left + right + left + right + left + right + left + right + left + right;
     }
 }
+

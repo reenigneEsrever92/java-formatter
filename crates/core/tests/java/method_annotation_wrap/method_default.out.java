@@ -14,3 +14,4 @@ class F {
 
     void plain() {}
 }
+

@@ -10,3 +10,4 @@ class Patterns {
         Object v = o instanceof Integer i ? i : o;
     }
 }
+

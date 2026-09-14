@@ -5,3 +5,4 @@ class A {
         do { tick(); } while (go);
     }
 }
+

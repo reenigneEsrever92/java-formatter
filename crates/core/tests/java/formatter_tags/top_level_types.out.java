@@ -11,3 +11,4 @@ class   B   {
 class C {
     int z = 3;
 }
+

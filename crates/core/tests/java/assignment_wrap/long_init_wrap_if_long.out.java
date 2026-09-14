@@ -4,3 +4,4 @@ class A {
                 firstPart() + secondPart() + thirdPart() + fourthPart() + fifthPart() + sixthPart() + seventhPart() + eighthPart();
     }
 }
+

@@ -11,3 +11,4 @@ class Method {
     // between annotation and type
     void plain() {}
 }
+

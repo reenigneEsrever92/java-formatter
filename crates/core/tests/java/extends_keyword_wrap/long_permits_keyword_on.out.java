@@ -17,3 +17,4 @@ sealed interface Beta
         ThirdLongImpl {
     void run();
 }
+

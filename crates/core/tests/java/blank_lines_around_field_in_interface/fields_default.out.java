@@ -4,3 +4,4 @@ interface I {
 
     void m();
 }
+

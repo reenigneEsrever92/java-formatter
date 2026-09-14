@@ -7,3 +7,4 @@ class A {
 
     void f(java.io.Reader r) {}
 }
+

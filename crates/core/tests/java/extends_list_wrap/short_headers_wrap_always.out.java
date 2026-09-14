@@ -12,3 +12,4 @@ enum Level implements Named,
 
 record Point(int x, int y) implements Named,
         Sized {}
+

@@ -7,3 +7,4 @@ class F {
 
     void q(@VeryLongAnnotationName(someArgument = "a long value here") SomeVeryLongTypeName parameter, int other) {}
 }
+

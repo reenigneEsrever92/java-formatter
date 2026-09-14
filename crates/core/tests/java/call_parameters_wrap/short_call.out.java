@@ -3,3 +3,4 @@ class A {
         alpha(beta, gamma);
     }
 }
+

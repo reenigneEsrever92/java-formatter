@@ -8,3 +8,4 @@ class Binary {
         };
     }
 }
+

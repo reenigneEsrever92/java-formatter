@@ -18,3 +18,4 @@ class A {
         { handle(e); }
     }
 }
+

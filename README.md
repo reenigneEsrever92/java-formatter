@@ -815,10 +815,12 @@ braces when the body spans multiple lines, `3` = always force braces.
 - Line endings follow the root-level `LINE_SEPARATOR` option — `&#10;` (LF),
   `&#13;&#10;` (CRLF) or `&#13;` (CR); the default (`System`) emits the
   platform's own separator (`\n` on Unix). The configured separator is
-  applied at every line end, including the final newline, and the whole
-  reformat stays idempotent (R6). The line-length limit is set by the
-  root-level `SOFT_MARGINS` (first value) when present and otherwise by
-  `RIGHT_MARGIN`; when a scheme sets both, `SOFT_MARGINS` wins.
+  applied at every line end, and every file ends with exactly one trailing
+  empty line — a deliberate divergence from IntelliJ, which ends a file with
+  a single newline — and the whole reformat stays idempotent (R6). The
+  line-length limit is set by the root-level `SOFT_MARGINS` (first value)
+  when present and otherwise by `RIGHT_MARGIN`; when a scheme sets both,
+  `SOFT_MARGINS` wins.
 - With `KEEP_LINE_BREAKS` (default on), a construct whose source spans
   multiple lines keeps its canonical wrapped layout — one argument /
   parameter / operand / chain link / array element per line at the

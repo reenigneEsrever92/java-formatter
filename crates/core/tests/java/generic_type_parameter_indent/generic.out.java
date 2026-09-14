@@ -7,3 +7,4 @@ class Generic<T extends Number & Serializable, U> {
             gamma());
     }
 }
+

@@ -3,3 +3,4 @@ class A {
         return a[i] + a[i + 1];
     }
 }
+

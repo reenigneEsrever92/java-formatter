@@ -5,3 +5,4 @@ import    com.zzz.A;
 class C {
     int x = 1;
 }
+

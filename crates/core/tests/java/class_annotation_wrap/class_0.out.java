@@ -13,3 +13,4 @@ class Plain {
 @VeryLongAnnotationName(someArgument = "a long value here") @AnotherLongAnnotationName(withAnotherArgument = {1, 2, 3}) class ExtremelyLongClassNameThatOverflowsTheNarrowMargin extends BaseClass implements InterfaceOne, InterfaceTwo {
     int w;
 }
+

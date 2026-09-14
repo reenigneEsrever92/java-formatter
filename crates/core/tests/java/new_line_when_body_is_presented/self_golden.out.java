@@ -8,3 +8,4 @@ class A {
     int get()
     { return 1; }
 }
+

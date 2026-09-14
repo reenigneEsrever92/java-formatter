@@ -9,3 +9,4 @@ sealed interface Beta extends FirstInterface,
                               ThirdInterface permits FirstImpl,
                                                      SecondImpl,
                                                      ThirdLongImpl {}
+

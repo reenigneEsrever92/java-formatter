@@ -6,3 +6,4 @@ class   Foo   {
 class Bar {
     int y = 2;
 }
+

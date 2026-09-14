@@ -5,3 +5,4 @@ class A {
     @SuppressWarnings("unchecked")
     int f = 0;
 }
+

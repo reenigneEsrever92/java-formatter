@@ -3,3 +3,4 @@ class F {
         @A @B final String name = "x";
     }
 }
+

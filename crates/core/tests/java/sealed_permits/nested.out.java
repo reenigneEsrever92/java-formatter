@@ -7,3 +7,4 @@ class Outer {
 
     static final class Impl2 implements Inner {}
 }
+

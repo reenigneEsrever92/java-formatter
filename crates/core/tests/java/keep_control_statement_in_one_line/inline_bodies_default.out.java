@@ -7,3 +7,4 @@ class InlineBodies {
         do tick(); while (go);
     }
 }
+

@@ -7,3 +7,4 @@ class I {
 
     void m() {}
 }
+

@@ -4,3 +4,4 @@ class TooWide {
 
     void methodLongName() { workLongName(); }
 }
+

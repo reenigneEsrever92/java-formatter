@@ -18,3 +18,4 @@ class Plain {
 class ExtremelyLongClassNameThatOverflowsTheNarrowMargin extends BaseClass implements InterfaceOne, InterfaceTwo {
     int w;
 }
+

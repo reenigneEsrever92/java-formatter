@@ -8,3 +8,4 @@ class Use {
         new C();
     }
 }
+

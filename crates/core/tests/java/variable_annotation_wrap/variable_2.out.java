@@ -16,3 +16,4 @@ class F {
                 new SomeVeryLongTypeNameWithLongLength();
     }
 }
+

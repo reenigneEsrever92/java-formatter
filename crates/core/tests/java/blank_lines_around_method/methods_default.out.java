@@ -5,3 +5,4 @@ class M {
 
     void b() {}
 }
+

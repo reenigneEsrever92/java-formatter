@@ -11,3 +11,4 @@ class Nested {
     void nestedMethod() {}
 }
 }
+

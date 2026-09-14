@@ -4,3 +4,4 @@ enum E {
 
     int x;
 }
+

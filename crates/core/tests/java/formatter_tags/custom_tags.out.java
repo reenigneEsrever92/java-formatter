@@ -5,3 +5,4 @@ class A {
 // ON
     int y = 3;
 }
+

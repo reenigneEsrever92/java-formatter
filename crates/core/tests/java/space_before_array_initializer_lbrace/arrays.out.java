@@ -5,3 +5,4 @@ class A {
         return new int[] {4, 5};
     }
 }
+

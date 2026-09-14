@@ -8,3 +8,4 @@ class F {
         int x = 1;
     }
 }
+

@@ -5,3 +5,4 @@ class F {
         int gammaParameter
                          ) {}
 }
+

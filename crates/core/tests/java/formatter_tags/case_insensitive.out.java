@@ -5,3 +5,4 @@ class A {
 // @Formatter:On
     int y = 3;
 }
+

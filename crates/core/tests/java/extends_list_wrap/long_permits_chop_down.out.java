@@ -13,3 +13,4 @@ sealed interface Beta extends FirstInterface,
         ThirdLongImpl {
     void run();
 }
+

@@ -9,3 +9,4 @@ class ScopedExpressions {
         return o instanceof Outer.Inner.Record(var value) ? 1 : 2;
     }
 }
+

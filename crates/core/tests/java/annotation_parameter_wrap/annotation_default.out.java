@@ -5,3 +5,4 @@ class F {
     @RequestMapping(path = "/some/long/path", method = RequestMethod.GET, produces = "application/json", consumes = {"application/json", "application/xml"})
     void handler() {}
 }
+

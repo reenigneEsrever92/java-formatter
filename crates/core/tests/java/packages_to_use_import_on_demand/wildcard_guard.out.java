@@ -9,3 +9,4 @@ class Use {
         new Color(1);
     }
 }
+

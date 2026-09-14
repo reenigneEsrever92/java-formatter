@@ -3,3 +3,4 @@ record R(@Deprecated int alphaComponent,
         @B
         String betaComponent,
         int gammaComponent) {}
+

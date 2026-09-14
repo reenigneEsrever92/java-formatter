@@ -4,3 +4,4 @@ class A {
 // @formatter:on
     int y = 3;
 }
+

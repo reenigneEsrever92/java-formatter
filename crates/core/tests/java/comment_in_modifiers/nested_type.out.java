@@ -11,3 +11,4 @@ class Nested {
     // interface comment
     interface I {}
 }
+

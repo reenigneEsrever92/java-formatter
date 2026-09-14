@@ -485,6 +485,8 @@ mod throws_keyword_wrap;
 mod throws_list_wrap;
 #[path = "options/trailing_comments.rs"]
 mod trailing_comments;
+#[path = "options/trailing_empty_line.rs"]
+mod trailing_empty_line;
 #[path = "options/use_relative_indents.rs"]
 mod use_relative_indents;
 #[path = "options/use_single_class_imports.rs"]

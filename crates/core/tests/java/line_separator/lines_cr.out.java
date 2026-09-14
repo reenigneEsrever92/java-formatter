@@ -1,1 +1,1 @@
-class A {    void m() {        int x = 1;    }}
+class A {    void m() {        int x = 1;    }}

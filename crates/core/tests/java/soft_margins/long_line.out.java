@@ -4,3 +4,4 @@ class A {
                 compute(firstValue, secondValue, thirdValue, fourthValue, fifthValue, sixthValue);
     }
 }
+

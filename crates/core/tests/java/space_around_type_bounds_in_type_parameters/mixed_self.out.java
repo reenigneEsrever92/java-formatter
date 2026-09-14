@@ -3,3 +3,4 @@ class Box<T extends Number&Comparable<T>> {
         return null;
     }
 }
+

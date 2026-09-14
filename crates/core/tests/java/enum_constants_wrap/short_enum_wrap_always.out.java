@@ -3,3 +3,4 @@ enum Color {
     GREEN,
     BLUE
 }
+

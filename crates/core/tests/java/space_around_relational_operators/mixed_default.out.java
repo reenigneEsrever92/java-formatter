@@ -4,3 +4,4 @@ class A {
         log(a < c);
     }
 }
+

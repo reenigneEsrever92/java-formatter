@@ -4,3 +4,4 @@ import a.one.C;
 import b.other.C;
 
 class Use {}
+

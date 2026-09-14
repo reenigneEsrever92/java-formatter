@@ -4,3 +4,4 @@ class A {
 /** Doc. */
     void m() {}
 }
+

@@ -5,3 +5,4 @@ class Chain {
                 .configure();
     }
 }
+

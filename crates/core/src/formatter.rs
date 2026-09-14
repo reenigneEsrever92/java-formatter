@@ -97,10 +97,11 @@ pub fn format_java_diagnosed(source: &str, style: &JavaStyle) -> (String, Vec<Pa
     }
 
     // Finalisation: collapse any `\r\n` that arrived via verbatim echoes of a
-    // CRLF source, trim to exactly one trailing line end, then substitute the
-    // configured separator at every line end — including the final newline —
-    // when it is not LF. LF output takes the historical code path unchanged,
-    // so default (System → LF on the test hosts) output stays byte-identical.
+    // CRLF source, trim every trailing line end, then append the configured
+    // separator at every line end — including the trailing empty line every
+    // output ends with — so a file always finishes with exactly one trailing
+    // empty line (a deliberate divergence from IntelliJ, which ends with a
+    // single newline).
     (
         finalise_line_endings(&out, style.line_separator.resolve()),
         diagnostics,
@@ -10748,19 +10749,20 @@ fn normalise_for_semis(header: &str, before: bool, after: bool) -> Option<String
 /// The engine emits LF internally, so a CRLF / CR document must be converted
 /// only at the very end — and only the *engine's* line ends, not newlines that
 /// arrived verbatim inside echoed text (block comments) from a CRLF source,
-/// which would otherwise double the `\r`. Collapse those first, trim to
-/// exactly one trailing line end, then substitute `\n` → `sep` when the
-/// resolved separator is not LF. LF output takes the historical code path
-/// (`trim_end_matches('\n')` + one `\n`), so default output stays
-/// byte-identical and re-formatting a CRLF document yields the same
+/// which would otherwise double the `\r`. Collapse those first, trim every
+/// trailing line end, then append the configured separator **twice**: once to
+/// terminate the last content line and once for the trailing empty line that
+/// every output ends with (a deliberate divergence from IntelliJ, which ends
+/// with a single newline). Trimming before the append keeps the whole reformat
+/// a fixed point, so re-formatting a document — LF or CRLF — yields the same
 /// separators (idempotent).
 fn finalise_line_endings(out: &str, sep: &'static str) -> String {
     let collapsed = out.replace("\r\n", "\n");
     let trimmed = collapsed.trim_end_matches('\n');
     if sep == "\n" {
-        format!("{}\n", trimmed)
+        format!("{}\n\n", trimmed)
     } else {
-        format!("{}{}", trimmed.replace('\n', sep), sep)
+        format!("{}{}{}", trimmed.replace('\n', sep), sep, sep)
     }
 }
 

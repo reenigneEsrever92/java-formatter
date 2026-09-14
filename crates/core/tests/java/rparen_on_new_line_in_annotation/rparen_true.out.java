@@ -6,3 +6,4 @@ class F {
     )
     void m() {}
 }
+

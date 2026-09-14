@@ -10,3 +10,4 @@ class Deconstruction {
 
     record Point(int x, int y) {}
 }
+

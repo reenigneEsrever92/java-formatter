@@ -3,3 +3,4 @@ enum Constants {
     // constant comment
     A;
 }
+

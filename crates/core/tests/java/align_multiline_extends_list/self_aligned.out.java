@@ -11,3 +11,4 @@ enum Level implements Named, Sized, Comparable<Level> {
 }
 
 record Point(int x, int y) implements Named, Sized {}
+

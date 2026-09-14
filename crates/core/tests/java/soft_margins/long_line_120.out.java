@@ -3,3 +3,4 @@ class A {
         int result = compute(firstValue, secondValue, thirdValue, fourthValue, fifthValue, sixthValue);
     }
 }
+

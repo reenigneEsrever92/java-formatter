@@ -12,3 +12,4 @@ interface Beta
         ThirdInterface {
     void run();
 }
+

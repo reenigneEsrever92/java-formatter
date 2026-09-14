@@ -5,3 +5,4 @@ class Svc {
         Files.write(Paths.get(path), data);
     }
 }
+

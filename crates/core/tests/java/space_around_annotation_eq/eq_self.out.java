@@ -3,3 +3,4 @@ class F {
         arr={1, 2})
     void m() {}
 }
+

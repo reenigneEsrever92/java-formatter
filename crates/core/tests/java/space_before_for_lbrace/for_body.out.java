@@ -14,3 +14,4 @@ class A {
 
     void g(String s) {}
 }
+

@@ -15,3 +15,4 @@ class BlankLines {
         int x = 1;
     }
 }
+

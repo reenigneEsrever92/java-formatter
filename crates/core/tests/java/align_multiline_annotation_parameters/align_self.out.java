@@ -3,3 +3,4 @@ class F {
         beta = {22, 33})
     void m() {}
 }
+

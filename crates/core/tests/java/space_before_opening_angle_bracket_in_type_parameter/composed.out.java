@@ -9,3 +9,4 @@ class WithMethod <T> {
         return u;
     }
 }
+

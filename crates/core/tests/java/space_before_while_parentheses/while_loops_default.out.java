@@ -8,3 +8,4 @@ class A {
         } while (x < 10);
     }
 }
+

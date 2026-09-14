@@ -3,3 +3,4 @@ record R(
         @A @B String betaComponent,
         int gammaComponent
 ) {}
+

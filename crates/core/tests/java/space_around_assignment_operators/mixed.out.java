@@ -5,3 +5,4 @@ class A {
         log(total=a + b);
     }
 }
+

@@ -5,3 +5,4 @@ enum E {
 /** Doc. */
     void m() {}
 }
+

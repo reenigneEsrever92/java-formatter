@@ -4,3 +4,4 @@ enum Season {
     SUMMER,
     AUTUMN
 }
+

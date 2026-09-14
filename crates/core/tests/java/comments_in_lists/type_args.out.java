@@ -3,3 +3,4 @@ class TypeArgs {
             // the second type argument
             Integer> m;
 }
+

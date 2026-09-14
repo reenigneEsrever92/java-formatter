@@ -7,3 +7,4 @@ class Box<T> {
 interface I<T> {}
 
 record R<T>(T x) {}
+

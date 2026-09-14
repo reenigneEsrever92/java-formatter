@@ -5,3 +5,4 @@ class A {
 // @formatter:on
     int after = 4;
 }
+

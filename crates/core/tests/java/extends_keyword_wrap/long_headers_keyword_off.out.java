@@ -10,3 +10,4 @@ interface Beta extends FirstInterface,
         ThirdInterface {
     void run();
 }
+

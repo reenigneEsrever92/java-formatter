@@ -4,3 +4,4 @@ class A {
 /* a first column block comment */
     int g;
 }
+
