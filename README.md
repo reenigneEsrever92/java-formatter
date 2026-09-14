@@ -722,9 +722,14 @@ braces when the body spans multiple lines, `3` = always force braces.
   the name, and a record pattern (`o instanceof Point(int x, int y)`) renders
   flat with the same deconstruction-list spacing options as a `case` label
   (`SPACE_BEFORE_DECONSTRUCTION_LIST` / `SPACE_WITHIN_DECONSTRUCTION_LIST`).
-  A named record pattern (`o instanceof Point(int x, int y) p`) is valid Java
-  but a tree-sitter-java 0.23.5 grammar gap: it parses as an error (reported
-  as a warning) and the best-effort output drops the trailing name.
+  A record pattern whose type is a _qualified_ name
+  (`o instanceof Outer.Inner.Record(var v)`) is valid Java but a
+  tree-sitter-java 0.23.5 grammar gap — the grammar accepts only a simple
+  record type before the component list — so it does not parse as a record
+  pattern (the error is reported as a warning). The recovered fragment is never
+  dropped: a statement carrying one is emitted verbatim instead of rebuilt from
+  its fields, so the deconstruction survives. A named record pattern
+  (`o instanceof Point(int x, int y) p`) is the same kind of grammar gap.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
   (naming the construct and its line:column), while the best-effort formatted

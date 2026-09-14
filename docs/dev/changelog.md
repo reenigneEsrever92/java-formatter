@@ -7,6 +7,22 @@ tags: [dev, changelog]
 
 # Changelog
 
+## 2026-09-14
+
+- **A statement the parser could only partially recover is emitted verbatim,
+  so an `instanceof` record pattern with a qualified type no longer loses its
+  deconstruction (scoped-record-pattern-vanishes)**: `o instanceof
+Outer.Inner.Record(var v)` is valid Java but a tree-sitter-java 0.23.5
+  grammar gap, so the parser recovers with an `ERROR` node carrying the
+  component list; the field-based `if_statement` / `while_statement` renderers
+  in `crates/core/src/formatter.rs` never emitted it, dropping the
+  deconstruction and producing output that no longer compiled. `Fmt::stmt` now
+  echoes a statement verbatim when its subtree contains an `ERROR` node (a new
+  `contains_error_node` helper behind a `has_error` fast path), and the `else
+if` alternatives route through `stmt`; the zero-width `MISSING ")"` the
+  grammar inserts does not trigger the echo. See
+  [instanceof with a qualified-type record pattern loses the deconstruction](backlog/scoped-record-pattern-vanishes.md).
+
 ## 2026-09-13
 
 - **A comment inside an `if` / `while` / `do` / `synchronized` / `switch`

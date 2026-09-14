@@ -166,6 +166,30 @@ fn diagnostic_for(node: Node, src: &[u8]) -> Option<ParseDiagnostic> {
     })
 }
 
+/// True when `node`'s subtree contains a tree-sitter `ERROR` node — content the
+/// grammar could not parse and no renderer models. [`Node::has_error`] alone is
+/// not the test: it is also true for a zero-width `MISSING` token (e.g. the `)`
+/// a grammar gap inserts), whose node text is incomplete under the node itself.
+/// The `has_error` check is a fast path so valid input costs one flag read.
+fn contains_error_node(node: Node) -> bool {
+    if !node.has_error() {
+        return false;
+    }
+    fn walk(node: Node) -> bool {
+        if node.is_error() {
+            return true;
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if walk(child) {
+                return true;
+            }
+        }
+        false
+    }
+    walk(node)
+}
+
 /// 1-based line and column for a byte offset into `src`. The column counts
 /// characters (not bytes) since the last newline.
 fn line_col(src: &[u8], byte: usize) -> (usize, usize) {
@@ -6022,6 +6046,16 @@ impl<'s> Fmt<'s> {
     // ── statements ────────────────────────────────────────────────────────────
 
     fn stmt(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        // A statement the parser could only partially recover is emitted
+        // verbatim (R4): a grammar gap leaves an `ERROR` child (e.g. the
+        // deconstruction of a record pattern whose type is a qualified name)
+        // that the field-based renderers below would silently drop. The
+        // verbatim echo is the statement's own source range, so nothing in it
+        // can be lost; `contains_error_node` ignores zero-width `MISSING`
+        // tokens, whose node text would be incomplete.
+        if contains_error_node(node) {
+            return self.txt(node).to_string();
+        }
         match node.kind() {
             "expression_statement" => {
                 let e = node
@@ -6297,14 +6331,16 @@ impl<'s> Fmt<'s> {
             };
             let alt_str = if alt.kind() == "if_statement" {
                 if self.style.special_else_if_treatment {
-                    format!("{}else {}", kw_gap, self.if_stmt(alt, indent, c))
+                    // `stmt` (not `if_stmt`) so an `else if` whose subtree did
+                    // not parse takes the verbatim guard too.
+                    format!("{}else {}", kw_gap, self.stmt(alt, indent, c))
                 } else {
                     // `SPECIAL_ELSE_IF_TREATMENT` off: fuse via an explicit
                     // `else { if … }` block. The braces group a single `if`, so
                     // semantics are unchanged (R5) and the braces survive a
                     // reformat (R6).
                     let inner =
-                        self.if_stmt(alt, indent + 1, self.col_after(0, &self.ind(indent + 1)));
+                        self.stmt(alt, indent + 1, self.col_after(0, &self.ind(indent + 1)));
                     format!(
                         "{}else{}{{\n{}{}\n{}}}",
                         kw_gap,
