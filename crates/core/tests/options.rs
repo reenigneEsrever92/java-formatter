@@ -55,6 +55,8 @@ mod align_types_in_multi_catch;
 mod annotation_new_line_in_record_component;
 #[path = "options/annotation_parameter_wrap.rs"]
 mod annotation_parameter_wrap;
+#[path = "options/anonymous_class_bodies.rs"]
+mod anonymous_class_bodies;
 #[path = "options/array_creation.rs"]
 mod array_creation;
 #[path = "options/array_element_indent.rs"]

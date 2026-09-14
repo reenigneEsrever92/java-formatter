@@ -8675,6 +8675,12 @@ impl<'s> Fmt<'s> {
     /// [`Self::flat_new`] with [`Self::flat_args_chain`] supplying the argument
     /// list (identical output when no argument is an over-margin chain).
     fn flat_new_chain(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        // An anonymous body has no one-line form; echo the node verbatim (R4)
+        // so nothing is dropped, and let the caller's newline guard pick the
+        // multi-line layout.
+        if self.anon_body(node).is_some() {
+            return self.txt(node).to_string();
+        }
         let ta = self
             .fld(node, "type_arguments")
             .map(|n| self.flat_type_args(n))
@@ -8697,11 +8703,7 @@ impl<'s> Fmt<'s> {
                     "",
                 )
             });
-        let body = self
-            .fld(node, "class_body")
-            .map(|_| format!("{}{{ ... }}", self.sp(self.style.space_before_class_lbrace)))
-            .unwrap_or_default();
-        format!("{}{}{}", prefix, args, body)
+        format!("{}{}", prefix, args)
     }
 
     fn inv_wrapped(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -8809,18 +8811,20 @@ impl<'s> Fmt<'s> {
         }
 
         let pad = self.style.space_within_method_call_parentheses;
-        // A single lambda argument whose block body cannot render flat
-        // (comments, control flow, several statements) stays glued after `(` —
-        // IntelliJ keeps `forEach(item -> { … })` on the call line with the
-        // body multi-line — instead of being pushed onto its own line by the
-        // wrapped-argument layout below. Only when nothing trails the
-        // argument, so a `//` cannot swallow the glued `)`.
+        // A single argument whose body cannot render flat — a lambda with a
+        // block body (comments, control flow, several statements) or an
+        // anonymous class — stays glued after `(`: IntelliJ keeps
+        // `forEach(item -> { … })` / `map(new Function<>() { … })` on the call
+        // line with the body multi-line, instead of pushing the argument onto
+        // its own line by the wrapped-argument layout below. Only when nothing
+        // trails the argument, so a `//` cannot swallow the glued `)`.
         let inner = indent + 1;
         if !keep
             && !forces
             && entries.len() == 1
             && !flat_ok
-            && entries[0].1.kind() == "lambda_expression"
+            && (entries[0].1.kind() == "lambda_expression"
+                || self.anon_body(entries[0].1).is_some())
             && entries[0].2.is_empty()
             && trailing.is_empty()
         {
@@ -9223,6 +9227,15 @@ impl<'s> Fmt<'s> {
 
     // ── new / field_access / assignment / binary … ────────────────────────────
 
+    /// The anonymous class body of an `object_creation_expression`
+    /// (`new X() { … }`). The grammar gives the body no field name — it is a
+    /// plain `class_body` child — so it is found positionally.
+    fn anon_body(&self, node: Node<'s>) -> Option<Node<'s>> {
+        self.all_ch(node)
+            .into_iter()
+            .find(|c| c.kind() == "class_body")
+    }
+
     fn new_expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
         let ta = self
             .fld(node, "type_arguments")
@@ -9237,12 +9250,9 @@ impl<'s> Fmt<'s> {
         // SPACE_BEFORE_METHOD_CALL_PARENTHESES (constructor calls share the
         // method-call toggle).
         let call_gap = self.sp(self.style.space_before_method_call_parentheses);
-        // An anonymous class body is a plain `class_body` child of the
-        // `object_creation_expression` (the grammar gives it no field name).
-        let body_node = self
-            .all_ch(node)
-            .into_iter()
-            .find(|c| c.kind() == "class_body");
+        // An anonymous class body (`new X() { … }`) makes this a class
+        // declaration; the body node is found positionally (`anon_body`).
+        let body_node = self.anon_body(node);
         let has_body = body_node.is_some();
 
         if let Some(args_node) = self.fld(node, "arguments") {
@@ -9427,7 +9437,7 @@ impl<'s> Fmt<'s> {
 
         let left = self
             .fld(node, "left")
-            .map(|n| self.flat(n))
+            .map(|n| self.flat_or_expr(n, indent, c))
             .unwrap_or_default();
         let op = self
             .fld(node, "operator")
@@ -9435,7 +9445,7 @@ impl<'s> Fmt<'s> {
             .unwrap_or("+");
         let right = self
             .fld(node, "right")
-            .map(|n| self.flat(n))
+            .map(|n| self.flat_or_expr(n, indent, c))
             .unwrap_or_default();
         let sep = self.op_sep(op);
         let flat = format!("{}{}{}{}{}", left, sep, op, sep, right);
@@ -9548,15 +9558,15 @@ impl<'s> Fmt<'s> {
         let flat = format!(
             "{}{}{}{}{}",
             self.fld(node, "condition")
-                .map(|n| self.flat(n))
+                .map(|n| self.flat_or_expr(n, indent, c))
                 .unwrap_or_default(),
             q,
             self.fld(node, "consequence")
-                .map(|n| self.flat(n))
+                .map(|n| self.flat_or_expr(n, indent, c))
                 .unwrap_or_default(),
             cl,
             self.fld(node, "alternative")
-                .map(|n| self.flat(n))
+                .map(|n| self.flat_or_expr(n, indent, c))
                 .unwrap_or_default()
         );
 
@@ -10308,6 +10318,19 @@ impl<'s> Fmt<'s> {
 
     // ── flat (one-line) versions ──────────────────────────────────────────────
 
+    /// A flat rendering that never carries a line break: when `node`'s flat form
+    /// would (an unflattenable construct such as an anonymous class body), fall
+    /// back to the canonical [`Self::expr`] rendering at the real column instead
+    /// of pasting the source.
+    fn flat_or_expr(&self, node: Node<'s>, indent: usize, c: usize) -> String {
+        let f = self.flat(node);
+        if f.contains('\n') {
+            self.expr(node, indent, c)
+        } else {
+            f
+        }
+    }
+
     fn flat(&self, node: Node<'s>) -> String {
         match node.kind() {
             "method_invocation" => self.flat_inv(node),
@@ -10480,6 +10503,12 @@ impl<'s> Fmt<'s> {
     }
 
     fn flat_new(&self, node: Node<'s>) -> String {
+        // An anonymous body has no one-line form; echo the node verbatim (R4)
+        // so nothing is dropped, and let the caller's newline guard pick the
+        // multi-line layout.
+        if self.anon_body(node).is_some() {
+            return self.txt(node).to_string();
+        }
         let ta = self
             .fld(node, "type_arguments")
             .map(|n| self.flat_type_args(n))
@@ -10500,22 +10529,13 @@ impl<'s> Fmt<'s> {
                     "",
                 )
             });
-        // The anonymous body cannot render flat; this placeholder keeps the
-        // margin estimate honest. The joins follow the same toggles as
-        // [`Self::new_expr`]: a gap before the constructor parens and one
-        // before the anonymous body's `{` when a body is present.
-        let body = self
-            .fld(node, "class_body")
-            .map(|_| format!("{}{{ ... }}", self.sp(self.style.space_before_class_lbrace)))
-            .unwrap_or_default();
         format!(
-            "new {}{}{}{}{}{}",
+            "new {}{}{}{}{}",
             ta,
             self.type_args_gap(&ta, &ty),
             ty,
             self.sp(self.style.space_before_method_call_parentheses),
-            args,
-            body
+            args
         )
     }
 

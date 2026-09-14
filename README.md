@@ -732,6 +732,15 @@ braces when the body spans multiple lines, `3` = always force braces.
   enclosing block (a ternary, a declaration, a `return`) is merged back into one
   verbatim line, so the deconstruction survives. A named record pattern
   (`o instanceof Point(int x, int y) p`) is the same kind of grammar gap.
+- An anonymous class body is never dropped: `new X() { … }` keeps its whole
+  implementation block wherever the creation appears, including the positions
+  rendered on one line — a call / `new` argument, a chain receiver, a ternary
+  side, a binary operand and a lambda body. A single anonymous-class argument
+  stays glued on the call line (`map(new Function<>() {` … `})`, as IntelliJ
+  lays it out), the body's members follow the class options
+  (`BLANK_LINES_AFTER_ANONYMOUS_CLASS_HEADER`, `SPACE_BEFORE_CLASS_LBRACE` and
+  the member blank-line and spacing options), and the output re-formats to
+  itself.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
   (naming the construct and its line:column), while the best-effort formatted

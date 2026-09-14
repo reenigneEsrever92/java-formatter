@@ -9,6 +9,23 @@ tags: [dev, changelog]
 
 ## 2026-09-14
 
+- **An anonymous class body is preserved wherever the creation is rendered
+  (anonymous-class-body-vanishes)**: `new X() { … }` lost its whole
+  implementation block from every position rendered through the flat path — a
+  call / `new` argument, a chain receiver, a ternary side, a binary operand and
+  a lambda body — because the flat renderers in `crates/core/src/formatter.rs`
+  resolved the anonymous body with `self.fld(node, "class_body")`, a field name
+  the grammar never sets (`object_creation_expression` carries the body as an
+  unnamed positional child), so `stream.map(new Function<String, String>() { … })`
+  formatted to `stream.map(new Function<String, String>())`. `flat_new` /
+  `flat_new_chain` now find the body positionally (a new `anon_body` helper,
+  shared with `new_expr`) and echo the node's source verbatim (R4) so the
+  existing newline guards route it to the multi-line layout; `args_wrapped`
+  glues a single unflattenable argument (an anonymous class or a block lambda)
+  after the call's `(`; and a new `flat_or_expr` helper renders a ternary side
+  or a binary operand through the canonical `expr` rendering. See
+  [An anonymous class body vanishes when the creation is rendered through the flat path](backlog/anonymous-class-body-vanishes.md).
+
 - **A statement the parser could only partially recover is emitted verbatim,
   so an `instanceof` record pattern with a qualified type no longer loses its
   deconstruction (scoped-record-pattern-vanishes)**: `o instanceof
