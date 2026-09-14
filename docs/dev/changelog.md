@@ -23,6 +23,19 @@ if` alternatives route through `stmt`; the zero-width `MISSING ")"` the
   grammar inserts does not trigger the echo. See
   [instanceof with a qualified-type record pattern loses the deconstruction](backlog/scoped-record-pattern-vanishes.md).
 
+- **A statement the parser split into an `ERROR` fragment in the enclosing
+  block is merged back into one verbatim line
+  (recovered-statement-fragments)**: a ternary, declaration, `return` or
+  assignment over a qualified-type record pattern (`int r = o instanceof
+Outer.Inner.Record(var value) ? 1 : 2;`) is recovered by tree-sitter-java as
+  a parsed prefix plus an `ERROR` fragment (and often a parsed tail) that are
+  children of the `block`, which rendered each as its own statement — moving
+  the fragment out of its statement and emitting output that no longer
+  compiled. `Fmt::block` now emits the run from the statement's start byte
+  through the last sibling that begins on the same source line verbatim,
+  leaving the surrounding statements formatted. See
+  [A statement recovered as an ERROR fragment in a block is split into separate statements](backlog/recovered-statement-fragments.md).
+
 ## 2026-09-13
 
 - **A comment inside an `if` / `while` / `do` / `synchronized` / `switch`

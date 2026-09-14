@@ -5827,6 +5827,49 @@ impl<'s> Fmt<'s> {
                     continue;
                 }
             }
+            // A statement the parser could not finish is recovered as a parsed
+            // prefix plus one or more `ERROR` fragments sitting directly in
+            // the block. Rendering the fragments as separate statements would
+            // move them out of their statement and emit invalid Java, so the
+            // whole run is emitted verbatim as one line (R4): it starts at the
+            // statement before the first `ERROR` child and continues while the
+            // next child starts on the same source line (the parsed tail of
+            // the broken statement).
+            if stmts.get(i + 1).is_some_and(|n| n.is_error()) {
+                let mut j = i;
+                while j + 1 < stmts.len()
+                    && (stmts[j + 1].is_error()
+                        || stmts[j + 1].start_position().row == stmts[j].end_position().row)
+                {
+                    j += 1;
+                }
+                let end_byte = if j + 1 < stmts.len() {
+                    stmts[j + 1].start_byte()
+                } else {
+                    node.end_byte().saturating_sub(1)
+                };
+                let blanks = if i == 0 {
+                    let existing = self.blank_lines_between(node.start_byte(), s.start_byte());
+                    self.spacing(existing, keep, body_lead_min)
+                } else {
+                    let prev_byte = prev_end.unwrap_or_else(|| stmts[i - 1].end_byte());
+                    let existing = self.blank_lines_between(prev_byte, s.start_byte());
+                    self.spacing(existing, keep, 0)
+                };
+                lines.push(BodyLine {
+                    blanks,
+                    indented: true,
+                    protected: None,
+                    text: self.src_str()[s.start_byte()..end_byte]
+                        .trim_end()
+                        .to_string(),
+                    align: None,
+                });
+                prev_end = Some(stmts[j].end_byte());
+                prev_row = Some(stmts[j].end_position().row);
+                i = j + 1;
+                continue;
+            }
             let blanks = if i == 0 {
                 // Leading gap after the opening brace.
                 let existing = self.blank_lines_between(node.start_byte(), s.start_byte());

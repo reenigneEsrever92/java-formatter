@@ -12,7 +12,9 @@
 //! A record pattern whose type is a *qualified* name is a tree-sitter-java
 //! 0.23.5 grammar gap (the grammar models only a simple record type before the
 //! component list), so the parser recovers with an `ERROR` node; the affected
-//! statement is preserved verbatim rather than losing the deconstruction.
+//! statement is preserved verbatim rather than losing the deconstruction —
+//! whether the `ERROR` sits inside the statement or is recovered as a fragment
+//! directly in the enclosing block (which merges it back into its statement).
 
 use super::common::*;
 
@@ -33,6 +35,10 @@ const SCOPED_RECORD_PATTERN: &str =
     include_str!("../java/instanceof_patterns/scoped_record_pattern.java");
 const SCOPED_RECORD_PATTERN_OUT: &str =
     include_str!("../java/instanceof_patterns/scoped_record_pattern.out.java");
+const SCOPED_RECORD_PATTERN_IN_EXPRESSION: &str =
+    include_str!("../java/instanceof_patterns/scoped_record_pattern_in_expression.java");
+const SCOPED_RECORD_PATTERN_IN_EXPRESSION_OUT: &str =
+    include_str!("../java/instanceof_patterns/scoped_record_pattern_in_expression.out.java");
 
 #[test]
 fn type_pattern_keeps_its_variable_name() {
@@ -74,4 +80,17 @@ fn patterns_survive_in_boolean_while_and_ternary_contexts() {
 #[test]
 fn scoped_record_patterns_are_preserved_verbatim() {
     assert_eq!(format(SCOPED_RECORD_PATTERN), SCOPED_RECORD_PATTERN_OUT);
+}
+
+/// When the parser recovers a broken statement as a parsed prefix plus an
+/// `ERROR` fragment sitting directly in the block (a ternary over a scoped
+/// record pattern, a declaration, a `return`), the fragment is merged back into
+/// its statement and the whole run is emitted verbatim rather than split into
+/// separate — and invalid — statements.
+#[test]
+fn scoped_record_patterns_in_expressions_are_preserved_verbatim() {
+    assert_eq!(
+        format(SCOPED_RECORD_PATTERN_IN_EXPRESSION),
+        SCOPED_RECORD_PATTERN_IN_EXPRESSION_OUT
+    );
 }

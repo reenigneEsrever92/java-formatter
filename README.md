@@ -728,7 +728,9 @@ braces when the body spans multiple lines, `3` = always force braces.
   record type before the component list — so it does not parse as a record
   pattern (the error is reported as a warning). The recovered fragment is never
   dropped: a statement carrying one is emitted verbatim instead of rebuilt from
-  its fields, so the deconstruction survives. A named record pattern
+  its fields, and a statement the parser split into a fragment directly in the
+  enclosing block (a ternary, a declaration, a `return`) is merged back into one
+  verbatim line, so the deconstruction survives. A named record pattern
   (`o instanceof Point(int x, int y) p`) is the same kind of grammar gap.
 - Input that is not valid Java is reported, not silently formatted: parse
   errors and missing tokens are written to stderr as `warning:` lines
