@@ -471,6 +471,15 @@ braces when the body spans multiple lines, `3` = always force braces.
   line, preserving today's output byte-for-byte, and with `PREFER_PARAMETERS_WRAP`
   an overflowing tail call's arguments wrap before its method-call chain
   breaks.
+- A method / constructor parameter list wraps per `METHOD_PARAMETERS_WRAP`
+  (codes `0` / `1` / `2` / `5`) when the **whole declaration header**
+  overflows the margin, not just the parenthesised list: the flat `throws`
+  clause and the body's opening `{` (or the terminating `;`) are measured too,
+  so a header that crosses the margin only after the `)` still wraps. The
+  option therefore takes precedence over `THROWS_LIST_WRAP` — with both enabled
+  the list wraps and the `throws` clause stays on the `)` line — a brace placed
+  on its own line (`METHOD_BRACE_STYLE` next-line) contributes nothing, and
+  under `0` (do not wrap) an over-margin header is preserved byte-for-byte.
 - Method-call chains break per `METHOD_CALL_CHAIN_WRAP` (codes `0` / `1` /
   `2` / `5`) into one link per line at the continuation indent, and an
   overflowing link's own argument list wraps per `CALL_PARAMETERS_WRAP` (with

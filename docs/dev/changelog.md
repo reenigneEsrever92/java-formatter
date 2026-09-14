@@ -9,6 +9,16 @@ tags: [dev, changelog]
 
 ## 2026-09-14
 
+- **A method parameter list is wrapped when the whole declaration header
+  overflows (method-parameter-header-overflow)**: `Fmt::formal_params` in
+  `crates/core/src/formatter.rs` now measures the parameter list together with
+  the flat `throws` clause and the body brace (or the terminating `;`) that
+  share its line — via a new `Fmt::decl_header_tail` and a shared `flat_clause`
+  helper — so `METHOD_PARAMETERS_WRAP` wrap-if-long / chop-down wraps a header
+  that crosses the margin only after the `)` instead of leaving a 144-column
+  line. See
+  [A method parameter list is not wrapped when the declaration header overflows only because of the throws clause or the body brace](backlog/method-parameter-header-overflow.md).
+
 - **Every formatted file ends with exactly one trailing empty line** —
   `finalise_line_endings` in `crates/core/src/formatter.rs` now appends the
   configured separator twice, so output always ends with one trailing empty

@@ -4303,6 +4303,43 @@ impl<'s> Fmt<'s> {
         }
     }
 
+    /// The tokens that share a method / constructor declaration's header line
+    /// after its parameter list: the flat `throws` clause and the body's
+    /// opening brace (or the terminating `;`). [`Self::formal_params`] measures
+    /// this so the list wraps when the whole header overflows, not just the
+    /// list; a next-line brace style contributes no brace — it moves to its own
+    /// line — and neither does a collapsed body presented on its own line.
+    fn decl_header_tail(&self, node: Node<'s>, indent: usize) -> String {
+        let mut tail = String::new();
+        if let Some(throws) = self.get_throws(node) {
+            tail.push_str(&self.flat_clause("throws", throws, &|n| self.flat_type(n)));
+        }
+        match self.fld(node, "body") {
+            None => tail.push(';'),
+            Some(body) => {
+                let next_line_brace = matches!(
+                    self.style.method_brace_style,
+                    BraceStyle::NextLine
+                        | BraceStyle::NextLineShifted
+                        | BraceStyle::NextLineShifted2
+                );
+                let presented_one_line = self.style.keep_simple_methods_in_one_line
+                    && matches!(
+                        self.style.method_brace_style,
+                        BraceStyle::EndOfLine | BraceStyle::NextLineIfWrapped
+                    )
+                    && self
+                        .one_line_body(body, indent)
+                        .is_some_and(|one| one.starts_with('\n'));
+                if !next_line_brace && !presented_one_line {
+                    tail.push_str(self.sp(self.style.space_before_method_lbrace));
+                    tail.push('{');
+                }
+            }
+        }
+        tail
+    }
+
     // ── method / constructor / field ──────────────────────────────────────────
 
     fn method_decl(&self, node: Node<'s>, indent: usize, c: usize) -> String {
@@ -4344,7 +4381,13 @@ impl<'s> Fmt<'s> {
                 let gap = self.sp(self.style.space_before_method_parentheses);
                 let pcol = c + self.col_after(0, &out) + gap.len();
                 out.push_str(gap);
-                out.push_str(&self.formal_params(params, indent, pcol, false));
+                out.push_str(&self.formal_params(
+                    params,
+                    indent,
+                    pcol,
+                    false,
+                    &self.decl_header_tail(node, indent),
+                ));
             }
 
             // throws
@@ -4419,7 +4462,13 @@ impl<'s> Fmt<'s> {
                 let gap = self.sp(self.style.space_before_method_parentheses);
                 let pcol = c + self.col_after(0, &out) + gap.len();
                 out.push_str(gap);
-                out.push_str(&self.formal_params(params, indent, pcol, false));
+                out.push_str(&self.formal_params(
+                    params,
+                    indent,
+                    pcol,
+                    false,
+                    &self.decl_header_tail(node, indent),
+                ));
             }
 
             if let Some(throws) = self.get_throws(node) {
@@ -5241,7 +5290,14 @@ impl<'s> Fmt<'s> {
 
     // ── formal parameters ─────────────────────────────────────────────────────
 
-    fn formal_params(&self, node: Node<'s>, indent: usize, c: usize, is_call: bool) -> String {
+    fn formal_params(
+        &self,
+        node: Node<'s>,
+        indent: usize,
+        c: usize,
+        is_call: bool,
+        header_tail: &str,
+    ) -> String {
         let (entries, trailing) = self.list_entries(node);
 
         if entries.is_empty() {
@@ -5328,7 +5384,11 @@ impl<'s> Fmt<'s> {
             || match wrap {
                 WrapStyle::DoNotWrap => false,
                 WrapStyle::WrapAlways => true,
-                _ => !self.fits(c, &flat),
+                // The whole declaration header is measured — the parameter list
+                // plus the `throws` clause and the body brace that share its
+                // line — so a header that only overflows after the `)` wraps
+                // too (`METHOD_PARAMETERS_WRAP` wins over `THROWS_LIST_WRAP`).
+                _ => !self.fits(c, &format!("{}{}", flat, header_tail)),
             };
 
         if !should_wrap {
@@ -10196,6 +10256,29 @@ impl<'s> Fmt<'s> {
         }
     }
 
+    /// The flat ` keyword A, B` text of a clause list (`throws` / `extends` /
+    /// `implements`), byte-identical to the text [`Self::clause_list`] emits
+    /// when it does not wrap. Shared with [`Self::decl_header_tail`] so the
+    /// declaration-header margin test measures exactly what would be rendered.
+    fn flat_clause<F: Fn(Node<'s>) -> String>(
+        &self,
+        keyword: &str,
+        node: Node<'s>,
+        render: &F,
+    ) -> String {
+        let (entries, trailing) = self.list_entries(node);
+        if entries.is_empty() {
+            return format!(" {} ", keyword);
+        }
+        let flat_items: Vec<String> = entries
+            .iter()
+            .map(|(cm, n, tr)| self.flat_entry(cm, render(*n), tr))
+            .collect();
+        let mut flat_inner = flat_items.join(self.comma_sep(self.style.space_after_comma));
+        flat_inner.push_str(&self.flat_trailing(&trailing));
+        format!(" {} {}", keyword, flat_inner)
+    }
+
     /// Render a declaration clause tail — the text appended where the clause
     /// begins at column `cur_col` — for the shared `throws` / `extends` /
     /// `implements` layout. `DoNotWrap` (and single-element lists) produce the
@@ -10232,13 +10315,7 @@ impl<'s> Fmt<'s> {
             return format!(" {} ", keyword);
         }
         let forces = self.list_forces_wrap(node);
-        let flat_items: Vec<String> = entries
-            .iter()
-            .map(|(cm, n, tr)| self.flat_entry(cm, render(*n), tr))
-            .collect();
-        let mut flat_inner = flat_items.join(self.comma_sep(self.style.space_after_comma));
-        flat_inner.push_str(&self.flat_trailing(&trailing));
-        let flat = format!(" {} {}", keyword, flat_inner);
+        let flat = self.flat_clause(keyword, node, &render);
         let should_wrap = forces
             || match wrap {
                 WrapStyle::DoNotWrap => false,
